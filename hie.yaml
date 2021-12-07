@@ -1,0 +1,16 @@
+cradle:
+  multi:
+    # - path: "ignore/"
+    #   config: {cradle: {none: }}
+
+    - path: "src"
+      config: {cradle: {cabal: {component: "lib:spaghetti"}}}
+
+    - path: "app"
+      config: {cradle: {cabal: {component: "spaghetti:spaghetti-exe"}}}
+
+    - path: "test"
+      config: {cradle: {cabal: {component: "spaghetti:spaghetti-test"}}}
+
+    - path: "bench"
+      config: {cradle: {cabal: {component: "spaghetti:spaghetti-bench"}}}
