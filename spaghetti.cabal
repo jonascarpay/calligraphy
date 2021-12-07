@@ -26,15 +26,27 @@ common common-options
   ghc-options:
     -Wall -Wcompat -Widentities -Wincomplete-uni-patterns
     -Wincomplete-record-updates -Wredundant-constraints
-    -fhide-source-paths -Wpartial-fields
+    -fhide-source-paths -Wpartial-fields -fwrite-ide-info
 
 library
   import:          common-options
   hs-source-dirs:  src
-  exposed-modules: Lib
+  other-modules:   Paths_spaghetti
+  autogen-modules: Paths_spaghetti
+  exposed-modules:
+    Lib
+    Spaghetti
+
   build-depends:
     , containers
+    , directory
+    , filepath
+    , ghc
     , mtl
+    , optparse-applicative
+    , regex-tdfa
+    , text
+    , transformers
 
 executable spaghetti-exe
   import:         common-options
@@ -51,8 +63,8 @@ test-suite spaghetti-test
   build-depends:
     , hspec
     , HUnit
-    , spaghetti
     , QuickCheck
+    , spaghetti
 
   ghc-options:    -threaded -rtsopts -with-rtsopts=-N
 

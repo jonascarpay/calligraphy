@@ -1,4 +1,4 @@
-import Lib
+import qualified Spaghetti as S
 
 main :: IO ()
-main = putStrLn "heyyyyyy"
+main = S.main
