@@ -68,6 +68,7 @@ main = do
 -- analysis, and report all unused definitions according to the 'Config'.
 mainWithConfig :: String -> [FilePath] -> Bool -> IO ()
 mainWithConfig hieExt hieDirectories requireHsFiles = do
+  putStrLn "Looking for hie files..."
   hieFilePaths <-
     concat
       <$> traverse
@@ -88,6 +89,7 @@ mainWithConfig hieExt hieDirectories requireHsFiles = do
 
   flip evalStateT nameCache $
     for_ hieFilePaths $ \hieFilePath -> do
+      liftIO $ putStrLn $ "reading " <> hieFilePath
       hieFileResult <- readCompatibleHieFileOrExit hieFilePath
       let hsFileExists = any (hie_hs_file hieFileResult `isSuffixOf`) hsFilePaths
       when (not requireHsFiles || hsFileExists) $ do

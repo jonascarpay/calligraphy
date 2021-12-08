@@ -24,11 +24,12 @@ import HieTypes hiding (nodeInfo)
 import Lens.Micro.Platform
 import Module
 import Name
+import SrcLoc
 import Unique
 
 data Declaration = Declaration
   { declName :: String,
-    declSpan :: Span,
+    declLoc :: RealSrcLoc,
     declScope :: Scope,
     declSub :: IntSet,
     declUse :: IntSet
@@ -56,7 +57,7 @@ findDecl (Node (NodeInfo _anns _types idents) _span children) =
       (subs, uses) <- lift . execWriterT $ forM children findDecl
       let uid = getKey . nameUnique $ name
       tell (IS.singleton uid, mempty)
-      at uid ?= Declaration (occNameString $ nameOccName name) span scope subs uses
+      at uid ?= Declaration (occNameString $ nameOccName name) (realSrcSpanStart span) scope subs uses
     [] -> do
       forM_ (extractUse idents) $ \name -> tell (mempty, IS.singleton $ getKey . nameUnique $ name)
       forM_ children findDecl
