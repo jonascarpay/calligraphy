@@ -27,6 +27,7 @@ import UniqSupply
 -- | Parse command line arguments and into a 'Config' and run 'mainWithConfig'.
 main :: IO ()
 main = do
+  putStrLn "start"
   (hieExt, hieDirectories, requireHsFiles) <-
     execParser $
       info (optsP <**> helper <**> versionP) mempty
@@ -90,7 +91,8 @@ mainWithConfig hieExt hieDirectories requireHsFiles = do
       hieFileResult <- readCompatibleHieFileOrExit hieFilePath
       let hsFileExists = any (hie_hs_file hieFileResult `isSuffixOf`) hsFilePaths
       when (not requireHsFiles || hsFileExists) $ do
-        liftIO $ T.putStrLn $ runPrinter $ hieFile hieFileResult
+        -- liftIO $ T.putStrLn $ runPrinter $ hieFile hieFileResult
+        liftIO $ T.putStrLn $ runPrinter $ topLevel hieFileResult
 
 -- mapM_ print hieFilePaths
 -- mapM_ print hsFilePaths

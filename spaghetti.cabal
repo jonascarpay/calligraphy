@@ -42,6 +42,7 @@ library
     , directory
     , filepath
     , ghc
+    , microlens-platform
     , mtl
     , optparse-applicative
     , regex-tdfa
