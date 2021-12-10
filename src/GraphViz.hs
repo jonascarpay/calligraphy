@@ -1,63 +1,69 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module GraphViz where
+module GraphViz (render) where
 
+import Config
 import Control.Monad
 import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
-import Data.List (intercalate)
 import Lib
 import Printer
 
-(.=) :: String -> String -> (String, String)
-(.=) = (,)
-
-infix 9 .=
-
-showAttrs :: [(String, String)] -> String
-showAttrs attrs = "[" <> intercalate ", " (fmap (\(a, b) -> a <> "=" <> b) attrs) <> "]"
-
-renderGraphViz :: IntMap Declaration -> [ParsedModule] -> Printer ()
-renderGraphViz env modules = do
+render :: IntMap Declaration -> RenderConfig -> [ParsedModule] -> Printer ()
+render env RenderConfig {renderLevel, showCalls, splines, includeFilters, excludeFilters} modulesUnfiltered = do
   textLn "digraph {"
   indent $ do
-    strLn "splines=false;"
-    forM_ (zip modules [0 ..]) $ \(ParsedModule modName exports binds, i) -> do
+    unless splines $ strLn "splines=false;"
+    textLn "// Module Clusters"
+    forM_ (zip modules [0 :: Int ..]) $ \(mod, i) -> do
       strLn $ "subgraph cluster_" <> show i <> " {"
       indent $ do
-        strLn $ "label=" <> show modName <> ";"
-        forM_ (IS.toList binds) $ renderDecl env exports binds
+        strLn $ "label=" <> show (pmName mod) <> ";"
+        printDecls mod
       textLn "}"
-  textLn "// Call graph"
-  indent $
-    forM_ modules $ \(ParsedModule modName exports binds) -> do
-      forM_ (IS.toList binds) $ renderCall env
+    when showCalls $ do
+      textLn "// Call graph"
+      forM_ calls $ \(caller, callee) -> strLn $ show caller <> " -> " <> show callee <> ";"
   textLn "}"
-
-renderDecl :: IntMap Declaration -> IntSet -> IntSet -> Int -> Printer ()
-renderDecl env exports binds = go
   where
-    go binder = do
-      let decl = env IM.! binder
-          style
-            | IS.member binder exports = ["shape" .= "box"]
-            | IS.member binder binds = ["shape" .= "ellipse"]
-            | otherwise = ["shape" .= "ellipse", "style" .= "dashed"]
-      strLn $
-        show binder
-          <> showAttrs ("label" .= show (declName decl) : style)
-          <> ";"
-      forM_ (IS.toList (declSub decl)) $ \sub -> do
-        strLn $ show binder <> " -> " <> show sub <> " [weight=5, style=dashed];"
-        indent (go sub)
+    modules = include . exclude $ modulesUnfiltered
+      where
+        include = if null includeFilters then id else filter (matchesAny includeFilters)
+        exclude = if null excludeFilters then id else filter (not . matchesAny excludeFilters)
+        matchesAny l (ParsedModule name _ _) = any (flip match name) l
 
-renderCall :: IntMap Declaration -> Int -> Printer ()
-renderCall env = go
-  where
-    go caller = do
-      let Declaration _ _ _ sub calls = env IM.! caller
-      forM_ (IS.toList calls) $ \callee -> do
-        when (IM.member callee env) $ strLn $ show caller <> " -> " <> show callee <> ";"
-      forM_ (IS.toList sub) go
+    decl :: Int -> Declaration
+    decl = (env IM.!)
+
+    calls :: [(Int, Int)]
+    calls = IS.toList roots >>= \ix -> collectCalls ix ix
+      where
+        collectCalls root caller = do
+          callee <- IS.toList (declCalls (decl caller))
+          let current = (if renderLevel == All then caller else root, callee)
+              rest = collectCalls root callee
+          if IS.member callee roots then current : rest else rest
+        roots = foldMap moduleRoots modules
+
+    printDecls :: ParsedModule -> Printer ()
+    printDecls mod@(ParsedModule _ exports binds) = mapM_ printDecl (IS.toList $ moduleRoots mod)
+      where
+        printDecl ix = do
+          let Declaration name _ _ subs _ = decl ix
+          strLn $ show ix <> " " <> declStyle ix name <> ";"
+          when (renderLevel == All) $
+            indent $
+              forM_ (IS.toList subs) $ \sub -> do
+                strLn $ show ix <> " -> " <> show sub <> " [style=dashed];"
+                printDecl sub
+
+        declStyle ix name
+          | IS.member ix exports = "[label=" <> name <> ", shape=box]"
+          | IS.member ix binds = "[label=" <> name <> ", shape=ellipse]"
+          | otherwise = "[label=" <> name <> ", shape=ellipse, style=dashed]"
+
+    moduleRoots :: ParsedModule -> IntSet
+    moduleRoots (ParsedModule _ exports binds) = if renderLevel == Exports then exports else binds

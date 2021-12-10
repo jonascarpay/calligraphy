@@ -14,6 +14,7 @@ import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
 import Data.Map qualified as M
 import Data.Set qualified as S
+import Debug.Trace
 import FieldLabel (flSelector)
 import HieTypes hiding (nodeInfo)
 import Lens.Micro.Platform
@@ -27,8 +28,8 @@ data Declaration = Declaration
   { declName :: String,
     declLoc :: RealSrcLoc,
     declScope :: Scope,
-    declSub :: IntSet,
-    declUse :: IntSet
+    declSubs :: IntSet,
+    declCalls :: IntSet
   }
 
 data ParsedModule = ParsedModule
@@ -40,8 +41,8 @@ data ParsedModule = ParsedModule
 renderDecls :: IntMap Declaration -> Int -> Printer ()
 renderDecls decls i =
   case IM.lookup i decls of
-    Just (Declaration name span scope subs _) -> do
-      strLn $ name <> "\t\t\t\t" <> show span
+    Just (Declaration name loc _scope subs _) -> do
+      strLn $ name <> "\t\t\t\t" <> show loc
       indent $ forM_ (IS.toList subs) (renderDecls decls) -- TODO worker wrapper
     Nothing -> error "impossible"
 
@@ -56,7 +57,7 @@ nameKey :: Name -> Int
 nameKey = getKey . nameUnique
 
 parseModule :: HieFile -> State (IntMap Declaration) ParsedModule
-parseModule (HieFile path (Module _ modName) _types (HieASTs asts) exps _src) = do
+parseModule (HieFile _path (Module _ modName) _types (HieASTs asts) exps _src) = do
   let exports =
         IS.fromList $
           exps >>= \case
@@ -68,15 +69,15 @@ parseModule (HieFile path (Module _ modName) _types (HieASTs asts) exps _src) = 
 findDecl :: HieAST a -> WriterT (IntSet, IntSet) (State (IntMap Declaration)) ()
 findDecl (Node (NodeInfo _anns _types idents) _span children) =
   case children >>= extractBinders of
-    [(span, name, scope)] -> do
+    [(loc, name, scope)] -> do
       (subs, uses) <- lift . execWriterT $ forM children findDecl
       let uid = nameKey name
       tell (IS.singleton uid, mempty)
-      at uid ?= Declaration (occNameString $ nameOccName name) (realSrcSpanStart span) scope subs uses
+      at uid ?= Declaration (occNameString $ nameOccName name) (realSrcSpanStart loc) scope subs uses
     [] -> do
       forM_ (extractUse idents) $ \name -> tell (mempty, IS.singleton $ nameKey name)
       forM_ children findDecl
-    _ -> error "wat"
+    ls -> trace (unlines $ fmap (\(spn, nm, _) -> show $ (spn, occNameString $ nameOccName nm)) ls) undefined
 
 extractBinders :: HieAST a -> [(Span, Name, Scope)]
 extractBinders (Node (NodeInfo _anns _types idents) span _children) =

@@ -1,4 +1,14 @@
-module Config where
+module Config
+  ( RenderConfig (..),
+    SearchConfig (..),
+    OutputConfig (..),
+    AppConfig (..),
+    pConfig,
+    RenderLevel (..),
+    Filter,
+    match,
+  )
+where
 
 import Options.Applicative
 
@@ -13,41 +23,52 @@ match (Filter matcher) = go False matcher
     go _ [] [] = True
     go _ _ _ = False
 
-data SearchConfig = SearchConfig
-  { searchDotDirs :: Bool,
-    searchRoots :: [FilePath],
-    requireHsFiles :: Bool
+data AppConfig = AppConfig
+  { searchConfig :: SearchConfig,
+    renderConfig :: RenderConfig,
+    outputConfig :: OutputConfig
   }
 
-pSearchConfig :: Parser SearchConfig
-pSearchConfig =
-  SearchConfig
-    <$> flag
-      True
-      False
-      ( long "search-dot-dirs"
-          <> help "Search through directories with a leading period"
-      )
-    <*> many
-      ( strOption
-          ( long "dir"
-              <> help "Directory to search in. Can be specified mutliple times. Defaults to ./."
-          )
-      )
-    <*> flag True False (long "require-hs-files" <> help "Requires that all .hie files have matching .hs files. Useful for skippng .hie files for modules that have since been removed.")
+data SearchConfig = SearchConfig
+  { searchDotPaths :: Bool,
+    searchRoots :: [FilePath]
+  }
 
 data RenderConfig = RenderConfig
-  { hideLocalBindings :: RenderLevel,
+  { renderLevel :: RenderLevel,
     showCalls :: Bool,
     splines :: Bool,
-    moduleIncludes :: [Filter],
-    moduleExcludes :: [Filter]
+    includeFilters :: [Filter],
+    excludeFilters :: [Filter]
   }
+
+data OutputConfig
+  = OutputStdOut
+  | OutputFile FilePath
 
 data RenderLevel
   = All
   | Module
   | Exports
+  deriving (Eq, Show)
+
+pConfig :: Parser AppConfig
+pConfig = AppConfig <$> pSearchConfig <*> pRenderConfig <*> pOutputConfig
+
+pSearchConfig :: Parser SearchConfig
+pSearchConfig =
+  SearchConfig
+    <$> switch
+      ( long "hidden"
+          <> help "Search paths with a leading period. Disabled by default."
+      )
+    <*> many
+      ( strOption
+          ( long "input"
+              <> short 'i'
+              <> help "Filepaths to search. If passed a file, it will be processed as is. If passed a directory, the directory will be searched recursively. Can be specified multiple times. Defaults to ./."
+          )
+      )
 
 pRenderLevel :: Parser RenderLevel
 pRenderLevel =
@@ -65,7 +86,7 @@ pRenderConfig =
       ( Filter
           <$> strOption
             ( long "module"
-                <> short 'i'
+                <> short 'm'
                 <> help "Only include modules that match the specified pattern. Can contain '*' wildcards. Can be specified multiple times"
             )
       )
@@ -77,3 +98,13 @@ pRenderConfig =
                 <> help "Exclude modules that match the specified pattern. Can contain '*' wildcards. Can be specified multiple times"
             )
       )
+
+pOutputConfig :: Parser OutputConfig
+pOutputConfig =
+  OutputFile
+    <$> strOption
+      ( long "output"
+          <> short 'o'
+          <> help "Path to write output to. Defaults to stdout."
+      )
+    <|> pure OutputStdOut
