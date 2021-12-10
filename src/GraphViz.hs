@@ -7,8 +7,17 @@ import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
+import Data.List (intercalate)
 import Lib
 import Printer
+
+(.=) :: String -> String -> (String, String)
+(.=) = (,)
+
+infix 9 .=
+
+showAttrs :: [(String, String)] -> String
+showAttrs attrs = "[" <> intercalate ", " (fmap (\(a, b) -> a <> "=" <> b) attrs) <> "]"
 
 renderGraphViz :: IntMap Declaration -> [ParsedModule] -> Printer ()
 renderGraphViz env modules = do
@@ -19,7 +28,7 @@ renderGraphViz env modules = do
       strLn $ "subgraph cluster_" <> show i <> " {"
       indent $ do
         strLn $ "label=" <> show modName <> ";"
-        forM_ (IS.toList binds) $ renderDecl env exports
+        forM_ (IS.toList binds) $ renderDecl env exports binds
       textLn "}"
   textLn "// Call graph"
   indent $
@@ -27,18 +36,20 @@ renderGraphViz env modules = do
       forM_ (IS.toList binds) $ renderCall env
   textLn "}"
 
-renderDecl :: IntMap Declaration -> IntSet -> Int -> Printer ()
-renderDecl env exports = go
+renderDecl :: IntMap Declaration -> IntSet -> IntSet -> Int -> Printer ()
+renderDecl env exports binds = go
   where
     go binder = do
-      let Declaration name _loc _scope subs calls = env IM.! binder
+      let decl = env IM.! binder
+          style
+            | IS.member binder exports = ["shape" .= "box"]
+            | IS.member binder binds = ["shape" .= "ellipse"]
+            | otherwise = ["shape" .= "ellipse", "style" .= "dashed"]
       strLn $
         show binder
-          <> " [label="
-          <> show name
-          <> (if IS.member binder exports then ", shape=diamond" else mempty)
-          <> "];"
-      forM_ (IS.toList subs) $ \sub -> do
+          <> showAttrs ("label" .= show (declName decl) : style)
+          <> ";"
+      forM_ (IS.toList (declSub decl)) $ \sub -> do
         strLn $ show binder <> " -> " <> show sub <> " [weight=5, style=dashed];"
         indent (go sub)
 
