@@ -11,14 +11,16 @@ import Control.Monad.RWS
 import Control.Monad.State
 import Data.Foldable
 import Data.List (isSuffixOf)
-import qualified Data.Text.IO as T
+import Data.Text.IO qualified as T
 import Data.Version (showVersion)
+import GraphViz
 import HieBin
 import HieTypes
 import Lib
 import NameCache
 import Options.Applicative
 import Paths_spaghetti (version)
+import Printer
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist, doesPathExist, listDirectory, withCurrentDirectory)
 import System.Exit (exitFailure)
 import System.FilePath (isExtensionOf)
@@ -87,14 +89,17 @@ mainWithConfig hieExt hieDirectories requireHsFiles = do
     uniqSupply <- mkSplitUniqSupply 'z'
     return (initNameCache uniqSupply [])
 
-  flip evalStateT nameCache $
-    for_ hieFilePaths $ \hieFilePath -> do
+  hieFiles <- flip evalStateT nameCache $ do
+    forM hieFilePaths $ \hieFilePath -> do
       liftIO $ putStrLn $ "reading " <> hieFilePath
-      hieFileResult <- readCompatibleHieFileOrExit hieFilePath
-      let hsFileExists = any (hie_hs_file hieFileResult `isSuffixOf`) hsFilePaths
-      when (not requireHsFiles || hsFileExists) $ do
-        -- liftIO $ T.putStrLn $ runPrinter $ hieFile hieFileResult
-        liftIO $ T.putStrLn $ runPrinter $ topLevel hieFileResult
+      readCompatibleHieFileOrExit hieFilePath
+  -- let hsFileExists = any (hie_hs_file hieFileResult `isSuffixOf`) hsFilePaths
+  -- when (not requireHsFiles || hsFileExists) $ do
+  --   -- liftIO $ T.putStrLn $ runPrinter $ hieFile hieFileResult
+  --   liftIO $ T.putStrLn $ runPrinter $ topLevel hieFileResult
+
+  let (mods, env) = flip runState mempty $ mapM parseModule hieFiles
+  liftIO $ T.writeFile "spaghetti.dot" $ runPrinter $ renderGraphViz env mods
 
 -- mapM_ print hieFilePaths
 -- mapM_ print hsFilePaths

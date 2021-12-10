@@ -4,26 +4,21 @@
 
 module Lib where
 
+import Avail (AvailInfo (Avail))
 import Control.Monad.RWS
-import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Foldable
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
+import Data.IntMap qualified as IM
 import Data.IntSet (IntSet)
-import qualified Data.IntSet as IS
-import Data.Map (Map)
-import qualified Data.Map as M
-import qualified Data.Set as S
-import Data.Text (Text)
-import qualified Data.Text.Lazy as TL
-import Data.Text.Lazy.Builder (Builder)
-import qualified Data.Text.Lazy.Builder as B
+import Data.IntSet qualified as IS
+import Data.Map qualified as M
+import Data.Set qualified as S
 import HieTypes hiding (nodeInfo)
 import Lens.Micro.Platform
 import Module
 import Name
+import Printer
 import SrcLoc
 import Unique
 
@@ -33,6 +28,12 @@ data Declaration = Declaration
     declScope :: Scope,
     declSub :: IntSet,
     declUse :: IntSet
+  }
+
+data ParsedModule = ParsedModule
+  { pmName :: String,
+    pmExports :: IntSet,
+    pmBinds :: IntSet
   }
 
 renderDecls :: IntMap Declaration -> Int -> Printer ()
@@ -50,16 +51,29 @@ topLevel (HieFile _path modName _types (HieASTs asts) _exports _src) =
         pModuleName $ moduleName modName
         indent $ forM_ (IS.toList subs) (renderDecls decls)
 
+nameKey :: Name -> Int
+nameKey = getKey . nameUnique
+
+parseModule :: HieFile -> State (IntMap Declaration) ParsedModule
+parseModule (HieFile path (Module _ modName) _types (HieASTs asts) exps _src) = do
+  let exports =
+        IS.fromList $
+          exps >>= \case
+            Avail name -> [nameKey name]
+            _ -> []
+  (decls, _) <- execWriterT $ traverse findDecl asts
+  pure $ ParsedModule (moduleNameString modName) exports decls
+
 findDecl :: HieAST a -> WriterT (IntSet, IntSet) (State (IntMap Declaration)) ()
 findDecl (Node (NodeInfo _anns _types idents) _span children) =
   case children >>= extractBinders of
     [(span, name, scope)] -> do
       (subs, uses) <- lift . execWriterT $ forM children findDecl
-      let uid = getKey . nameUnique $ name
+      let uid = nameKey name
       tell (IS.singleton uid, mempty)
       at uid ?= Declaration (occNameString $ nameOccName name) (realSrcSpanStart span) scope subs uses
     [] -> do
-      forM_ (extractUse idents) $ \name -> tell (mempty, IS.singleton $ getKey . nameUnique $ name)
+      forM_ (extractUse idents) $ \name -> tell (mempty, IS.singleton $ nameKey name)
       forM_ children findDecl
     _ -> error "wat"
 
@@ -81,28 +95,6 @@ extractUse idents =
   M.toList idents >>= \case
     (Right name, IdentifierDetails _ ctx) | S.member Use ctx -> pure name
     _ -> []
-
-type Printer = RWS Int () Builder
-
-type Prints a = a -> Printer ()
-
-runPrinter :: Printer () -> Text
-runPrinter p = TL.toStrict . B.toLazyText . fst $ execRWS p 0 mempty
-
-indent :: Printer a -> Printer a
-indent = local (+ 4)
-
-line :: Prints Builder
-line t = do
-  n <- ask
-  modify $
-    flip mappend $ fold (replicate n (B.singleton ' ')) <> t <> B.singleton '\n'
-
-strLn :: Prints String
-strLn = line . B.fromString
-
-textLn :: Prints Text
-textLn = line . B.fromText
 
 hieFile :: Prints HieFile
 hieFile (HieFile path mod _types (HieASTs asts) _exps _src) = do
