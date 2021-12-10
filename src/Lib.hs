@@ -4,7 +4,7 @@
 
 module Lib where
 
-import Avail (AvailInfo (Avail))
+import Avail (AvailInfo (..))
 import Control.Monad.RWS
 import Control.Monad.State
 import Control.Monad.Writer
@@ -14,6 +14,7 @@ import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
 import Data.Map qualified as M
 import Data.Set qualified as S
+import FieldLabel (flSelector)
 import HieTypes hiding (nodeInfo)
 import Lens.Micro.Platform
 import Module
@@ -60,7 +61,7 @@ parseModule (HieFile path (Module _ modName) _types (HieASTs asts) exps _src) = 
         IS.fromList $
           exps >>= \case
             Avail name -> [nameKey name]
-            _ -> []
+            AvailTC name names fields -> fmap nameKey $ name : (names <> (flSelector <$> fields))
   (decls, _) <- execWriterT $ traverse findDecl asts
   pure $ ParsedModule (moduleNameString modName) exports decls
 
