@@ -22,7 +22,7 @@ import Options.Applicative
 import Paths_spaghetti (version)
 import Printer
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
-import System.FilePath (isExtensionOf, replaceExtension, (</>))
+import System.FilePath
 import UniqSupply
 
 main :: IO ()
@@ -52,8 +52,7 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
     flip evalStateT nameCache $
       forM hieFilePaths readHieFileWithWarning
 
-  let (mods, env) = flip runState mempty $ mapM parseModule hieFiles
-      txt = runPrinter $ render env renderConfig mods
+  let txt = runPrinter $ render renderConfig (parseModule <$> hieFiles)
 
   case outputConfig of
     OutputStdOut -> T.putStr txt
