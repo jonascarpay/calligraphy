@@ -6,81 +6,124 @@ module GraphViz (render) where
 
 import Config
 import Control.Monad
+import Control.Monad.State
 import Data.Foldable
 import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
+import Data.Set (Set)
+import Data.Set qualified as S
 import Lib
 import Printer (Printer, indent, strLn, textLn)
 
-a :: Int
-a = b
-  where
-    b = c
-    c = a
+type CallWriter = State (Set (Int, Int))
 
-collapseChildCalls :: Declaration -> Declaration
-collapseChildCalls self@(Declaration name key loc scope _ _) = Declaration name key loc scope [] (collectCalls self)
+tell :: Set (Int, Int) -> CallWriter ()
+tell = modify . mappend
+
+cowSaysA :: Int
+cowSaysA = cowSaysB
   where
-    collectCalls :: Declaration -> IntSet
-    collectCalls decl = declCalls decl <> foldMap collectCalls (declSubs decl)
+    cowSaysB = cowSaysC
+    cowSaysC = cowSaysA
 
 render :: RenderConfig -> [ParsedModule] -> Printer ()
-render RenderConfig {renderLevel, showCalls, splines, includeFilters, excludeFilters} modulesUnfiltered = do
+render cfg modulesUnfiltered = do
+  let (RenderGraph modules calls) = toRenderGraph cfg modulesUnfiltered
   textLn "digraph {"
   indent $ do
-    unless splines $ strLn "splines=false;"
+    unless (splines cfg) $ strLn "splines=false;"
+    textLn "graph [overlap=false];"
     textLn "// Module Clusters"
-    forM_ (zip modules [0 :: Int ..]) $ \(mod, i) -> do
+    forM_ (zip modules [0 :: Int ..]) $ \(RenderModule name nodes, i) -> do
       strLn $ "subgraph cluster_" <> show i <> " {"
       indent $ do
-        strLn $ "label=" <> show (pmName mod) <> ";"
-        printModuleDeclarations mod
+        strLn $ "label=" <> show name <> ";"
+        mapM_ renderNode nodes
       textLn "}"
-    when showCalls $ do
+    when (showCalls cfg) $ do
       textLn "// Call graph"
       forM_ calls $ \(caller, callee) -> strLn $ show caller <> " -> " <> show callee <> ";"
   textLn "}"
   where
-    modules :: [ParsedModule]
-    modules = include . exclude $ modulesUnfiltered
+    style ScopeLocal = "style=dashed"
+    style ScopeExport = "shape=diamond"
+    style _ = mempty
+    renderNode :: RenderNode -> Printer ()
+    renderNode (RenderNode name key scope subs) = do
+      strLn $ show key <> " [label=" <> show name <> ", " <> style scope <> "];"
+      indent $ mapM_ renderNode subs
+
+toRenderGraph :: RenderConfig -> [ParsedModule] -> RenderGraph
+toRenderGraph (RenderConfig renderLevel showCalls _splines includeFilters excludeFilters) modulesUnfiltered =
+  RenderGraph renderedModules (if showCalls then filter (flip IS.member renderedNodes . snd) $ S.toList calls else [])
+  where
+    modules = filter (\m -> isNotExcluded excludeFilters m && isIncluded includeFilters m) modulesUnfiltered
+    (renderedModules, calls) = runState (mapM (renderModule renderLevel) modules) mempty
+    renderedNodes :: IntSet
+    renderedNodes = foldMap (foldMap f . rmDecls) renderedModules
       where
-        include = if null includeFilters then id else filter (matchesAny includeFilters)
-        exclude = if null excludeFilters then id else filter (not . matchesAny excludeFilters)
-        matchesAny l (ParsedModule name _ _) = any (flip match name) l
+        f (RenderNode _ key _ subs) = IS.singleton key <> foldMap f subs
 
-    calls :: [(Int, Int)]
-    calls = nodes >>= collect
+isIncluded :: [Filter] -> ParsedModule -> Bool
+isIncluded [] _ = True
+isIncluded fs p = any (flip match $ pmName p) fs
+
+isNotExcluded :: [Filter] -> ParsedModule -> Bool
+isNotExcluded [] _ = True
+isNotExcluded fs p = not $ any (flip match $ pmName p) fs
+
+renderModule :: RenderLevel -> ParsedModule -> CallWriter RenderModule
+renderModule renderLevel (ParsedModule name exports binds) = do
+  nodes' <- sequence $ binds >>= toList . renderBind
+  pure $ RenderModule name nodes'
+  where
+    renderBind :: Declaration -> Maybe (CallWriter RenderNode)
+    renderBind self@Declaration {declName, declKey, declSubs, declCalls} = do
+      let scope = if IS.member declKey exports then ScopeExport else ScopeModule
+       in case renderLevel of
+            Exports | scope /= ScopeExport -> Nothing
+            All ->
+              Just $ do
+                let goSubs :: Declaration -> CallWriter RenderNode
+                    goSubs Declaration {declName, declKey, declSubs, declCalls} = do
+                      modify $ mappend $ directCalls declKey declCalls
+                      RenderNode declName declKey ScopeLocal <$> mapM goSubs declSubs
+                tell $ directCalls declKey declCalls
+                RenderNode declName declKey scope <$> mapM goSubs declSubs
+            _ ->
+              Just
+                (RenderNode declName declKey scope [] <$ collectCalls self)
+
+    directCalls :: Int -> IntSet -> Set (Int, Int)
+    directCalls caller = S.fromList . fmap (caller,) . IS.toList
+    collectCalls :: Declaration -> CallWriter ()
+    collectCalls self@Declaration {declKey = caller} = go self
       where
-        nodes = modules >>= declarationTree renderLevel
-        collect (Declaration _ caller _ _ _ callees) = (caller,) <$> filter (flip IS.member callables) (IS.toList callees)
-        callables = IS.fromList $ nodes >>= go
-          where
-            go (Declaration _ caller _ _ subs _) = caller : (subs >>= go)
+        go Declaration {declCalls, declSubs} = do
+          tell $ directCalls caller (IS.delete caller declCalls)
+          mapM_ go declSubs
 
-    printModuleDeclarations :: ParsedModule -> Printer ()
-    printModuleDeclarations mod@(ParsedModule _ exports binds) = mapM_ printDeclaration (declarationTree renderLevel mod)
-      where
-        bindSet = IS.fromList (declKey <$> binds)
+data RenderGraph = RenderGraph
+  { rgModules :: [RenderModule],
+    rgCalls :: [(Int, Int)]
+  }
 
-        printDeclaration :: Declaration -> Printer ()
-        printDeclaration (Declaration name key _ _ subs _) = do
-          strLn $ show key <> " " <> declStyle key name <> ";"
-          indent $
-            forM_ subs $ \sub -> do
-              strLn $ show key <> " -> " <> show (declKey sub) <> " [style=dashed, arrowhead=none];"
-              printDeclaration sub
+data RenderModule = RenderModule
+  { rmName :: String,
+    rmDecls :: [RenderNode]
+  }
 
-        declStyle :: Int -> String -> String
-        declStyle key name
-          | IS.member key exports = "[label=" <> name <> ", shape=box]"
-          | IS.member key bindSet = "[label=" <> name <> ", shape=ellipse]"
-          | otherwise = "[label=" <> name <> ", shape=ellipse, style=dashed]"
+data NodeScope
+  = ScopeLocal
+  | ScopeModule
+  | ScopeExport
+  deriving (Eq, Show)
 
-declarationTree :: RenderLevel -> ParsedModule -> [Declaration]
-declarationTree rl (ParsedModule _ exports binds) =
-  case rl of
-    Exports -> collapseChildCalls <$> filter (flip IS.member exports . declKey) binds
-    Module -> collapseChildCalls <$> binds
-    All -> binds
+data RenderNode = RenderNode
+  { rnName :: String,
+    rnKey :: Int,
+    rnScope :: NodeScope,
+    rnSubs :: [RenderNode]
+  }

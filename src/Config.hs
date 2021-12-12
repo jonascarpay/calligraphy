@@ -34,12 +34,20 @@ data SearchConfig = SearchConfig
     searchRoots :: [FilePath]
   }
 
+-- TODO no clusters
+-- TODO sourceLocs
+-- TODO qualified names
+-- TODO LR rankdir
+-- TODO move to Render module
+-- TODO experiment with arrow direction (rendering, ordering)
+-- TODO these are mostly "filtering" options, with the exception of splines
+--   alternative, splines is a graphviz option
 data RenderConfig = RenderConfig
   { renderLevel :: RenderLevel,
     showCalls :: Bool,
     splines :: Bool,
-    includeFilters :: [Filter],
-    excludeFilters :: [Filter]
+    includeFilters :: [Filter], -- TODO this should be a Maybe NonEmpty
+    excludeFilters :: [Filter] -- TODO this should be a Maybe NonEmpty
   }
 
 data OutputConfig

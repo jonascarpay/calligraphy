@@ -52,6 +52,8 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
     flip evalStateT nameCache $
       forM hieFilePaths readHieFileWithWarning
 
+  T.putStr $ runPrinter $ forM_ hieFiles hieFile
+  T.putStr $ runPrinter $ forM_ hieFiles topLevel
   let txt = runPrinter $ render renderConfig (parseModule <$> hieFiles)
 
   case outputConfig of

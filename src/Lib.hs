@@ -10,8 +10,11 @@ import Avail (AvailInfo (..))
 import Control.Monad.RWS
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
+import Data.Map (Map)
 import Data.Map qualified as M
+import Data.Maybe
 import Data.Set qualified as S
+import Debug.Trace
 import FieldLabel (flSelector)
 import HieTypes hiding (nodeInfo)
 import Module
@@ -37,9 +40,20 @@ data ParsedModule = ParsedModule
   }
 
 renderDecls :: Declaration -> Printer ()
-renderDecls (Declaration name _ loc _scope subs _) = do
-  strLn $ name <> "\t\t\t\t" <> show loc
-  indent $ forM_ subs renderDecls -- TODO worker wrapper
+renderDecls decl = go decl
+  where
+    go (Declaration name key loc _scope subs calls) = do
+      strLn $ name <> "\t\t" <> show key <> "\t\t" <> show loc
+      indent $ do
+        strLn "calls:"
+        indent $
+          forM_ (IS.toList calls) $ \call -> strLn $ fromMaybe ("unknown " <> show call) (names M.!? call)
+        strLn "children:"
+        indent $ forM_ subs go -- TODO worker wrapper
+    names :: Map Int String
+    names = go decl
+      where
+        go (Declaration name key _ _ subs _) = M.singleton key (name <> " " <> show key) <> foldMap go subs
 
 topLevel :: Prints HieFile
 topLevel (HieFile _path modName _types (HieASTs asts) _exports _src) =
@@ -72,11 +86,8 @@ findDecl (Node (NodeInfo _anns _types idents) _span children) =
        in (IS.fromList (nameKey <$> calls) <> subCalls, subDecls)
     [(loc, name, scope)] ->
       (mempty, [Declaration (nameString name) (nameKey name) (realSrcSpanStart loc) scope subDecls subCalls])
-    ls
-      | IS.null subCalls && null subDecls ->
-        (mempty, flip fmap ls $ \(span, name, scope) -> Declaration (nameString name) (nameKey name) (realSrcSpanStart span) scope mempty mempty)
     ls ->
-      (mempty, flip fmap ls $ \(span, name, scope) -> Declaration (nameString name) (nameKey name) (realSrcSpanStart span) scope mempty mempty)
+      (mempty, flip fmap ls $ \(span, name, scope) -> traceShow ("subping", nameString name) $ Declaration (nameString name) (nameKey name) (realSrcSpanStart span) scope mempty mempty)
     _ -> error "multiple declarations, but also child calls"
   where
     (subCalls, subDecls) = foldMap findDecl children
