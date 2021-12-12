@@ -39,6 +39,7 @@ render cfg modulesUnfiltered = do
     forM_ (zip modules [0 :: Int ..]) $ \(RenderModule name nodes, i) -> do
       strLn $ "subgraph cluster_" <> show i <> " {"
       indent $ do
+        strLn "color=lightgrey;"
         strLn $ "label=" <> show name <> ";"
         mapM_ renderNode nodes
       textLn "}"
