@@ -4,7 +4,14 @@
 
 -- TODO export list
 
-module Lib where
+module Lib
+  ( Declaration (..),
+    ParsedModule (..),
+    hieFile,
+    topLevel,
+    parseModule,
+  )
+where
 
 import Avail (AvailInfo (..))
 import Control.Monad.RWS
@@ -14,7 +21,6 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Maybe
 import Data.Set qualified as S
-import Debug.Trace
 import FieldLabel (flSelector)
 import HieTypes hiding (nodeInfo)
 import Module
@@ -87,7 +93,7 @@ findDecl (Node (NodeInfo _anns _types idents) _span children) =
     [(loc, name, scope)] ->
       (mempty, [Declaration (nameString name) (nameKey name) (realSrcSpanStart loc) scope subDecls subCalls])
     ls ->
-      (mempty, flip fmap ls $ \(span, name, scope) -> traceShow ("subping", nameString name) $ Declaration (nameString name) (nameKey name) (realSrcSpanStart span) scope mempty mempty)
+      (mempty, flip fmap ls $ \(span, name, scope) -> Declaration (nameString name) (nameKey name) (realSrcSpanStart span) scope mempty mempty)
     _ -> error "multiple declarations, but also child calls"
   where
     (subCalls, subDecls) = foldMap findDecl children
