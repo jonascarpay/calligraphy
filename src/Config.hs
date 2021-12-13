@@ -53,6 +53,7 @@ data RenderConfig = RenderConfig
 data OutputConfig
   = OutputStdOut
   | OutputFile FilePath
+  | OutputPng FilePath
 
 data RenderLevel
   = All
@@ -107,12 +108,9 @@ pRenderConfig =
             )
       )
 
+-- TODO allow output to multiple places
 pOutputConfig :: Parser OutputConfig
 pOutputConfig =
-  OutputFile
-    <$> strOption
-      ( long "output"
-          <> short 'o'
-          <> help "Path to write output to. Defaults to stdout."
-      )
+  OutputFile <$> strOption (long "output-dot")
+    <|> OutputPng <$> strOption (long "output-png")
     <|> pure OutputStdOut

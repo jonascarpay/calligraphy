@@ -49,6 +49,7 @@ library
     , microlens-platform
     , mtl
     , optparse-applicative
+    , process
     , regex-tdfa
     , text
     , transformers

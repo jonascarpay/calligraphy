@@ -11,6 +11,7 @@ import Config
 import Control.Monad.RWS
 import Control.Monad.State
 import Data.List (isPrefixOf)
+import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Version (showVersion)
 import GraphViz
@@ -21,8 +22,10 @@ import NameCache
 import Options.Applicative
 import Paths_spaghetti (version)
 import Printer
-import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
+import System.Directory (doesDirectoryExist, doesFileExist, findExecutable, listDirectory, makeAbsolute)
+import System.Exit
 import System.FilePath
+import System.Process
 import UniqSupply
 
 main :: IO ()
@@ -59,6 +62,14 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
   case outputConfig of
     OutputStdOut -> T.putStr txt
     OutputFile fp -> T.writeFile fp txt
+    OutputPng fp -> do
+      mexe <- findExecutable "dot"
+      case mexe of
+        Nothing -> die "no dot"
+        Just exe -> do
+          (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
+          unless (code == ExitSuccess) $ do
+            putStrLn "dot crashed"
 
 searchFiles :: SearchConfig -> IO [FilePath]
 searchFiles SearchConfig {searchDotPaths, searchRoots} = do
