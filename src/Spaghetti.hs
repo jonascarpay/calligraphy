@@ -14,12 +14,12 @@ import Data.List (isPrefixOf)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Version (showVersion)
-import GraphViz
+import Debug
 import HieBin
 import HieTypes
-import Lib
 import NameCache
 import Options.Applicative
+import Parse
 import Paths_spaghetti (version)
 import Printer
 import System.Directory (doesDirectoryExist, doesFileExist, findExecutable, listDirectory, makeAbsolute)
@@ -55,21 +55,26 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
     flip evalStateT nameCache $
       forM hieFilePaths readHieFileWithWarning
 
-  T.putStr $ runPrinter $ forM_ hieFiles hieFile
-  T.putStr $ runPrinter $ forM_ hieFiles topLevel
-  let txt = runPrinter $ render renderConfig (parseModule <$> hieFiles)
+  T.putStr $
+    runPrinter $
+      forM_ hieFiles $ \hieFile -> do
+        -- ppHieFile hieFile
+        mapM_ ppModule $ parseHieFile hieFile
 
-  case outputConfig of
-    OutputStdOut -> T.putStr txt
-    OutputFile fp -> T.writeFile fp txt
-    OutputPng fp -> do
-      mexe <- findExecutable "dot"
-      case mexe of
-        Nothing -> die "no dot"
-        Just exe -> do
-          (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
-          unless (code == ExitSuccess) $ do
-            putStrLn "dot crashed"
+-- -- TODO WHY IS THIS IN THE GRAPH
+-- let txt = runPrinter $ render renderConfig (parseModule <$> hieFiles)
+
+-- case outputConfig of
+--   OutputStdOut -> T.putStr txt
+--   OutputFile fp -> T.writeFile fp txt
+--   OutputPng fp -> do
+--     mexe <- findExecutable "dot"
+--     case mexe of
+--       Nothing -> die "no dot"
+--       Just exe -> do
+--         (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
+--         unless (code == ExitSuccess) $ do
+--           putStrLn "dot crashed"
 
 searchFiles :: SearchConfig -> IO [FilePath]
 searchFiles SearchConfig {searchDotPaths, searchRoots} = do

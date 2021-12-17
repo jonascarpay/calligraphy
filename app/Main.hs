@@ -1,4 +1,5 @@
-import qualified Spaghetti as S
+import Dummy
+import Spaghetti qualified as S
 
 main :: IO ()
 main = S.main

@@ -39,6 +39,7 @@ data SearchConfig = SearchConfig
 -- TODO qualified names
 -- TODO LR rankdir
 -- TODO move to Render module
+-- TODO children on same rank
 -- TODO experiment with arrow direction (rendering, ordering)
 -- TODO these are mostly "filtering" options, with the exception of splines
 --   alternative, splines is a graphviz option

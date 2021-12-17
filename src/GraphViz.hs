@@ -33,7 +33,8 @@ render cfg modulesUnfiltered = do
   let (RenderGraph modules calls) = toRenderGraph cfg modulesUnfiltered
   textLn "digraph {"
   indent $ do
-    unless (splines cfg) $ strLn "splines=false;"
+    -- textLn "newrank=true;"
+    -- unless (splines cfg) $ strLn "splines=false;"
     textLn "graph [overlap=false];"
     textLn "// Module Clusters"
     forM_ (zip modules [0 :: Int ..]) $ \(RenderModule name nodes, i) -> do
@@ -41,7 +42,9 @@ render cfg modulesUnfiltered = do
       indent $ do
         strLn "color=lightgrey;"
         strLn $ "label=" <> show name <> ";"
-        mapM_ renderNode nodes
+        mapM_ nodeLine nodes
+        mapM_ renderChildren (rnSubs <$> nodes)
+        mapM_ renderSubs nodes
       textLn "}"
     when (showCalls cfg) $ do
       textLn "// Call graph"
@@ -51,10 +54,21 @@ render cfg modulesUnfiltered = do
     style ScopeLocal = "style=dashed"
     style ScopeExport = "shape=diamond"
     style _ = mempty
-    renderNode :: RenderNode -> Printer ()
-    renderNode (RenderNode name key scope subs) = do
+    renderChildren :: [RenderNode] -> Printer ()
+    renderChildren [] = pure ()
+    renderChildren nodes = do
+      strLn "{ rank=same;"
+      indent $ mapM_ nodeLine nodes
+      strLn "}"
+      mapM_ renderChildren (rnSubs <$> nodes)
+    nodeLine :: RenderNode -> Printer ()
+    nodeLine (RenderNode name key scope _) = do
       strLn $ show key <> " [label=" <> show name <> ", " <> style scope <> "];"
-      indent $ mapM_ renderNode subs
+    renderSubs :: RenderNode -> Printer ()
+    renderSubs (RenderNode name key scope subs) = do
+      forM_ subs $ \sub ->
+        strLn (show key <> " -> " <> show (rnKey sub) <> " [weight=100, style=dashed, arrowhead=none];")
+      mapM_ renderSubs subs
 
 toRenderGraph :: RenderConfig -> [ParsedModule] -> RenderGraph
 toRenderGraph (RenderConfig renderLevel showCalls _splines includeFilters excludeFilters) modulesUnfiltered =
