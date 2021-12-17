@@ -1,0 +1,6 @@
+- ignore:
+    name: Use section
+
+- ignore:
+    name: Avoid lambda using `infix`
+
