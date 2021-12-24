@@ -14,6 +14,8 @@ import Data.Set qualified as Set
 import FastString
 import GHC qualified
 import HieTypes
+import Name qualified as GHC
+import Unique qualified as GHC
 
 -- * TreeParser
 
@@ -22,8 +24,10 @@ type TreeParser n = ReaderT n Maybe
 clocal :: r' -> TreeParser r' a -> TreeParser r a
 clocal r' = withReaderT (const r')
 
-pAll, pMany :: (n -> [n']) -> TreeParser n' a -> TreeParser n [a]
+pAll :: (n -> [n']) -> TreeParser n' a -> TreeParser n [a]
 pAll f sub = asks f >>= mapM (flip clocal sub)
+
+pMany :: (n -> [n']) -> TreeParser n' a -> TreeParser n [a]
 pMany f sub = (>>= toList) <$> pAll f (optional sub)
 
 pSome :: (n -> [n']) -> TreeParser n' a -> TreeParser n (NonEmpty a)
@@ -32,11 +36,13 @@ pSome f sub =
     [] -> empty
     (h : t) -> pure $ h :| t
 
-pAny, pOne :: (n -> [n']) -> TreeParser n' a -> TreeParser n a
+pAny :: (n -> [n']) -> TreeParser n' a -> TreeParser n a
 pAny f sub = asks f >>= go
   where
     go [] = empty
     go (h : t) = clocal h sub <|> go t
+
+pOne :: (n -> [n']) -> TreeParser n' a -> TreeParser n a
 pOne f sub =
   pMany f sub >>= \case
     [a] -> pure a
@@ -51,6 +57,9 @@ type AstParser = TreeParser (HieAST TypeIndex)
 
 annotation :: (FastString, FastString) -> AstParser ()
 annotation ann = pCheck (Set.member ann . nodeAnnotations . nodeInfo)
+
+noAnnotation :: AstParser ()
+noAnnotation = pCheck (null . nodeAnnotations . nodeInfo)
 
 type Key = Int
 
@@ -77,9 +86,6 @@ pModule = do
         Left <$> pImport <|> Right <$> pTopLevelDecl
   pure $ Module {..}
 
-pTopLevelDecl :: AstParser TopLevelDecl
-pTopLevelDecl = empty -- error "not implemented"
-
 pImport :: AstParser String
 pImport = do
   annotation ("ImportDecl", "ImportDecl")
@@ -89,19 +95,53 @@ pImport = do
 
 data TopLevelDecl
   = TLData DataType
+  | TLValue Value
   | TLClass Class
 
--- DataDecl, TyClDecl
+pTopLevelDecl :: AstParser TopLevelDecl
+pTopLevelDecl =
+  asum
+    [ TLData <$> pData,
+      TLValue <$> pValue,
+      TLClass <$> pClass
+    ]
+
+-- * Data types
+
+names :: HieAST TypeIndex -> [GHC.Name]
+names = (>>= toList) . M.keys . nodeIdentifiers . nodeInfo
+
+unname :: GHC.Name -> (Key, String)
+unname n = (GHC.getKey $ GHC.nameUnique n, GHC.occNameString $ GHC.nameOccName n)
+
+pData :: AstParser DataType
+pData = do
+  annotation ("DataDecl", "TyClDecl")
+  (dtKey, dtName) <-
+    pOne nodeChildren $ do
+      noAnnotation
+      pOne names $ asks unname
+
+  pure $ DataType {..}
+
 data DataType = DataType
   { dtKey :: Int,
     dtName :: String,
     dtCons :: [DataCon]
   }
 
--- (_, ConDecl)
+pClass :: AstParser Class
+pClass = error "not implemented"
+
+pValue :: AstParser Value
+pValue = error "not implemented"
+
+data Value
+
 data DataCon = DataCon
-  { dcKey :: Int,
-    dcName :: String
+  { dcKey :: Key,
+    dcName :: String,
+    dcDeps :: [Key]
   }
 
 -- (ClassDecl, TyClDecl)

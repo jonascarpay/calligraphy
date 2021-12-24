@@ -4,3 +4,5 @@
 - ignore:
     name: Avoid lambda using `infix`
 
+- ignore:
+    name: Use <=<

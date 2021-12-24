@@ -58,7 +58,7 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
   T.putStr $
     runPrinter $
       forM_ hieFiles $ \hieFile -> do
-        -- ppHieFile hieFile
+        ppHieFile hieFile
         mapM_ ppModule $ parseHieFile hieFile
 
 -- -- TODO WHY IS THIS IN THE GRAPH

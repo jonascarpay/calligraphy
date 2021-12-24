@@ -42,8 +42,8 @@ data Record
   | Record2 {field3 :: Int}
 
 data LocalT
-  = Loc1
-  | Loc2
+  = Loc1 Int Int
+  | Loc2 Bool
   deriving (Show)
 
 pattern Zero :: Int
