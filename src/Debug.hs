@@ -6,7 +6,7 @@
 
 module Debug
   ( ppHieFile,
-    ppModule,
+    ppParsedModule,
   )
 where
 
@@ -20,8 +20,8 @@ import Parse
 import Printer
 import SrcLoc
 
-ppModule :: Prints Module
-ppModule (Module name path decls imps) = do
+ppParsedModule :: Prints Module
+ppParsedModule (Module name path decls imps) = do
   strLn $ name <> " " <> path
   indent $ mapM_ strLn imps
 
