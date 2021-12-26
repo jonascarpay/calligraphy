@@ -23,7 +23,23 @@ import SrcLoc
 ppParsedModule :: Prints Module
 ppParsedModule (Module name path decls imps) = do
   strLn $ name <> " " <> path
-  indent $ mapM_ strLn imps
+  indent . unless (null imps) $ do
+    strLn "Imports"
+    indent $ mapM_ strLn imps
+  indent . unless (null decls) $ do
+    strLn "Decls"
+    indent $ mapM_ ppDecl decls
+
+ppDecl :: Prints TopLevelDecl
+ppDecl (TLData (DataType _ name cons)) = do
+  strLn name
+  indent . forM_ cons $ \(DataCon _ conName body) -> do
+    strLn conName
+    case body of
+      DataConRecord fields -> indent $ forM_ fields $ \(field, _, _) -> strLn field
+      _ -> pure ()
+ppDecl (TLValue _) = undefined
+ppDecl (TLClass _) = undefined
 
 ppHieFile :: Prints HieFile
 ppHieFile (HieFile path mdl _types (HieASTs asts) _exps _src) = do

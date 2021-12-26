@@ -11,7 +11,9 @@ module Dummy
   )
 where
 
+import Data.Functor.Identity
 import Data.Kind (Type)
+import Data.Map qualified as M
 
 {-
 (DataDecl, TyClDecl)
@@ -22,8 +24,8 @@ import Data.Kind (Type)
     NotExported: Decl ConDec
 -}
 data ExportedT
-  = Exported
-  | NotExported
+  = Exported (Identity Int)
+  | NotExported (M.Map Int Int)
 
 {-
 (DataDecl, TyClDecl)

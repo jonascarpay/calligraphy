@@ -114,9 +114,13 @@ pModule = do
 pImport :: AstParser String
 pImport = do
   annotation ("ImportDecl", "ImportDecl")
-  pOne GHC.nodeChildren $
-    pOne (M.keys . GHC.nodeIdentifiers . GHC.nodeInfo) $
-      ask >>= either (pure . GHC.moduleNameString) (const empty)
+  pOne GHC.nodeChildren $ do
+    noAnnotation
+    pOne (M.toList . GHC.nodeIdentifiers . GHC.nodeInfo) $
+      ask >>= \case
+        (Left mname, GHC.IdentifierDetails _ ctx)
+          | Set.member (GHC.IEThing GHC.Import) ctx -> pure $ GHC.moduleNameString mname
+        _ -> empty
 
 data TopLevelDecl
   = TLData DataType
@@ -151,8 +155,12 @@ data DataType = DataType
 data DataCon = DataCon
   { dcKey :: Key,
     dcName :: String,
-    dcFields :: Either [Key] [(String, [Key])]
+    dcBody :: DataConBody
   }
+
+data DataConBody
+  = DataConRecord [(String, Key, [Key])]
+  | DataConNaked [Key]
 
 pData :: AstParser DataType
 pData = do
@@ -165,7 +173,8 @@ pData = do
   dtCons <- pMany GHC.nodeChildren $ do
     annotation ("ConDeclH98", "ConDecl")
     (dcKey, dcName) <- pOne names $ asks unname
-    dcDeps <- pUses
+    -- dcBody <- (DataConRecord . toList <$> pSome GHC.nodeChildren pDataRecordField) <|> (DataConNaked <$> pUses)
+    let dcBody = DataConNaked []
     pure $ DataCon {..}
 
   pure $ DataType {..}
@@ -181,12 +190,13 @@ pDataRecordField = do
   pure (s, k, deps)
 
 pUses :: AstParser [Key]
-pUses = error "not implasdf"
+pUses = asks astKeys
   where
-    isUse :: GHC.IdentifierDetails a -> Bool
-    isUse (GHC.IdentifierDetails _ s) = Set.member GHC.Use s
-    pUse :: AstParser Key
-    pUse = undefined
+    astKeys :: GHC.HieAST [Key] -> [Key]
+    astKeys (GHC.Node (GHC.NodeInfo _ types ids) _ has) = concat types <> foldMap (uncurry idKeys) (Map.toList ids) <> foldMap astKeys has
+    idKeys :: GHC.Identifier -> GHC.IdentifierDetails [Key] -> [Key]
+    idKeys (Right name) (GHC.IdentifierDetails mkey ctxInfo) | Set.member GHC.Use ctxInfo = nameKey name : concat (toList mkey)
+    idKeys _ _ = []
 
 pClass :: AstParser Class
 pClass = empty --error "not implemented"
