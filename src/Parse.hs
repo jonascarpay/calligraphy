@@ -184,7 +184,7 @@ pData = do
         _ -> False
 
   dtCons <- pMany GHC.nodeChildren $ do
-    annotation ("ConDeclH98", "ConDecl")
+    annotation ("ConDeclH98", "ConDecl") <|> annotation ("ConDeclGADT", "ConDecl")
     (dcKey, dcName) <- pOne GHC.nodeChildren $ do
       noAnnotation
       pName . any $ \case
