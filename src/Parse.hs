@@ -16,6 +16,7 @@ import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import FastString
+import FastString qualified as GHC
 import GHC qualified
 import GHC.Arr (Array)
 import GHC.Arr qualified as Array
@@ -32,6 +33,9 @@ clocal r' = withReaderT (const r')
 
 pAll :: (n -> [n']) -> TreeParser n' a -> TreeParser n [a]
 pAll f sub = asks f >>= mapM (flip clocal sub)
+
+pAll' :: TreeParser n a -> TreeParser [n] [a]
+pAll' = pAll id
 
 pMany :: (n -> [n']) -> TreeParser n' a -> TreeParser n [a]
 pMany f sub = (>>= toList) <$> pAll f (optional sub)
@@ -162,19 +166,36 @@ data DataConBody
   = DataConRecord [(String, Key, [Key])]
   | DataConNaked [Key]
 
+pName :: (Set GHC.ContextInfo -> Bool) -> AstParser (Key, String)
+pName fCtx =
+  pOne (M.toList . GHC.nodeIdentifiers . GHC.nodeInfo) $
+    ask >>= \case
+      (Right name, GHC.IdentifierDetails _ info) | fCtx info -> pure $ unname name
+      _ -> empty
+
 pData :: AstParser DataType
 pData = do
   annotation ("DataDecl", "TyClDecl")
   (dtKey, dtName) <-
     pOne GHC.nodeChildren $ do
       noAnnotation
-      pOne names $ asks unname
+      pName . any $ \case
+        GHC.Decl GHC.DataDec _ -> True
+        _ -> False
 
   dtCons <- pMany GHC.nodeChildren $ do
     annotation ("ConDeclH98", "ConDecl")
-    (dcKey, dcName) <- pOne names $ asks unname
-    -- dcBody <- (DataConRecord . toList <$> pSome GHC.nodeChildren pDataRecordField) <|> (DataConNaked <$> pUses)
-    let dcBody = DataConNaked []
+    (dcKey, dcName) <- pOne GHC.nodeChildren $ do
+      noAnnotation
+      pName . any $ \case
+        GHC.Decl GHC.ConDec _ -> True
+        _ -> False
+    dcBody <-
+      asum
+        [ pOne GHC.nodeChildren $
+            DataConRecord . toList <$> pSome GHC.nodeChildren pDataRecordField,
+          DataConNaked <$> pUses
+        ]
     pure $ DataCon {..}
 
   pure $ DataType {..}

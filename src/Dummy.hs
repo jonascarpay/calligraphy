@@ -26,6 +26,7 @@ import Data.Map qualified as M
 data ExportedT
   = Exported (Identity Int)
   | NotExported (M.Map Int Int)
+  | Single
 
 {-
 (DataDecl, TyClDecl)
@@ -42,6 +43,7 @@ data ExportedT
 data Record
   = Record1 {field1 :: Int, field2 :: Record}
   | Record2 {field3 :: Int}
+  | NoRecord Int
 
 data LocalT
   = Loc1 Int Int
