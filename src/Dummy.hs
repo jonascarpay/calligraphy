@@ -88,6 +88,9 @@ exportedFun = a
 localFun :: Class a => a -> a
 localFun = hiddenMethod
 
+emptyMap :: M.Map Int Int
+emptyMap = M.empty
+
 expValue :: Int
 expValue = 4
 

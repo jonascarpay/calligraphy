@@ -40,6 +40,17 @@ pAll' = pAll id
 pMany :: (n -> [n']) -> TreeParser n' a -> TreeParser n [a]
 pMany f sub = (>>= toList) <$> pAll f (optional sub)
 
+pSearchDfs :: (n -> [n]) -> TreeParser n a -> TreeParser n a
+pSearchDfs f sub = go
+  where
+    go = sub <|> pAny f go
+
+liftP2 :: (a -> b -> c) -> TreeParser n a -> TreeParser [n] b -> TreeParser [n] c
+liftP2 f pa pb =
+  ask >>= \case
+    (h : t) -> liftA2 f (clocal h pa) (clocal t pb)
+    _ -> empty
+
 pSome :: (n -> [n']) -> TreeParser n' a -> TreeParser n (NonEmpty a)
 pSome f sub =
   pMany f sub >>= \case
@@ -47,10 +58,7 @@ pSome f sub =
     (h : t) -> pure $ h :| t
 
 pAny :: (n -> [n']) -> TreeParser n' a -> TreeParser n a
-pAny f sub = asks f >>= go
-  where
-    go [] = empty
-    go (h : t) = clocal h sub <|> go t
+pAny f sub = asks f >>= asum . fmap (flip clocal sub)
 
 pOne :: (n -> [n']) -> TreeParser n' a -> TreeParser n a
 pOne f sub =
@@ -58,8 +66,8 @@ pOne f sub =
     [a] -> pure a
     _ -> empty
 
-pCheck :: (n -> Bool) -> TreeParser n ()
-pCheck f = asks f >>= guard
+pGuard :: (n -> Bool) -> TreeParser n ()
+pGuard f = asks f >>= guard
 
 -- * Resolve
 
@@ -84,12 +92,47 @@ resolve arr = imap (\i -> evalState (resolve1 i) mempty) arr
 type AstParser = TreeParser (GHC.HieAST [Key])
 
 annotation :: (FastString, FastString) -> AstParser ()
-annotation ann = pCheck (Set.member ann . GHC.nodeAnnotations . GHC.nodeInfo)
+annotation ann = pGuard (Set.member ann . GHC.nodeAnnotations . GHC.nodeInfo)
 
 noAnnotation :: AstParser ()
-noAnnotation = pCheck (null . GHC.nodeAnnotations . GHC.nodeInfo)
+noAnnotation = pGuard (null . GHC.nodeAnnotations . GHC.nodeInfo)
 
 newtype Key = Key Int
+
+-- * NameTree
+
+type Identifier = (GHC.Identifier, Set GHC.ContextInfo)
+
+data NameTree = NameTree
+  { ntNames :: [Identifier],
+    ntChildren :: [NameTree],
+    ntSpan :: GHC.Span
+  }
+
+makeNameTree :: GHC.HieFile -> NameTree
+makeNameTree (GHC.HieFile _ _ _ (GHC.HieASTs asts) _ _) =
+  case fmap go $ toList asts of
+    [(tree)] -> tree
+    -- [([], tree)] -> tree
+    _ -> error "huhu"
+  where
+    isEmpty :: NameTree -> Bool
+    isEmpty (NameTree [] [] _) = True
+    isEmpty _ = False
+
+    -- go :: GHC.HieAST a -> ([Identifier], NameTree)
+    -- go (GHC.Node (GHC.NodeInfo _anns _types ids) sp children) =
+    --   ( fmap GHC.identInfo <$> M.toList ids,
+    --     let (ids', children') = unzip $ fmap go children
+    --      in NameTree (concat ids') (filter (not . isEmpty) children') sp
+    --   )
+
+    go :: GHC.HieAST a -> NameTree
+    go (GHC.Node (GHC.NodeInfo _anns _types ids) span children) =
+      NameTree
+        (fmap GHC.identInfo <$> M.toList ids)
+        (filter (not . isEmpty) $ go <$> children)
+        span
 
 -- * Module
 
@@ -117,9 +160,7 @@ pModule = do
 
 pImport :: AstParser String
 pImport = do
-  annotation ("ImportDecl", "ImportDecl")
   pOne GHC.nodeChildren $ do
-    noAnnotation
     pOne (M.toList . GHC.nodeIdentifiers . GHC.nodeInfo) $
       ask >>= \case
         (Left mname, GHC.IdentifierDetails _ ctx)

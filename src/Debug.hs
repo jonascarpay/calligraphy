@@ -7,6 +7,7 @@
 module Debug
   ( ppHieFile,
     ppParsedModule,
+    ppModuleNameTree,
   )
 where
 
@@ -19,6 +20,20 @@ import Name
 import Parse
 import Printer
 import SrcLoc
+
+ppModuleNameTree :: Prints HieFile
+ppModuleNameTree hief = do
+  strLn $ showModuleName $ GHC.moduleName $ hie_module hief
+  indent $ ppNameTree $ makeNameTree hief
+  where
+    ppNameTree :: Prints NameTree
+    ppNameTree (NameTree ids chls spn) = do
+      strLn $ ">>>> " <> showSpan spn
+      indent . unless (null ids) $
+        forM_ ids $ \(idn, ctxInfo) -> do
+          strLn $ either showModuleName showName idn
+          indent $ mapM_ (strLn . show) ctxInfo
+      indent $ mapM_ ppNameTree chls
 
 ppParsedModule :: Prints Module
 ppParsedModule (Module name path decls imps) = do
