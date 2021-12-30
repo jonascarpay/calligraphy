@@ -163,7 +163,7 @@ data DataCon = DataCon
   }
 
 data DataConBody
-  = DataConRecord [(String, Key, [Key])]
+  = DataConRecord [(Key, String, [Key])]
   | DataConNaked [Key]
 
 pName :: (Set GHC.ContextInfo -> Bool) -> AstParser (Key, String)
@@ -173,42 +173,35 @@ pName fCtx =
       (Right name, GHC.IdentifierDetails _ info) | fCtx info -> pure $ unname name
       _ -> empty
 
+pUniqueNameChild :: (GHC.ContextInfo -> Bool) -> AstParser (Key, String)
+pUniqueNameChild f = pOne GHC.nodeChildren $ pName (any f)
+
 pData :: AstParser DataType
 pData = do
-  annotation ("DataDecl", "TyClDecl")
   (dtKey, dtName) <-
-    pOne GHC.nodeChildren $ do
-      noAnnotation
-      pName . any $ \case
-        GHC.Decl GHC.DataDec _ -> True
-        _ -> False
+    pUniqueNameChild $ \case
+      GHC.Decl GHC.DataDec _ -> True
+      _ -> False
 
   dtCons <- pMany GHC.nodeChildren $ do
-    annotation ("ConDeclH98", "ConDecl") <|> annotation ("ConDeclGADT", "ConDecl")
-    (dcKey, dcName) <- pOne GHC.nodeChildren $ do
-      noAnnotation
-      pName . any $ \case
-        GHC.Decl GHC.ConDec _ -> True
-        _ -> False
+    (dcKey, dcName) <- pUniqueNameChild $ \case
+      GHC.Decl GHC.ConDec _ -> True
+      _ -> False
     dcBody <-
       asum
         [ pOne GHC.nodeChildren $
-            DataConRecord . toList <$> pSome GHC.nodeChildren pDataRecordField,
+            fmap (DataConRecord . toList) $
+              pSome GHC.nodeChildren $ do
+                (k, s) <- pUniqueNameChild $ \case
+                  GHC.RecField GHC.RecFieldDecl _ -> True
+                  _ -> False
+                uses <- pUses
+                pure (k, s, uses),
           DataConNaked <$> pUses
         ]
     pure $ DataCon {..}
 
   pure $ DataType {..}
-
-pDataRecordField :: AstParser (String, Key, [Key])
-pDataRecordField = do
-  annotation ("ConDeclField", "ConDeclField")
-  (k, s) <- pOne GHC.nodeChildren $ do
-    annotation ("AbsBinds", "HsBindLR")
-    annotation ("FunBind", "HsBindLR")
-    pOne names $ asks unname
-  deps <- pUses
-  pure (s, k, deps)
 
 pUses :: AstParser [Key]
 pUses = asks astKeys

@@ -36,7 +36,7 @@ ppDecl (TLData (DataType _ name cons)) = do
   indent . forM_ cons $ \(DataCon _ conName body) -> do
     strLn conName
     case body of
-      DataConRecord fields -> indent $ forM_ fields $ \(field, _, _) -> strLn field
+      DataConRecord fields -> indent $ forM_ fields $ \(_, field, _) -> strLn field
       _ -> pure ()
 ppDecl (TLValue _) = undefined
 ppDecl (TLClass _) = undefined
