@@ -15,31 +15,11 @@ import Data.Functor.Identity
 import Data.Kind (Type)
 import Data.Map qualified as M
 
-{-
-(DataDecl, TyClDecl)
-  - ExportedT: Decl DataDec
-  - (ConDeclH98, ConDecl)
-    Exported: Decl ConDec
-  - (ConDeclH98, ConDecl)
-    NotExported: Decl ConDec
--}
 data ExportedT
   = Exported (Identity Int)
   | NotExported (M.Map Int Int)
   | Single
 
-{-
-(DataDecl, TyClDecl)
-  - Record: Decl DataDec
-  - (ConDeclH98, ConDecl)
-    - Record1: Decl ConDec
-    -
-      - ConDeclField, ConDeclField
-        - (AbsBinds, HsBindLR) (FunBind, HsBindLR)
-          field1: ValBind RegularBind, RecField RecFieldDecl
-        - Int
-
--}
 data Record
   = Record1 {field1 :: Int, field2 :: Record}
   | Record2 {field3 :: Int}

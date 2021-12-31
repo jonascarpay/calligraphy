@@ -10,13 +10,11 @@ import Control.Monad.State
 import Data.Either
 import Data.Foldable
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import FastString
-import FastString qualified as GHC
 import GHC qualified
 import GHC.Arr (Array)
 import GHC.Arr qualified as Array
@@ -28,43 +26,39 @@ import Unique qualified as GHC
 
 type TreeParser n = ReaderT n Maybe
 
-clocal :: r' -> TreeParser r' a -> TreeParser r a
-clocal r' = withReaderT (const r')
+zoom :: (n -> n') -> TreeParser n' a -> TreeParser n a
+zoom = withReaderT
 
-pAll :: (n -> [n']) -> TreeParser n' a -> TreeParser n [a]
-pAll f sub = asks f >>= mapM (flip clocal sub)
+pAll :: TreeParser n a -> TreeParser [n] [a]
+pAll (ReaderT sub) = ReaderT $ traverse sub
 
-pAll' :: TreeParser n a -> TreeParser [n] [a]
-pAll' = pAll id
+pMany :: TreeParser n a -> TreeParser [n] [a]
+pMany (ReaderT sub) = ReaderT $ \ns -> pure $ ns >>= toList . sub
 
-pMany :: (n -> [n']) -> TreeParser n' a -> TreeParser n [a]
-pMany f sub = (>>= toList) <$> pAll f (optional sub)
+pAny :: TreeParser n a -> TreeParser [n] a
+pAny (ReaderT sub) = ReaderT $ asum . fmap sub
+
+pSome :: TreeParser n a -> TreeParser [n] (NonEmpty a)
+pSome sub =
+  pMany sub >>= \case
+    [] -> empty
+    (h : t) -> pure $ h :| t
+
+pOne :: TreeParser n a -> TreeParser [n] a
+pOne sub =
+  pMany sub >>= \case
+    [a] -> pure a
+    _ -> empty
 
 pSearchDfs :: (n -> [n]) -> TreeParser n a -> TreeParser n a
 pSearchDfs f sub = go
   where
-    go = sub <|> pAny f go
+    go = sub <|> zoom f (pAny go)
 
 liftP2 :: (a -> b -> c) -> TreeParser n a -> TreeParser [n] b -> TreeParser [n] c
-liftP2 f pa pb =
-  ask >>= \case
-    (h : t) -> liftA2 f (clocal h pa) (clocal t pb)
-    _ -> empty
-
-pSome :: (n -> [n']) -> TreeParser n' a -> TreeParser n (NonEmpty a)
-pSome f sub =
-  pMany f sub >>= \case
-    [] -> empty
-    (h : t) -> pure $ h :| t
-
-pAny :: (n -> [n']) -> TreeParser n' a -> TreeParser n a
-pAny f sub = asks f >>= asum . fmap (flip clocal sub)
-
-pOne :: (n -> [n']) -> TreeParser n' a -> TreeParser n a
-pOne f sub =
-  pMany f sub >>= \case
-    [a] -> pure a
-    _ -> empty
+liftP2 f (ReaderT pa) (ReaderT pb) = ReaderT $ \case
+  [] -> empty
+  (h : t) -> liftA2 f (pa h) (pb t)
 
 pGuard :: (n -> Bool) -> TreeParser n ()
 pGuard f = asks f >>= guard
@@ -111,21 +105,14 @@ data NameTree = NameTree
 
 makeNameTree :: GHC.HieFile -> NameTree
 makeNameTree (GHC.HieFile _ _ _ (GHC.HieASTs asts) _ _) =
-  case fmap go $ toList asts of
-    [(tree)] -> tree
+  case go <$> toList asts of
+    [tree] -> tree
     -- [([], tree)] -> tree
     _ -> error "huhu"
   where
     isEmpty :: NameTree -> Bool
     isEmpty (NameTree [] [] _) = True
     isEmpty _ = False
-
-    -- go :: GHC.HieAST a -> ([Identifier], NameTree)
-    -- go (GHC.Node (GHC.NodeInfo _anns _types ids) sp children) =
-    --   ( fmap GHC.identInfo <$> M.toList ids,
-    --     let (ids', children') = unzip $ fmap go children
-    --      in NameTree (concat ids') (filter (not . isEmpty) children') sp
-    --   )
 
     go :: GHC.HieAST a -> NameTree
     go (GHC.Node (GHC.NodeInfo _anns _types ids) span children) =
@@ -253,15 +240,8 @@ pUses = asks astKeys
     idKeys (Right name) (GHC.IdentifierDetails mkey ctxInfo) | Set.member GHC.Use ctxInfo = nameKey name : concat (toList mkey)
     idKeys _ _ = []
 
-pClass :: AstParser Class
-pClass = empty --error "not implemented"
-
-pValue :: AstParser Value
-pValue = empty --error "not implemented"
-
 data Value
 
--- (ClassDecl, TyClDecl)
 data Class = Class
   { clKey :: Key,
     clName :: String,
