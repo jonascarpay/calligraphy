@@ -58,8 +58,10 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
   T.putStr $
     runPrinter $
       forM_ hieFiles $ \hieFile -> do
+        strLn $ hie_hs_file hieFile
         -- ppHieFile hieFile
-        mapM_ ppParsedModule $ parseHieFile hieFile
+        -- ppModuleNameTree hieFile
+        indent $ either strLn ppFoldNode (foldFile hieFile)
 
 -- ppModuleNameTree hieFile
 

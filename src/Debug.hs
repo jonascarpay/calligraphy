@@ -5,9 +5,8 @@
 -- TODO export list
 
 module Debug
-  ( ppHieFile,
-    ppParsedModule,
-    ppModuleNameTree,
+  ( ppModuleNameTree,
+    ppFoldNode,
   )
 where
 
@@ -22,6 +21,15 @@ import Name
 import Parse
 import Printer
 import SrcLoc
+
+ppFoldNode :: Prints FoldNode
+ppFoldNode (FNVals depth vals) = do
+  strLn "Values"
+  indent $ mapM_ ppValue vals
+ppFoldNode fn = strLn (show fn)
+
+ppValue :: Prints Value
+ppValue (Value (Name _ str) children _) = strLn str >> indent (mapM_ ppValue children)
 
 ppModuleNameTree :: Prints HieFile
 ppModuleNameTree (HieFile _ mdl _types (HieASTs asts) _exps _src) = do
@@ -42,36 +50,6 @@ ppModuleNameTree (HieFile _ mdl _types (HieASTs asts) _exps _src) = do
                   indent $ mapM_ (strLn . show) ctxInfo
                 sequence_ subtrees
 
-ppParsedModule :: Prints Module
-ppParsedModule (Module name path decls imps) = do
-  strLn $ name <> " " <> path
-  indent . unless (null imps) $ do
-    strLn "Imports"
-    indent $ mapM_ strLn imps
-  indent . unless (null decls) $ do
-    strLn "Decls"
-    indent $ mapM_ ppDecl decls
-
-ppDecl :: Prints TopLevelDecl
-ppDecl (TLData (DataType _ name cons)) = do
-  strLn name
-  indent . forM_ cons $ \(DataCon _ conName body) -> do
-    strLn conName
-    case body of
-      DataConRecord fields -> indent $ forM_ fields $ \(_, field, _) -> strLn field
-      _ -> pure ()
-ppDecl (TLValue _) = undefined
-ppDecl (TLClass _) = undefined
-
-ppHieFile :: Prints HieFile
-ppHieFile (HieFile path mdl _types (HieASTs asts) _exps _src) = do
-  strLn path
-  indent $ do
-    strLn . showModuleName $ GHC.moduleName mdl
-    forM_ (M.toList asts) $ \(fp, ast) -> do
-      strLn $ GHC.unpackFS fp
-      indent $ ppHieAst ast
-
 ppHieAst :: Prints (HieAST a)
 ppHieAst (Node (NodeInfo anns _types ids) srcSpan children) = do
   strLn $ "Node " <> showSpan srcSpan
@@ -82,7 +60,7 @@ ppHieAst (Node (NodeInfo anns _types ids) srcSpan children) = do
       indent $ mapM_ (strLn . show) ctxInfo
     mapM_ ppHieAst children
 
-showName :: Name -> String
+showName :: Name.Name -> String
 showName = show . occNameString . nameOccName
 
 showModuleName :: GHC.ModuleName -> String

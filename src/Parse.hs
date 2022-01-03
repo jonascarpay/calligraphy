@@ -4,72 +4,18 @@
 
 module Parse where
 
-import Control.Applicative
-import Control.Monad.Reader
 import Control.Monad.State
-import Data.Either
 import Data.Foldable
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as M
-import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
-import FastString
 import GHC qualified
 import GHC.Arr (Array)
 import GHC.Arr qualified as Array
 import HieTypes qualified as GHC
 import Name qualified as GHC
 import Unique qualified as GHC
-
--- * TreeParser
-
-type TreeParser n = ReaderT n Maybe
-
-zooms :: (n -> n') -> TreeParser n' a -> TreeParser n a
-zooms = withReaderT
-
-zoom :: n' -> TreeParser n' a -> TreeParser n a
-zoom = zooms . const
-
-liftMaybe :: (n -> Maybe a) -> TreeParser n a
-liftMaybe = ReaderT
-
-pAll :: TreeParser n a -> TreeParser [n] [a]
-pAll (ReaderT sub) = ReaderT $ traverse sub
-
-pMany :: TreeParser n a -> TreeParser [n] [a]
-pMany (ReaderT sub) = ReaderT $ \ns -> pure $ ns >>= toList . sub
-
-pAny :: TreeParser n a -> TreeParser [n] a
-pAny (ReaderT sub) = ReaderT $ asum . fmap sub
-
-pSome :: TreeParser n a -> TreeParser [n] (NonEmpty a)
-pSome sub =
-  pMany sub >>= \case
-    [] -> empty
-    (h : t) -> pure $ h :| t
-
-pOne :: TreeParser n a -> TreeParser [n] a
-pOne sub =
-  pMany sub >>= \case
-    [a] -> pure a
-    _ -> empty
-
-pSearchDfs :: (n -> [n]) -> TreeParser n a -> TreeParser n a
-pSearchDfs f sub = go
-  where
-    go = sub <|> zooms f (pAny go)
-
-liftP2 :: (a -> b -> c) -> TreeParser n a -> TreeParser [n] b -> TreeParser [n] c
-liftP2 f (ReaderT pa) (ReaderT pb) = ReaderT $ \case
-  [] -> empty
-  (h : t) -> liftA2 f (pa h) (pb t)
-
-pGuard :: (n -> Bool) -> TreeParser n ()
-pGuard f = asks f >>= guard
-
--- * Resolve
 
 -- TODO this can be much more efficient. Maybe do something with TangleT?
 resolve :: Array GHC.TypeIndex GHC.HieTypeFlat -> Array GHC.TypeIndex [Key]
@@ -87,75 +33,72 @@ resolve arr = imap (\i -> evalState (resolve1 i) mempty) arr
             GHC.HTyVarTy name -> pure [nameKey name]
             a -> fold <$> traverse resolve1 a
 
--- * AstParser
-
--- type AstParser = TreeParser (GHC.HieAST [Key])
-type AstParser = TreeParser (GHC.HieAST GHC.TypeIndex)
-
 newtype Key = Key Int
 
--- * Module
+data FoldNode
+  = FNEmpty
+  | FNUse Use
+  | FNVals Int (NonEmpty Value)
+  | FNRecs (NonEmpty RecordField)
+  | FNCons (NonEmpty Con)
+  | FNData [Con] Name
+  | FNImport String
+  deriving (Show)
 
-parseHieFile :: GHC.HieFile -> Maybe Module
-parseHieFile = runReaderT pModule
+-- data FoldError
+--   = UnhandledName GHC.Identifier (Set GHC.ContextInfo)
 
-data Module = Module
-  { mdName :: String,
-    mdPath :: FilePath,
-    mdDecls :: [TopLevelDecl],
-    mdImports :: [String]
+foldFile :: GHC.HieFile -> Either String FoldNode
+foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
+  case toList asts of
+    [GHC.Node _ _ asts'] -> traverse foldAst asts' >>= foldM appendNodes FNEmpty
+    _ -> Left "que"
+
+foldAst :: GHC.HieAST a -> Either String FoldNode
+foldAst (GHC.Node (GHC.NodeInfo _ _ ids) _span children) = do
+  cs <- traverse foldAst children
+  ns <- forM (M.toList ids) $ \(idn, GHC.IdentifierDetails _ info) ->
+    fromIdentifier idn info
+  foldM appendNodes FNEmpty cs
+
+fromIdentifier :: GHC.Identifier -> Set GHC.ContextInfo -> Either String FoldNode
+fromIdentifier idn info = Right FNEmpty
+
+-- fromIdentifier :: GHC.Identifier -> Set GHC.ContextInfo -> Either String FoldNode
+-- fromIdentifier idn info = Left $ UnhandledName idn
+
+appendNodes :: FoldNode -> FoldNode -> Either String FoldNode
+appendNodes FNEmpty rhs = pure rhs
+appendNodes lhs rhs = Left $ "Couldn't merge " <> show lhs <> " with " <> show rhs
+
+data Value = Value
+  { valName :: Name,
+    valChildren :: [Value],
+    valUses :: Use
   }
+  deriving (Show)
 
-pModule :: TreeParser GHC.HieFile Module
-pModule = do
-  (GHC.HieFile path mdl _types (GHC.HieASTs asts) _exps _src) <- ask
-  -- typeArray <- asks (resolve . GHC.hie_types)
-  (imports, decls) <-
-    fmap partitionEithers $
-      zoom (toList asts) . pOne $
-        zooms GHC.nodeChildren . pMany $
-          asum
-            [ Right <$> pImport,
-              Left <$> pTopLevelDecl
-            ]
-  pure $
-    Module
-      (GHC.moduleNameString $ GHC.moduleName mdl)
-      path
-      imports
-      decls
+data Con = Con
+  { conName :: Name,
+    conUses :: Use,
+    conFields :: [RecordField]
+  }
+  deriving (Show)
 
-pImport :: AstParser String
-pImport = do
-  zooms GHC.nodeChildren . pOne . zooms (M.toList . GHC.nodeIdentifiers . GHC.nodeInfo) . pOne . liftMaybe $ \case
-    (Left moduleName, GHC.IdentifierDetails _ ctx)
-      | Set.member (GHC.IEThing GHC.Import) ctx ->
-        Just $ GHC.moduleNameString moduleName
-    _ -> Nothing
+data RecordField = RecordField
+  { recName :: Name,
+    recUses :: Use
+  }
+  deriving (Show)
 
-data TopLevelDecl
-  = TLData DataType
-  | TLValue Value
-  | TLClass Class
+data Name = Name Key String
 
-pTopLevelDecl :: AstParser TopLevelDecl
-pTopLevelDecl =
-  asum
-    [ TLData <$> pData,
-      TLValue <$> pValue,
-      TLClass <$> pClass
-    ]
+instance Show Name where
+  show (Name _ name) = name
 
-pClass :: ReaderT (GHC.HieAST GHC.TypeIndex) Maybe Class
-pClass = empty
+newtype Use = Use (Set Key)
 
-pValue :: ReaderT (GHC.HieAST GHC.TypeIndex) Maybe Value
-pValue = empty
-
-pData :: ReaderT (GHC.HieAST GHC.TypeIndex) Maybe DataType
-pData = empty
-
--- * Data types
+instance Show Use where show _ = "<uses>"
 
 names :: GHC.HieAST a -> [GHC.Name]
 names = (>>= toList) . M.keys . GHC.nodeIdentifiers . GHC.nodeInfo
@@ -181,59 +124,3 @@ data DataCon = DataCon
 data DataConBody
   = DataConRecord [(Key, String, [Key])]
   | DataConNaked [Key]
-
--- pName :: (Set GHC.ContextInfo -> Bool) -> AstParser (Key, String)
--- pName fCtx =
---   pOne (M.toList . GHC.nodeIdentifiers . GHC.nodeInfo) $
---     ask >>= \case
---       (Right name, GHC.IdentifierDetails _ info) | fCtx info -> pure $ unname name
---       _ -> empty
-
--- pUniqueNameChild :: (GHC.ContextInfo -> Bool) -> AstParser (Key, String)
--- pUniqueNameChild f = pOne GHC.nodeChildren $ pName (any f)
-
--- pData :: AstParser DataType
--- pData = do
---   (dtKey, dtName) <-
---     pUniqueNameChild $ \case
---       GHC.Decl GHC.DataDec _ -> True
---       _ -> False
-
---   dtCons <- pMany GHC.nodeChildren $ do
---     (dcKey, dcName) <- pUniqueNameChild $ \case
---       GHC.Decl GHC.ConDec _ -> True
---       _ -> False
---     dcBody <-
---       asum
---         [ pOne GHC.nodeChildren $
---             fmap (DataConRecord . toList) $
---               pSome GHC.nodeChildren $ do
---                 (k, s) <- pUniqueNameChild $ \case
---                   GHC.RecField GHC.RecFieldDecl _ -> True
---                   _ -> False
---                 uses <- pUses
---                 pure (k, s, uses),
---           DataConNaked <$> pUses
---         ]
---     pure $ DataCon {..}
-
---   pure $ DataType {..}
-
--- pUses :: AstParser [Key]
--- pUses = asks astKeys
---   where
---     astKeys :: GHC.HieAST [Key] -> [Key]
---     astKeys (GHC.Node (GHC.NodeInfo _ types ids) _ has) = concat types <> foldMap (uncurry idKeys) (Map.toList ids) <> foldMap astKeys has
---     idKeys :: GHC.Identifier -> GHC.IdentifierDetails [Key] -> [Key]
---     idKeys (Right name) (GHC.IdentifierDetails mkey ctxInfo) | Set.member GHC.Use ctxInfo = nameKey name : concat (toList mkey)
---     idKeys _ _ = []
-
-data Value
-
-data Class = Class
-  { clKey :: Key,
-    clName :: String,
-    clMethods :: [ClassMethod]
-  }
-
-data ClassMethod = ClassMethod
