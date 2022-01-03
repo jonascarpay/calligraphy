@@ -2,6 +2,7 @@ module Config
   ( RenderConfig (..),
     SearchConfig (..),
     OutputConfig (..),
+    DebugConfig (..),
     AppConfig (..),
     pConfig,
     RenderLevel (..),
@@ -14,8 +15,13 @@ import Options.Applicative
 
 newtype Filter = Filter String
 
-match :: Filter -> String -> Bool
-match (Filter matcher) = go False matcher
+match :: [Filter] -> [Filter] -> String -> Bool
+match [] [] str = True
+match [] exes str = not (any (flip matchOne str) exes)
+match ins exes str = any (flip matchOne str) ins && not (any (flip matchOne str) exes)
+
+matchOne :: Filter -> String -> Bool
+matchOne (Filter matcher) = go False matcher
   where
     go _ ('*' : ms) cs = go True ms cs
     go _ (m : ms) (c : cs) | m == c = go False ms cs || go True (m : ms) cs
@@ -26,12 +32,15 @@ match (Filter matcher) = go False matcher
 data AppConfig = AppConfig
   { searchConfig :: SearchConfig,
     renderConfig :: RenderConfig,
-    outputConfig :: OutputConfig
+    outputConfig :: OutputConfig,
+    debugConfig :: DebugConfig
   }
 
 data SearchConfig = SearchConfig
   { searchDotPaths :: Bool,
-    searchRoots :: [FilePath]
+    searchRoots :: [FilePath],
+    includeFilters :: [Filter], -- TODO this should be a Maybe NonEmpty
+    excludeFilters :: [Filter] -- TODO this should be a Maybe NonEmpty
   }
 
 -- TODO no clusters
@@ -46,9 +55,7 @@ data SearchConfig = SearchConfig
 data RenderConfig = RenderConfig
   { renderLevel :: RenderLevel,
     showCalls :: Bool,
-    splines :: Bool,
-    includeFilters :: [Filter], -- TODO this should be a Maybe NonEmpty
-    excludeFilters :: [Filter] -- TODO this should be a Maybe NonEmpty
+    splines :: Bool
   }
 
 data OutputConfig
@@ -63,7 +70,7 @@ data RenderLevel
   deriving (Eq, Show)
 
 pConfig :: Parser AppConfig
-pConfig = AppConfig <$> pSearchConfig <*> pRenderConfig <*> pOutputConfig
+pConfig = AppConfig <$> pSearchConfig <*> pRenderConfig <*> pOutputConfig <*> pDebugConfig
 
 pSearchConfig :: Parser SearchConfig
 pSearchConfig =
@@ -79,19 +86,6 @@ pSearchConfig =
               <> help "Filepaths to search. If passed a file, it will be processed as is. If passed a directory, the directory will be searched recursively. Can be specified multiple times. Defaults to ./."
           )
       )
-
-pRenderLevel :: Parser RenderLevel
-pRenderLevel =
-  flag' Module (long "only-toplevel" <> help "Only render top-level bindings")
-    <|> flag' Exports (long "only-exports" <> help "Only render exported bindings")
-    <|> pure All
-
-pRenderConfig :: Parser RenderConfig
-pRenderConfig =
-  RenderConfig
-    <$> pRenderLevel
-    <*> flag True False (long "hide-calls" <> help "Don't show function call arrows")
-    <*> switch (long "splines" <> help "Render arrows as splines")
     <*> many
       ( Filter
           <$> strOption
@@ -109,9 +103,30 @@ pRenderConfig =
             )
       )
 
+pRenderLevel :: Parser RenderLevel
+pRenderLevel =
+  flag' Module (long "only-toplevel" <> help "Only render top-level bindings")
+    <|> flag' Exports (long "only-exports" <> help "Only render exported bindings")
+    <|> pure All
+
+pRenderConfig :: Parser RenderConfig
+pRenderConfig =
+  RenderConfig
+    <$> pRenderLevel
+    <*> flag True False (long "hide-calls" <> help "Don't show function call arrows")
+    <*> switch (long "splines" <> help "Render arrows as splines")
+
 -- TODO allow output to multiple places
 pOutputConfig :: Parser OutputConfig
 pOutputConfig =
   OutputFile <$> strOption (long "output-dot")
     <|> OutputPng <$> strOption (long "output-png")
     <|> pure OutputStdOut
+
+data DebugConfig = DebugConfig
+  {dumpHie :: Bool}
+
+pDebugConfig :: Parser DebugConfig
+pDebugConfig =
+  DebugConfig
+    <$> switch (long "dump-hie")

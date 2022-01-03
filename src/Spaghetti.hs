@@ -15,6 +15,7 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Version (showVersion)
 import Debug
+import GHC (Module (moduleName), moduleNameString)
 import HieBin
 import HieTypes
 import NameCache
@@ -43,7 +44,7 @@ main = do
         (long "version" <> help "Show version")
 
 mainWithConfig :: AppConfig -> IO ()
-mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
+mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = do
   hieFilePaths <- searchFiles searchConfig
   print hieFilePaths
 
@@ -55,13 +56,13 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
     flip evalStateT nameCache $
       forM hieFilePaths readHieFileWithWarning
 
+  let hieFilesFiltered = filter (match (includeFilters searchConfig) (excludeFilters searchConfig) . moduleNameString . moduleName . hie_module) hieFiles
   T.putStr $
     runPrinter $
-      forM_ hieFiles $ \hieFile -> do
+      forM_ hieFilesFiltered $ \hieFile -> do
         strLn $ hie_hs_file hieFile
-        -- ppHieFile hieFile
-        -- ppModuleNameTree hieFile
-        indent $ either ppFoldError ppFoldNode (foldFile hieFile)
+        when (dumpHie debugConfig) $ ppModuleNameTree hieFile
+        indent $ either ppFoldError (mapM_ ppFoldNode) (foldFile hieFile)
 
 -- ppModuleNameTree hieFile
 
