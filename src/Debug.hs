@@ -12,9 +12,11 @@ module Debug
 where
 
 import Control.Monad.RWS
+import Data.Foldable
 import Data.Map qualified as M
 import FastString qualified as GHC
 import HieTypes hiding (nodeInfo)
+import HieTypes qualified as GHC
 import Module qualified as GHC
 import Name
 import Parse
@@ -22,18 +24,23 @@ import Printer
 import SrcLoc
 
 ppModuleNameTree :: Prints HieFile
-ppModuleNameTree hief = do
-  strLn $ showModuleName $ GHC.moduleName $ hie_module hief
-  indent $ ppNameTree $ makeNameTree hief
+ppModuleNameTree (HieFile _ mdl _types (HieASTs asts) _exps _src) = do
+  strLn $ showModuleName $ GHC.moduleName mdl
+  indent $ forM_ asts $ sequence_ . ppNameTree
   where
-    ppNameTree :: Prints NameTree
-    ppNameTree (NameTree ids chls spn) = do
-      strLn $ ">>>> " <> showSpan spn
-      indent . unless (null ids) $
-        forM_ ids $ \(idn, ctxInfo) -> do
-          strLn $ either showModuleName showName idn
-          indent $ mapM_ (strLn . show) ctxInfo
-      indent $ mapM_ ppNameTree chls
+    ppNameTree :: GHC.HieAST a -> Maybe (Printer ())
+    ppNameTree (GHC.Node (GHC.NodeInfo _ _ ids) spn children) =
+      let subtrees = children >>= toList . ppNameTree
+          pids = fmap GHC.identInfo <$> M.toList ids
+       in if null subtrees && null pids
+            then Nothing
+            else pure $ do
+              strLn $ ">> " <> showSpan spn
+              indent $ do
+                forM_ pids $ \(idn, ctxInfo) -> do
+                  strLn $ either showModuleName showName idn
+                  indent $ mapM_ (strLn . show) ctxInfo
+                sequence_ subtrees
 
 ppParsedModule :: Prints Module
 ppParsedModule (Module name path decls imps) = do

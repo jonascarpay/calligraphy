@@ -59,8 +59,9 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
     runPrinter $
       forM_ hieFiles $ \hieFile -> do
         -- ppHieFile hieFile
-        -- mapM_ ppParsedModule $ parseHieFile hieFile
-        ppModuleNameTree hieFile
+        mapM_ ppParsedModule $ parseHieFile hieFile
+
+-- ppModuleNameTree hieFile
 
 -- -- TODO WHY IS THIS IN THE GRAPH
 -- let txt = runPrinter $ render renderConfig (parseModule <$> hieFiles)
