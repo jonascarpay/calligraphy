@@ -8,10 +8,12 @@ module Parse where
 import Control.Monad.State
 import Data.Bifunctor (first)
 import Data.Foldable
+import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as M
 import Data.Set (Set)
 import Data.Set qualified as Set
+import FastString qualified as GHC
 import GHC qualified
 import GHC.Arr (Array)
 import GHC.Arr qualified as Array
@@ -39,17 +41,15 @@ newtype Key = Key Int
   deriving (Eq, Ord)
 
 data FoldNode
-  = FNEmpty
-  | FNUse Use
-  | FNValue Value
-  | FNVals Int (NonEmpty Value)
-  | FNRec Field
-  | FNRecs [Field]
-  | FNCon Con
-  | FNData Data
+  = FNClass Class
   | FNImport String
-  | FNClass Class
-  deriving (Show)
+  | FNData Data
+  | FNCon Con
+  | FNValue Value
+  | FNRec Field
+  | FNUse Use
+  | FNEmpty
+  deriving (Eq, Ord, Show)
 
 data FoldError
   = IdentifierError GHC.Span IdentifierError
@@ -63,9 +63,7 @@ foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
     _ -> Left StructuralError
 
 foldAst :: GHC.HieAST a -> Either FoldError FoldNode
-foldAst (GHC.Node (GHC.NodeInfo anns _ ids) span children)
-  | Set.member ("HsDerivingClause", "HsDerivingClause") anns = pure FNEmpty
-foldAst (GHC.Node (GHC.NodeInfo _ _ ids) span children) = do
+foldAst (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
   cs <- traverse foldAst children
   ns <- first (IdentifierError span) $
     forM (M.toList ids) $ \case
@@ -78,10 +76,7 @@ foldAst (GHC.Node (GHC.NodeInfo _ _ ids) span children) = do
           Nothing -> Left $ UnhandledIdentifier (Right name) info
           Just r -> Right r
 
-  first (AppendError span) $ do
-    c <- foldM appendNodes FNEmpty cs
-    n <- foldM appendNodes FNEmpty ns
-    appendNodes n (markScope c)
+  first (AppendError span) $ foldM (appendNodes anns) FNEmpty (sort $ ns <> cs)
 
 markScope :: FoldNode -> FoldNode
 markScope = id
@@ -126,62 +121,72 @@ fromModuleName ctx = case Set.toAscList ctx of
   [GHC.IEThing GHC.ImportAs] -> pure $ const FNEmpty
   _ -> Nothing
 
-data AppendError
-  = CombineError FoldNode FoldNode
+type Annotations = Set (GHC.FastString, GHC.FastString)
 
-appendNodes :: FoldNode -> FoldNode -> Either AppendError FoldNode
-appendNodes FNEmpty rhs = pure rhs
-appendNodes (FNUse a) (FNUse b) = pure $ FNUse (a <> b)
-appendNodes (FNCon (Con name uses fields)) (FNUse b) = pure $ FNCon $ Con name (uses <> b) fields
-appendNodes (FNCon (Con name uses fields)) (FNRecs recs) = pure $ FNCon $ Con name uses (fields <> recs)
-appendNodes (FNCon (Con name uses fields)) (FNRec rec) = pure $ FNCon $ Con name uses (fields <> [rec])
-appendNodes (FNData (Data name cons use)) (FNCon con) = pure $ FNData $ Data name (con : cons) use
-appendNodes (FNData (Data name cons use)) (FNUse use') = pure $ FNData $ Data name cons (use <> use')
-appendNodes (FNRec (Field name uses)) (FNUse use) = pure $ FNRec $ Field name (uses <> use)
-appendNodes (FNRec a) (FNRec b) = pure $ FNRecs [b, a]
-appendNodes lhs FNEmpty = pure lhs
-appendNodes lhs rhs = Left $ CombineError lhs rhs
+data AppendError
+  = CombineError Annotations FoldNode FoldNode
+
+appendNodes :: Annotations -> FoldNode -> FoldNode -> Either AppendError FoldNode
+appendNodes anns =
+  case Set.toAscList anns of
+    [("ConDeclH98", "ConDecl")] -> conlike
+    [("DataDecl", "TyClDecl")] -> datalike
+    [("ConDeclField", "ConDeclField")] -> recordlike
+    _ -> generic
+  where
+    recordlike (FNRec (Field name use)) (FNUse use') = pure $ FNRec $ Field name (use <> use')
+    recordlike l r = generic l r
+    datalike (FNData (Data name cons use)) (FNCon con) = pure $ FNData $ Data name (con : cons) use
+    datalike l r = generic l r
+    conlike (FNCon (Con name use field)) (FNUse use') = pure $ FNCon (Con name (use <> use') field)
+    conlike l r = generic l r
+    generic FNEmpty r = pure r
+    generic l FNEmpty = pure l
+    generic (FNUse l) (FNUse r) = pure $ FNUse (l <> r)
+    generic l r = fail l r
+    fail l r = Left $ CombineError anns l r
 
 data Value = Value
   { valName :: Name,
     valChildren :: [Value],
     valUses :: Use
   }
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 data Class = Class
   { clName :: Name,
     clValues :: [Value]
   }
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 data Data = Data
   { dtName :: Name,
     dtCons :: [Con],
     dtUses :: Use
   }
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 data Con = Con
   { conName :: Name,
     conUses :: Use,
     conFields :: [Field]
   }
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 data Field = Field
   { recName :: Name,
     recUses :: Use
   }
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 data Name = Name Key String
+  deriving (Eq, Ord)
 
 instance Show Name where
   show (Name _ name) = name
 
 newtype Use = Use (Set Key)
-  deriving (Semigroup, Monoid)
+  deriving (Eq, Ord, Semigroup, Monoid)
 
 instance Show Use where show _ = "<uses>"
 

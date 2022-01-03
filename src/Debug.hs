@@ -24,9 +24,6 @@ import Printer
 import SrcLoc
 
 ppFoldNode :: Prints FoldNode
-ppFoldNode (FNVals depth vals) = do
-  strLn "Values"
-  indent $ mapM_ ppValue vals
 ppFoldNode fn = strLn (show fn)
 
 ppFoldError :: Prints FoldError
@@ -48,11 +45,13 @@ ppIdentifierError (UnhandledIdentifier idn info) = do
     indent $ mapM_ (strLn . show) info
 
 ppAppendError :: Prints AppendError
-ppAppendError (CombineError l r) = do
-  strLn "Incompatible nodes"
+ppAppendError (CombineError anns l r) = do
+  strLn "Could not combine"
   indent $ ppFoldNode l
   strLn "and"
   indent $ ppFoldNode r
+  strLn "under"
+  indent $ strLn $ unwords $ show <$> toList anns
 
 ppValue :: Prints Value
 ppValue (Value (Name _ str) children _) = strLn str >> indent (mapM_ ppValue children)
