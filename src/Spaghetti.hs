@@ -61,7 +61,7 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig) = do
         strLn $ hie_hs_file hieFile
         -- ppHieFile hieFile
         -- ppModuleNameTree hieFile
-        indent $ either strLn ppFoldNode (foldFile hieFile)
+        indent $ either ppFoldError ppFoldNode (foldFile hieFile)
 
 -- ppModuleNameTree hieFile
 

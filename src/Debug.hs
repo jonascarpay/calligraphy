@@ -7,6 +7,7 @@
 module Debug
   ( ppModuleNameTree,
     ppFoldNode,
+    ppFoldError,
   )
 where
 
@@ -28,6 +29,24 @@ ppFoldNode (FNVals depth vals) = do
   indent $ mapM_ ppValue vals
 ppFoldNode fn = strLn (show fn)
 
+ppFoldError :: Prints FoldError
+ppFoldError StructuralError = strLn "Structural error"
+ppFoldError (CombineError l r) = do
+  strLn "Error while combining"
+  indent $ ppFoldNode l
+  strLn "and"
+  indent $ ppFoldNode r
+ppFoldError (IdentifierError err) = ppIdentifierError err
+
+ppIdentifierError :: Prints IdentifierError
+ppIdentifierError (UnhandledIdentifier idn info span) = do
+  strLn $ "Unhandled name " <> showSpan span
+  indent $ do
+    strLn "Identifier"
+    indent $ ppIdentifier idn
+    strLn "Context"
+    indent $ mapM_ (strLn . show) info
+
 ppValue :: Prints Value
 ppValue (Value (Name _ str) children _) = strLn str >> indent (mapM_ ppValue children)
 
@@ -46,9 +65,12 @@ ppModuleNameTree (HieFile _ mdl _types (HieASTs asts) _exps _src) = do
               strLn $ ">> " <> showSpan spn
               indent $ do
                 forM_ pids $ \(idn, ctxInfo) -> do
-                  strLn $ either showModuleName showName idn
+                  ppIdentifier idn
                   indent $ mapM_ (strLn . show) ctxInfo
                 sequence_ subtrees
+
+ppIdentifier :: Prints Identifier
+ppIdentifier = strLn . either showModuleName showName
 
 ppHieAst :: Prints (HieAST a)
 ppHieAst (Node (NodeInfo anns _types ids) srcSpan children) = do
@@ -56,7 +78,7 @@ ppHieAst (Node (NodeInfo anns _types ids) srcSpan children) = do
   indent $ do
     forM_ anns $ strLn . show
     forM_ (M.toList ids) $ \(idn, IdentifierDetails _type ctxInfo) -> do
-      strLn $ either showModuleName showName idn
+      ppIdentifier idn
       indent $ mapM_ (strLn . show) ctxInfo
     mapM_ ppHieAst children
 

@@ -6,3 +6,6 @@
 
 - ignore:
     name: Use <=<
+
+- ignore:
+    name: Use record patterns

@@ -11,6 +11,7 @@ module Dummy
   )
 where
 
+import Control.Monad hiding (when)
 import Data.Functor.Identity
 import Data.Kind (Type)
 import Data.Map qualified as M
@@ -71,8 +72,14 @@ localFun = hiddenMethod
 emptyMap :: M.Map Int Int
 emptyMap = M.empty
 
-expValue :: Int
-expValue = 4
+recFn :: Record -> Record
+recFn Record1 {field1 = x} = undefined x
+recFn NoRecord {} = Record1 {field1 = 0, field2 = undefined}
+recFn x = NoRecord $ field3 x
+
+expValue :: Int -> Int
+expValue 0 = 4
+expValue x = 5
 
 expArg :: a -> a
 expArg x = x
