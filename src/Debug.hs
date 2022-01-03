@@ -31,21 +31,28 @@ ppFoldNode fn = strLn (show fn)
 
 ppFoldError :: Prints FoldError
 ppFoldError StructuralError = strLn "Structural error"
-ppFoldError (CombineError l r) = do
-  strLn "Error while combining"
-  indent $ ppFoldNode l
-  strLn "and"
-  indent $ ppFoldNode r
-ppFoldError (IdentifierError err) = ppIdentifierError err
+ppFoldError (AppendError span err) = do
+  strLn $ "Error while combining at " <> showSpan span
+  indent $ ppAppendError err
+ppFoldError (IdentifierError span err) = do
+  strLn $ "Error constructing identifier at " <> showSpan span
+  indent $ ppIdentifierError err
 
 ppIdentifierError :: Prints IdentifierError
-ppIdentifierError (UnhandledIdentifier idn info span) = do
-  strLn $ "Unhandled name " <> showSpan span
+ppIdentifierError (UnhandledIdentifier idn info) = do
+  strLn "Unhandled name"
   indent $ do
     strLn "Identifier"
     indent $ ppIdentifier idn
     strLn "Context"
     indent $ mapM_ (strLn . show) info
+
+ppAppendError :: Prints AppendError
+ppAppendError (CombineError l r) = do
+  strLn "Incompatible nodes"
+  indent $ ppFoldNode l
+  strLn "and"
+  indent $ ppFoldNode r
 
 ppValue :: Prints Value
 ppValue (Value (Name _ str) children _) = strLn str >> indent (mapM_ ppValue children)
@@ -56,13 +63,13 @@ ppModuleNameTree (HieFile _ mdl _types (HieASTs asts) _exps _src) = do
   indent $ forM_ asts $ sequence_ . ppNameTree
   where
     ppNameTree :: GHC.HieAST a -> Maybe (Printer ())
-    ppNameTree (GHC.Node (GHC.NodeInfo _ _ ids) spn children) =
+    ppNameTree (GHC.Node (GHC.NodeInfo anns _ ids) spn children) =
       let subtrees = children >>= toList . ppNameTree
           pids = fmap GHC.identInfo <$> M.toList ids
-       in if null subtrees && null pids
+       in if null subtrees && null pids && null anns
             then Nothing
             else pure $ do
-              strLn $ ">> " <> showSpan spn
+              strLn $ ">> " <> showSpan spn <> " " <> unwords (fmap show (toList anns))
               indent $ do
                 forM_ pids $ \(idn, ctxInfo) -> do
                   ppIdentifier idn

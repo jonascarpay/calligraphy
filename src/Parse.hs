@@ -43,42 +43,51 @@ data FoldNode
   | FNUse Use
   | FNValue Value
   | FNVals Int (NonEmpty Value)
-  | FNRecs (NonEmpty RecordField)
-  | FNCons (NonEmpty Con)
+  | FNRec Field
+  | FNRecs [Field]
+  | FNCon Con
   | FNData Data
   | FNImport String
   | FNClass Class
   deriving (Show)
 
 data FoldError
-  = IdentifierError IdentifierError
-  | CombineError FoldNode FoldNode
+  = IdentifierError GHC.Span IdentifierError
+  | AppendError GHC.Span AppendError
   | StructuralError
 
-foldFile :: GHC.HieFile -> Either FoldError FoldNode
+foldFile :: GHC.HieFile -> Either FoldError [FoldNode]
 foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
   case toList asts of
-    [GHC.Node _ _ asts'] -> traverse foldAst asts' >>= foldM appendNodes FNEmpty
+    [GHC.Node _ _ asts'] -> traverse foldAst asts'
     _ -> Left StructuralError
 
 foldAst :: GHC.HieAST a -> Either FoldError FoldNode
+foldAst (GHC.Node (GHC.NodeInfo anns _ ids) span children)
+  | Set.member ("HsDerivingClause", "HsDerivingClause") anns = pure FNEmpty
 foldAst (GHC.Node (GHC.NodeInfo _ _ ids) span children) = do
   cs <- traverse foldAst children
-  ns <- first IdentifierError $
+  ns <- first (IdentifierError span) $
     forM (M.toList ids) $ \case
       (Left modname, GHC.IdentifierDetails _ info) ->
         case fromModuleName info of
-          Nothing -> Left $ UnhandledIdentifier (Left modname) info span
+          Nothing -> Left $ UnhandledIdentifier (Left modname) info
           Just f -> Right $ f (GHC.moduleNameString modname)
       (Right name, GHC.IdentifierDetails _ info) ->
         case fromName info (unname name) of
-          Nothing -> Left $ UnhandledIdentifier (Right name) info span
+          Nothing -> Left $ UnhandledIdentifier (Right name) info
           Just r -> Right r
 
-  foldM appendNodes FNEmpty cs
+  first (AppendError span) $ do
+    c <- foldM appendNodes FNEmpty cs
+    n <- foldM appendNodes FNEmpty ns
+    appendNodes n (markScope c)
+
+markScope :: FoldNode -> FoldNode
+markScope = id
 
 data IdentifierError
-  = UnhandledIdentifier GHC.Identifier (Set GHC.ContextInfo) GHC.Span
+  = UnhandledIdentifier GHC.Identifier (Set GHC.ContextInfo)
 
 fromName :: Set GHC.ContextInfo -> Name -> Maybe FoldNode
 fromName ctx name@(Name key _) = case Set.toAscList ctx of
@@ -90,12 +99,12 @@ fromName ctx name@(Name key _) = case Set.toAscList ctx of
   [GHC.MatchBind, GHC.ValBind _ _ _] -> valuelike
   [GHC.MatchBind] -> valuelike
   [GHC.Decl GHC.InstDec _] -> ignore
-  [GHC.Decl GHC.ConDec _] -> pure $ FNCons (pure $ Con name mempty mempty)
+  [GHC.Decl GHC.ConDec _] -> pure $ FNCon (Con name mempty mempty)
   [GHC.Use] -> uselike
   [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> uselike
   [GHC.Decl GHC.ClassDec _] -> pure $ FNClass $ Class name mempty
   [GHC.ValBind GHC.RegularBind GHC.ModuleScope _, GHC.RecField GHC.RecFieldDecl _] ->
-    pure $ FNRecs $ pure $ RecordField name mempty
+    pure $ FNRec $ Field name mempty
   [GHC.PatternBind _ _ _] -> ignore
   [GHC.RecField GHC.RecFieldMatch _] -> ignore
   [GHC.RecField GHC.RecFieldAssign _] -> uselike
@@ -106,7 +115,7 @@ fromName ctx name@(Name key _) = case Set.toAscList ctx of
   [GHC.ValBind GHC.RegularBind GHC.ModuleScope _] -> ignore
   _ -> Nothing
   where
-    datalike = pure $ FNData $ Data name mempty
+    datalike = pure $ FNData $ Data name mempty mempty
     valuelike = pure $ FNValue $ Value name mempty mempty
     uselike = pure $ FNUse $ Use $ Set.singleton key
     ignore = pure FNEmpty
@@ -117,8 +126,20 @@ fromModuleName ctx = case Set.toAscList ctx of
   [GHC.IEThing GHC.ImportAs] -> pure $ const FNEmpty
   _ -> Nothing
 
-appendNodes :: FoldNode -> FoldNode -> Either FoldError FoldNode
+data AppendError
+  = CombineError FoldNode FoldNode
+
+appendNodes :: FoldNode -> FoldNode -> Either AppendError FoldNode
 appendNodes FNEmpty rhs = pure rhs
+appendNodes (FNUse a) (FNUse b) = pure $ FNUse (a <> b)
+appendNodes (FNCon (Con name uses fields)) (FNUse b) = pure $ FNCon $ Con name (uses <> b) fields
+appendNodes (FNCon (Con name uses fields)) (FNRecs recs) = pure $ FNCon $ Con name uses (fields <> recs)
+appendNodes (FNCon (Con name uses fields)) (FNRec rec) = pure $ FNCon $ Con name uses (fields <> [rec])
+appendNodes (FNData (Data name cons use)) (FNCon con) = pure $ FNData $ Data name (con : cons) use
+appendNodes (FNData (Data name cons use)) (FNUse use') = pure $ FNData $ Data name cons (use <> use')
+appendNodes (FNRec (Field name uses)) (FNUse use) = pure $ FNRec $ Field name (uses <> use)
+appendNodes (FNRec a) (FNRec b) = pure $ FNRecs [b, a]
+appendNodes lhs FNEmpty = pure lhs
 appendNodes lhs rhs = Left $ CombineError lhs rhs
 
 data Value = Value
@@ -136,18 +157,19 @@ data Class = Class
 
 data Data = Data
   { dtName :: Name,
-    dtCons :: [Con]
+    dtCons :: [Con],
+    dtUses :: Use
   }
   deriving (Show)
 
 data Con = Con
   { conName :: Name,
     conUses :: Use,
-    conFields :: [RecordField]
+    conFields :: [Field]
   }
   deriving (Show)
 
-data RecordField = RecordField
+data Field = Field
   { recName :: Name,
     recUses :: Use
   }

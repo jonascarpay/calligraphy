@@ -34,6 +34,8 @@ data LocalT
 pattern Zero :: Int
 pattern Zero = 0
 
+data WithSignature (a :: Type -> Type)
+
 data GADT a where
   GADTInt :: GADT Int
   GADTFloat :: GADT LocalT
