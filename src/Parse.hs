@@ -5,6 +5,7 @@
 
 module Parse where
 
+import Control.Category qualified as Cat
 import Control.Monad.State
 import Data.Bifunctor (first)
 import Data.Foldable
@@ -19,6 +20,7 @@ import GHC.Arr (Array)
 import GHC.Arr qualified as Array
 import HieTypes qualified as GHC
 import Name qualified as GHC
+import Pattern
 import Unique qualified as GHC
 
 -- TODO this can be much more efficient. Maybe do something with TangleT?
@@ -46,6 +48,7 @@ data FoldNode
   | FNData Data
   | FNCon Con
   | FNValue Value
+  | FNRecs [Field]
   | FNRec Field
   | FNUse Use
   | FNEmpty
@@ -98,8 +101,9 @@ fromName ctx name@(Name key _) = case Set.toAscList ctx of
   [GHC.Use] -> uselike
   [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> uselike
   [GHC.Decl GHC.ClassDec _] -> pure $ FNClass $ Class name mempty
-  [GHC.ValBind GHC.RegularBind GHC.ModuleScope _, GHC.RecField GHC.RecFieldDecl _] ->
-    pure $ FNRec $ Field name mempty
+  [GHC.ValBind GHC.RegularBind GHC.ModuleScope _, GHC.RecField GHC.RecFieldDecl _] -> recordlike
+  -- Recordfields without valbind occur when a record occurs in multiple constructors
+  [GHC.RecField GHC.RecFieldDecl _] -> recordlike
   [GHC.PatternBind _ _ _] -> ignore
   [GHC.RecField GHC.RecFieldMatch _] -> ignore
   [GHC.RecField GHC.RecFieldAssign _] -> uselike
@@ -111,6 +115,7 @@ fromName ctx name@(Name key _) = case Set.toAscList ctx of
   _ -> Nothing
   where
     datalike = pure $ FNData $ Data name mempty mempty
+    recordlike = pure $ FNRec $ Field name mempty
     valuelike = pure $ FNValue $ Value name mempty mempty
     uselike = pure $ FNUse $ Use $ Set.singleton key
     ignore = pure FNEmpty
@@ -126,25 +131,39 @@ type Annotations = Set (GHC.FastString, GHC.FastString)
 data AppendError
   = CombineError Annotations FoldNode FoldNode
 
-appendNodes :: Annotations -> FoldNode -> FoldNode -> Either AppendError FoldNode
+appendNodes :: Annotations -> Pattern AppendError (FoldNode, FoldNode) FoldNode
 appendNodes anns =
-  case Set.toAscList anns of
-    [("ConDeclH98", "ConDecl")] -> conlike
-    [("DataDecl", "TyClDecl")] -> datalike
-    [("ConDeclField", "ConDeclField")] -> recordlike
-    _ -> generic
+  let pat =
+        case Set.toAscList anns of
+          -- [("ConDeclH98", "ConDecl")] -> conlike
+          -- [("ConDeclGADT", "ConDecl")] -> conlike
+          -- [("DataDecl", "TyClDecl")] -> datalike
+          [("FamilyDecl", "FamilyDecl")] -> datalike
+   in pat |> throws (uncurry (CombineError anns))
   where
-    recordlike (FNRec (Field name use)) (FNUse use') = pure $ FNRec $ Field name (use <> use')
-    recordlike l r = generic l r
-    datalike (FNData (Data name cons use)) (FNCon con) = pure $ FNData $ Data name (con : cons) use
-    datalike l r = generic l r
-    conlike (FNCon (Con name use field)) (FNUse use') = pure $ FNCon (Con name (use <> use') field)
-    conlike l r = generic l r
-    generic FNEmpty r = pure r
-    generic l FNEmpty = pure l
-    generic (FNUse l) (FNUse r) = pure $ FNUse (l <> r)
-    generic l r = fail l r
-    fail l r = Left $ CombineError anns l r
+    -- [("ConDeclField", "ConDeclField")] -> recordlike
+    -- _ -> generic
+
+    datalike = fromMaybe $ \case
+      (FNData (Data name cons use), FNCon con) -> pure $ FNData $ Data name (con : cons) use
+      (FNData (Data name cons use), FNUse use') -> pure $ FNData $ Data name cons (use' <> use)
+      _ -> Nothing
+
+-- recordlike (FNRec (Field name use)) (FNUse use') = pure $ FNRec $ Field name (use <> use')
+-- recordlike l r = generic l r
+-- datalike (FNData (Data name cons use)) (FNCon con) = pure $ FNData $ Data name (con : cons) use
+-- datalike (FNData (Data name cons use)) (FNUse use') = pure $ FNData $ Data name cons (use' <> use)
+-- datalike l r = generic l r
+-- conlike (FNCon (Con name use field)) (FNUse use') = pure $ FNCon (Con name (use <> use') field)
+-- conlike (FNCon (Con name use field)) (FNRecs recs) = pure $ FNCon (Con name use (recs <> field))
+-- conlike (FNCon (Con name use field)) (FNRec rec) = pure $ FNCon (Con name use (rec : field))
+-- conlike l r = generic l r
+-- generic FNEmpty r = pure r
+-- generic l FNEmpty = pure l
+-- generic (FNUse l) (FNUse r) = pure $ FNUse (l <> r)
+-- generic (FNRec l) (FNRec r) = pure $ FNRecs [r, l]
+-- generic (FNRecs recs) (FNRec rec) = pure $ FNRecs (rec : recs)
+-- generic l r = fail l r
 
 data Value = Value
   { valName :: Name,

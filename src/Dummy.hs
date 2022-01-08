@@ -22,7 +22,7 @@ data ExportedT
   | Single
 
 data Record
-  = Record1 {field1 :: Int, field2 :: Record}
+  = Record1 {field1 :: Int, field2 :: Record, field3 :: Int}
   | Record2 {field3 :: Int}
   | NoRecord Int
 
