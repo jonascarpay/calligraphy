@@ -25,11 +25,17 @@ patternM (Pattern p) = p throwError pure
 fromMaybe :: (i -> Maybe o) -> Pattern () i o
 fromMaybe f = Pattern $ \ng ok -> maybe (ng ()) ok . f
 
+toMaybe :: Pattern () i o -> i -> Maybe o
+toMaybe = patternM
+
 fromMaybe2 :: (i1 -> i2 -> Maybe o) -> Pattern () (i1, i2) o
 fromMaybe2 = fromMaybe . uncurry
 
 fromEither :: (i -> Either e o) -> Pattern e i o
 fromEither f = Pattern $ \ng ok -> either ng ok . f
+
+toEither :: Pattern e i o -> i -> Either e o
+toEither = patternM
 
 mapError :: (e' -> e) -> Pattern e' i o -> Pattern e i o
 mapError f (Pattern p) = Pattern $ \ng -> p (ng . f)

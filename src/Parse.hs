@@ -5,6 +5,7 @@
 
 module Parse where
 
+import Control.Applicative
 import Control.Category qualified as Cat
 import Control.Monad.State
 import Data.Bifunctor (first)
@@ -79,7 +80,7 @@ foldAst (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
           Nothing -> Left $ UnhandledIdentifier (Right name) info
           Just r -> Right r
 
-  first (AppendError span) $ foldM (appendNodes anns) FNEmpty (sort $ ns <> cs)
+  first (AppendError span) $ foldM (curry (toEither (appendNodes anns))) FNEmpty (sort $ ns <> cs)
 
 markScope :: FoldNode -> FoldNode
 markScope = id
@@ -135,35 +136,33 @@ appendNodes :: Annotations -> Pattern AppendError (FoldNode, FoldNode) FoldNode
 appendNodes anns =
   let pat =
         case Set.toAscList anns of
-          -- [("ConDeclH98", "ConDecl")] -> conlike
-          -- [("ConDeclGADT", "ConDecl")] -> conlike
-          -- [("DataDecl", "TyClDecl")] -> datalike
+          [("ConDeclH98", "ConDecl")] -> conlike
+          [("ConDeclGADT", "ConDecl")] -> conlike
+          [("DataDecl", "TyClDecl")] -> datalike
           [("FamilyDecl", "FamilyDecl")] -> datalike
-   in pat |> throws (uncurry (CombineError anns))
+          [("ConDeclField", "ConDeclField")] -> recordlike
+          _ -> empty
+   in pat |> generic |> throws (uncurry (CombineError anns))
   where
-    -- [("ConDeclField", "ConDeclField")] -> recordlike
-    -- _ -> generic
-
     datalike = fromMaybe $ \case
       (FNData (Data name cons use), FNCon con) -> pure $ FNData $ Data name (con : cons) use
       (FNData (Data name cons use), FNUse use') -> pure $ FNData $ Data name cons (use' <> use)
       _ -> Nothing
-
--- recordlike (FNRec (Field name use)) (FNUse use') = pure $ FNRec $ Field name (use <> use')
--- recordlike l r = generic l r
--- datalike (FNData (Data name cons use)) (FNCon con) = pure $ FNData $ Data name (con : cons) use
--- datalike (FNData (Data name cons use)) (FNUse use') = pure $ FNData $ Data name cons (use' <> use)
--- datalike l r = generic l r
--- conlike (FNCon (Con name use field)) (FNUse use') = pure $ FNCon (Con name (use <> use') field)
--- conlike (FNCon (Con name use field)) (FNRecs recs) = pure $ FNCon (Con name use (recs <> field))
--- conlike (FNCon (Con name use field)) (FNRec rec) = pure $ FNCon (Con name use (rec : field))
--- conlike l r = generic l r
--- generic FNEmpty r = pure r
--- generic l FNEmpty = pure l
--- generic (FNUse l) (FNUse r) = pure $ FNUse (l <> r)
--- generic (FNRec l) (FNRec r) = pure $ FNRecs [r, l]
--- generic (FNRecs recs) (FNRec rec) = pure $ FNRecs (rec : recs)
--- generic l r = fail l r
+    recordlike = fromMaybe $ \case
+      (FNRec (Field name use), FNUse use') -> pure $ FNRec $ Field name (use <> use')
+      _ -> Nothing
+    conlike = fromMaybe $ \case
+      (FNCon (Con name use field), FNUse use') -> pure $ FNCon (Con name (use <> use') field)
+      (FNCon (Con name use field), FNRecs recs) -> pure $ FNCon (Con name use (recs <> field))
+      (FNCon (Con name use field), FNRec rec) -> pure $ FNCon (Con name use (rec : field))
+      _ -> Nothing
+    generic = fromMaybe $ \case
+      (FNEmpty, r) -> pure r
+      (l, FNEmpty) -> pure l
+      (FNUse l, FNUse r) -> pure $ FNUse (l <> r)
+      (FNRec l, FNRec r) -> pure $ FNRecs [r, l]
+      (FNRecs recs, FNRec rec) -> pure $ FNRecs (rec : recs)
+      _ -> Nothing
 
 data Value = Value
   { valName :: Name,
