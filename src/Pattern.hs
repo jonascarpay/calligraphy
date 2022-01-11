@@ -44,7 +44,13 @@ setError :: e -> Pattern e' i o -> Pattern e i o
 setError err (Pattern p) = Pattern $ \ng -> p (const $ ng err)
 
 throws :: (i -> e) -> Pattern e i o
-throws f = Pattern $ \ng _ i -> ng (f i)
+throws f = Pattern $ \ng _ -> ng . f
+
+zooms :: (i -> i') -> Pattern e i' o -> Pattern e i o
+zooms f (Pattern p) = Pattern $ \ng ok -> p ng ok . f
+
+matchMany :: Pattern e i o -> Pattern e' [i] [o]
+matchMany (Pattern p) = Pattern $ \_ ok is -> ok $ is >>= p (const []) pure
 
 infixl 3 |>
 
@@ -62,6 +68,11 @@ instance MonadError e (Pattern e i) where
   throwError e = Pattern $ \ng _ _ -> ng e
   catchError (Pattern pt) fc = Pattern $ \ng ok i ->
     pt (\e -> runPattern (fc e) ng ok i) ok i
+
+instance MonadReader i (Pattern e i) where
+  ask = Cat.id
+  reader f = Pattern $ \_ ok i -> ok (f i)
+  local = zooms
 
 instance Functor (Pattern e i) where
   fmap f (Pattern p) = Pattern $ \n y -> p n (y . f)
