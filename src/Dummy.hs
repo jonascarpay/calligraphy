@@ -31,6 +31,12 @@ data LocalT
   | Loc2 Bool
   deriving (Show)
 
+exportedFun :: Int -> Int
+exportedFun = a
+  where
+    a = b
+    b = a
+
 pattern Zero :: Int
 pattern Zero = 0
 
@@ -61,12 +67,6 @@ type family TypeFamily a :: Type where
   TypeFamily Int = Float
 
 newtype Newtype = Newtype {accessor :: Int}
-
-exportedFun :: Int -> Int
-exportedFun = a
-  where
-    a = b
-    b = a
 
 localFun :: Class a => a -> a
 localFun = hiddenMethod

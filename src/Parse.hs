@@ -2,6 +2,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StrictData #-}
 
 module Parse where
 
@@ -10,9 +12,12 @@ import Control.Category qualified as Cat
 import Control.Monad.State
 import Data.Bifunctor (first)
 import Data.Foldable
+import Data.Function
 import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
+import Data.Ord
 import Data.Set (Set)
 import Data.Set qualified as Set
 import FastString qualified as GHC
@@ -43,12 +48,100 @@ resolve arr = imap (\i -> evalState (resolve1 i) mempty) arr
 newtype Key = Key Int
   deriving (Eq, Ord)
 
+data DeclType
+  = NoDecl
+  | ValueDecl
+  | RecDecl
+  | ConDecl
+  | DataDecl
+  | ClassDecl
+  deriving
+    (Eq, Ord)
+
+data FoldHead = FoldHead
+  { fhDepth :: Int,
+    fhDeclType :: DeclType,
+    fhDefs :: [(Name, Use, [DeclTree])],
+    fhUses :: Use
+  }
+
+data DeclTree = DeclTree
+  { declType :: DeclType,
+    declName :: Name,
+    declUse :: Use,
+    children :: [DeclTree]
+  }
+
+collectMaxima :: forall a b. Ord b => (a -> b) -> NonEmpty a -> (b, NonEmpty a, [a])
+collectMaxima ord (a :| as) = foldr f (ord a, pure a, []) as
+  where
+    f :: a -> (b, NonEmpty a, [a]) -> (b, NonEmpty a, [a])
+    f a (b, his, los) = case compare b' b of
+      LT -> (b, his, a : los)
+      EQ -> (b, NE.cons a his, los)
+      GT -> (b', pure a, toList his <> los)
+      where
+        b' = ord a
+
+ffolldd :: NonEmpty FoldHead -> Either FoldError FoldHead
+ffolldd fhs = case collectMaxima f fhs of
+  ((typ, dep), maxes, []) -> pure $ FoldHead (dep + 1) typ (foldMap fhDefs maxes) (foldMap fhUses maxes)
+  ((typ, dep), FoldHead _ _ [(headName, headUse, headChildren)] use :| [], chil) ->
+    pure $ FoldHead (dep + 1) typ [(headName, headUse <> foldMap fhUses chil, foldMap toDeclTree chil <> headChildren)] use
+  _ -> Left undefined
+  where
+    toDeclTree :: FoldHead -> [DeclTree]
+    toDeclTree (FoldHead _ typ defs _) = flip fmap defs $ \(name, use, chil) -> DeclTree typ name use chil
+    f :: FoldHead -> (DeclType, Int)
+    f (FoldHead d t _ _) = (t, d)
+
+foldNode :: GHC.HieAST a -> Either FoldError FoldHead
+foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
+  ns <- forM (M.toList ids) $ \case
+    (Right name, GHC.IdentifierDetails _ info) ->
+      classifyIdentifier
+        info
+        (\decl -> pure (0, decl, [DeclTree (Decl decl (unname name)) mempty mempty], mempty))
+        _use
+        _ignore
+        (Left $ IdentifierError span $ UnhandledIdentifier (Right name) info)
+    _ -> undefined
+  undefined
+
+classifyIdentifier :: Set GHC.ContextInfo -> (DeclType -> r) -> r -> r -> r -> r
+classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
+  [GHC.Decl GHC.DataDec _] -> decl DataDecl
+  [GHC.Decl GHC.PatSynDec _] -> decl DataDecl
+  [GHC.Decl GHC.FamDec _] -> decl DataDecl
+  [GHC.Decl GHC.SynDec _] -> decl DataDecl
+  [GHC.ClassTyDecl _] -> decl ValueDecl
+  [GHC.MatchBind, GHC.ValBind _ _ _] -> decl ValueDecl
+  [GHC.MatchBind] -> decl ValueDecl
+  [GHC.Decl GHC.InstDec _] -> ignore
+  [GHC.Decl GHC.ConDec _] -> decl ConDecl
+  [GHC.Use] -> use
+  [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> use
+  [GHC.Decl GHC.ClassDec _] -> decl ClassDecl
+  [GHC.ValBind GHC.RegularBind GHC.ModuleScope _, GHC.RecField GHC.RecFieldDecl _] -> decl RecDecl
+  -- Recordfields without valbind occur when a record occurs in multiple constructors
+  [GHC.RecField GHC.RecFieldDecl _] -> decl RecDecl
+  [GHC.PatternBind _ _ _] -> ignore
+  [GHC.RecField GHC.RecFieldMatch _] -> ignore
+  [GHC.RecField GHC.RecFieldAssign _] -> use
+  [GHC.TyDecl] -> ignore
+  [GHC.IEThing _] -> ignore
+  [GHC.TyVarBind _ _] -> ignore
+  -- An empty ValBind is the result of a derived instance, and should be ignored
+  [GHC.ValBind GHC.RegularBind GHC.ModuleScope _] -> ignore
+  _ -> unknown
+
 data FoldNode
   = FNClass Class
   | FNImport String
   | FNData Data
   | FNCon Con
   | FNValue Value
+  | FNValues [Value]
   | FNRecs [Field]
   | FNRec Field
   | FNUse Use
@@ -79,8 +172,7 @@ foldAst (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
         case fromName info (unname name) of
           Nothing -> Left $ UnhandledIdentifier (Right name) info
           Just r -> Right r
-
-  first (AppendError span) $ foldM (curry (toEither (appendNodes anns))) FNEmpty (sort $ ns <> cs)
+  first (AppendError span) $ foldM (curry (toEither (appendNodes anns))) FNEmpty (ns <> cs)
 
 markScope :: FoldNode -> FoldNode
 markScope = id
@@ -133,35 +225,34 @@ data AppendError
   = CombineError Annotations FoldNode FoldNode
 
 appendNodes :: Annotations -> Pattern AppendError (FoldNode, FoldNode) FoldNode
-appendNodes anns =
-  let pat =
-        case Set.toAscList anns of
-          [("ConDeclH98", "ConDecl")] -> conlike
-          [("ConDeclGADT", "ConDecl")] -> conlike
-          [("DataDecl", "TyClDecl")] -> datalike
-          [("FamilyDecl", "FamilyDecl")] -> datalike
-          [("ConDeclField", "ConDeclField")] -> recordlike
-          _ -> empty
-   in pat |> generic |> throws (uncurry (CombineError anns))
+appendNodes anns = generic |> throws (uncurry (CombineError anns))
   where
-    datalike = fromMaybe $ \case
-      (FNData (Data name cons use), FNCon con) -> pure $ FNData $ Data name (con : cons) use
-      (FNData (Data name cons use), FNUse use') -> pure $ FNData $ Data name cons (use' <> use)
-      _ -> Nothing
-    recordlike = fromMaybe $ \case
-      (FNRec (Field name use), FNUse use') -> pure $ FNRec $ Field name (use <> use')
-      _ -> Nothing
-    conlike = fromMaybe $ \case
-      (FNCon (Con name use field), FNUse use') -> pure $ FNCon (Con name (use <> use') field)
-      (FNCon (Con name use field), FNRecs recs) -> pure $ FNCon (Con name use (recs <> field))
-      (FNCon (Con name use field), FNRec rec) -> pure $ FNCon (Con name use (rec : field))
-      _ -> Nothing
     generic = fromMaybe $ \case
       (FNEmpty, r) -> pure r
       (l, FNEmpty) -> pure l
-      (FNUse l, FNUse r) -> pure $ FNUse (l <> r)
-      (FNRec l, FNRec r) -> pure $ FNRecs [r, l]
-      (FNRecs recs, FNRec rec) -> pure $ FNRecs (rec : recs)
+      -- (FNUse l, FNUse r) -> pure $ FNUse (l <> r)
+      -- (FNCon (Con name use field), FNUse use') -> pure $ FNCon (Con name (use <> use') field)
+      -- (FNData (Data name cons use), FNCon con) -> pure $ FNData $ Data name (con : cons) use
+      -- (FNRec (Field name use), FNUse use') -> pure $ FNRec $ Field name (use <> use')
+      -- (FNRec l, FNRec r) -> pure $ FNRecs [r, l]
+      -- (FNRecs recs, FNRec rec) -> pure $ FNRecs (rec : recs)
+      -- (l, FNEmpty) -> pure l
+      -- (FNUse l, FNUse r) -> pure $ FNUse (l <> r)
+      _ -> Nothing
+    values = fromMaybe $ \case
+      (FNValue l, FNValue r) -> pure $ FNValues [r, l]
+      _ -> Nothing
+    valuelike = fromMaybe $ \case
+      (FNValue (Value name sub use), FNUse use') -> pure $ FNValue $ Value name sub (use' <> use)
+      _ -> Nothing
+    datalike = fromMaybe $ \case
+      (FNData (Data name cons use), FNUse use') -> pure $ FNData $ Data name cons (use' <> use)
+      _ -> Nothing
+    recordlike = fromMaybe $ \case
+      _ -> Nothing
+    conlike = fromMaybe $ \case
+      (FNCon (Con name use field), FNRecs recs) -> pure $ FNCon (Con name use (recs <> field))
+      (FNCon (Con name use field), FNRec rec) -> pure $ FNCon (Con name use (rec : field))
       _ -> Nothing
 
 data Value = Value

@@ -8,6 +8,7 @@ import Control.Applicative
 import Control.Arrow qualified as Cat
 import Control.Category qualified as Cat
 import Control.Monad.Except
+import Control.Monad.Reader.Class
 import Data.Void
 
 -- | CPS'd @ReaderT i (Either e o)@
