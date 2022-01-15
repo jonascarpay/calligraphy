@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData #-}
@@ -11,6 +12,7 @@ import Control.Applicative
 import Control.Category qualified as Cat
 import Control.Monad.State
 import Data.Bifunctor (first)
+import Data.Either (partitionEithers)
 import Data.Foldable
 import Data.Function
 import Data.List (sort)
@@ -49,8 +51,7 @@ newtype Key = Key Int
   deriving (Eq, Ord)
 
 data DeclType
-  = NoDecl
-  | ValueDecl
+  = ValueDecl
   | RecDecl
   | ConDecl
   | DataDecl
@@ -61,9 +62,13 @@ data DeclType
 data FoldHead = FoldHead
   { fhDepth :: Int,
     fhDeclType :: DeclType,
-    fhDefs :: [(Name, Use, [DeclTree])],
-    fhUses :: Use
+    fhDefs :: NonEmpty (Name, Use, [DeclTree])
   }
+
+type E a b = forall r. (a -> r) -> (b -> r) -> r
+
+partitionBy :: (a -> Either l r) -> [a] -> ([l], [r])
+partitionBy f = partitionEithers . fmap f
 
 data DeclTree = DeclTree
   { declType :: DeclType,
@@ -83,19 +88,35 @@ collectMaxima ord (a :| as) = foldr f (ord a, pure a, []) as
       where
         b' = ord a
 
-ffolldd :: NonEmpty FoldHead -> Either FoldError FoldHead
-ffolldd fhs = case collectMaxima f fhs of
-  ((typ, dep), maxes, []) -> pure $ FoldHead (dep + 1) typ (foldMap fhDefs maxes) (foldMap fhUses maxes)
-  ((typ, dep), FoldHead _ _ [(headName, headUse, headChildren)] use :| [], chil) ->
-    pure $ FoldHead (dep + 1) typ [(headName, headUse <> foldMap fhUses chil, foldMap toDeclTree chil <> headChildren)] use
+ffolldd :: NonEmpty (FoldHead, Use) -> Either FoldError (FoldHead, Use)
+ffolldd fhs = case collectMaxima (f . fst) fhs of
+  ((typ, dep), maxes, []) ->
+    pure
+      ( FoldHead (dep + 1) typ (foldMap (fhDefs . fst) maxes),
+        foldMap snd maxes
+      )
+  ((typ, dep), (FoldHead _ _ ((headName, headUse, headChildren) :| []), propagatedUse) :| [], chil) ->
+    pure
+      ( FoldHead (dep + 1) typ ((headName, headUse <> foldMap snd chil, foldMap (toList . toDeclTree . fst) chil <> headChildren) :| []),
+        propagatedUse
+      )
   _ -> Left undefined
   where
-    toDeclTree :: FoldHead -> [DeclTree]
-    toDeclTree (FoldHead _ typ defs _) = flip fmap defs $ \(name, use, chil) -> DeclTree typ name use chil
+    toDeclTree :: FoldHead -> NonEmpty DeclTree
+    toDeclTree (FoldHead _ typ defs) = flip fmap defs $ \(name, use, chil) -> DeclTree typ name use chil
     f :: FoldHead -> (DeclType, Int)
-    f (FoldHead d t _ _) = (t, d)
+    f (FoldHead d t _) = (t, d)
 
-foldNode :: GHC.HieAST a -> Either FoldError FoldHead
+-- TODO this is where I left off
+ffffooolld :: [(Maybe FoldHead, Use)] -> (Maybe FoldHead, Use)
+ffffooolld fhs = case partitionBy f fhs of
+                   (a:as, use)
+  where
+    f x = case x of
+            (Just fh, use) -> Left (fh, use)
+            (Nothing, use) -> Right use
+
+foldNode :: GHC.HieAST a -> Either FoldError (Maybe FoldHead, Use)
 foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
   ns <- forM (M.toList ids) $ \case
     (Right name, GHC.IdentifierDetails _ info) ->
