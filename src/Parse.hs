@@ -8,18 +8,13 @@
 
 module Parse where
 
-import Control.Applicative
-import Control.Category qualified as Cat
 import Control.Monad.State
 import Data.Bifunctor (first)
 import Data.Either (partitionEithers)
 import Data.Foldable
-import Data.Function
-import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
-import Data.Ord
 import Data.Set (Set)
 import Data.Set qualified as Set
 import FastString qualified as GHC
@@ -88,33 +83,28 @@ collectMaxima ord (a :| as) = foldr f (ord a, pure a, []) as
       where
         b' = ord a
 
-ffolldd :: NonEmpty (FoldHead, Use) -> Either FoldError (FoldHead, Use)
-ffolldd fhs = case collectMaxima (f . fst) fhs of
-  ((typ, dep), maxes, []) ->
-    pure
-      ( FoldHead (dep + 1) typ (foldMap (fhDefs . fst) maxes),
-        foldMap snd maxes
-      )
-  ((typ, dep), (FoldHead _ _ ((headName, headUse, headChildren) :| []), propagatedUse) :| [], chil) ->
-    pure
-      ( FoldHead (dep + 1) typ ((headName, headUse <> foldMap snd chil, foldMap (toList . toDeclTree . fst) chil <> headChildren) :| []),
-        propagatedUse
-      )
-  _ -> Left undefined
+foldHeads :: [(Maybe FoldHead, Use)] -> Either FoldError (Maybe FoldHead, Use)
+foldHeads fhs =
+  case heads of
+    [] -> pure (Nothing, uses)
+    (fh : fhs) -> case collectMaxima f (fh :| fhs) of
+      ((typ, dep), FoldHead _ _ ((headName, headUse, headChil) :| []) :| [], children) ->
+        pure
+          ( pure $ FoldHead (dep + 1) typ ((headName, headUse <> uses, (children >>= toDeclTree) <> headChil) :| []),
+            mempty
+          )
+      ((typ, dep), maxes, []) ->
+        pure
+          ( pure $ FoldHead (dep + 1) typ (maxes >>= fhDefs),
+            uses
+          )
+      _ -> Left (NoFold (fh :| fhs))
   where
-    toDeclTree :: FoldHead -> NonEmpty DeclTree
-    toDeclTree (FoldHead _ typ defs) = flip fmap defs $ \(name, use, chil) -> DeclTree typ name use chil
+    (heads, uses) = foldMap (first toList) fhs
+    toDeclTree :: FoldHead -> [DeclTree]
+    toDeclTree (FoldHead _ typ defs) = flip fmap (toList defs) $ \(name, use, chil) -> DeclTree typ name use chil
     f :: FoldHead -> (DeclType, Int)
     f (FoldHead d t _) = (t, d)
-
--- TODO this is where I left off
-ffffooolld :: [(Maybe FoldHead, Use)] -> (Maybe FoldHead, Use)
-ffffooolld fhs = case partitionBy f fhs of
-                   (a:as, use)
-  where
-    f x = case x of
-            (Just fh, use) -> Left (fh, use)
-            (Nothing, use) -> Right use
 
 foldNode :: GHC.HieAST a -> Either FoldError (Maybe FoldHead, Use)
 foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
@@ -122,12 +112,13 @@ foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
     (Right name, GHC.IdentifierDetails _ info) ->
       classifyIdentifier
         info
-        (\decl -> pure (0, decl, [DeclTree (Decl decl (unname name)) mempty mempty], mempty))
-        _use
-        _ignore
+        (\decl -> pure (Just $ FoldHead 0 decl (pure (unname name, mempty, mempty)), mempty))
+        (pure (Nothing, Use $ Set.singleton (nameKey name)))
+        (pure (Nothing, mempty))
         (Left $ IdentifierError span $ UnhandledIdentifier (Right name) info)
     _ -> undefined
-  undefined
+  subs <- forM children foldNode
+  foldHeads (subs <> ns)
 
 classifyIdentifier :: Set GHC.ContextInfo -> (DeclType -> r) -> r -> r -> r -> r
 classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
@@ -173,6 +164,7 @@ data FoldError
   = IdentifierError GHC.Span IdentifierError
   | AppendError GHC.Span AppendError
   | StructuralError
+  | NoFold (NonEmpty FoldHead)
 
 foldFile :: GHC.HieFile -> Either FoldError [FoldNode]
 foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
