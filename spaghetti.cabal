@@ -39,7 +39,6 @@ library
     Debug
     Dummy
     Parse
-    Pattern
     Printer
     Spaghetti
 

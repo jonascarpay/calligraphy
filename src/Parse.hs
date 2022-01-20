@@ -6,24 +6,30 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData #-}
 
-module Parse where
+module Parse
+  ( foldFile,
+    DeclTree (..),
+    --  For Debugging
+    FoldHead (..),
+    Name (..),
+    FoldError (..),
+    IdentifierError (..),
+  )
+where
 
 import Control.Monad.State
 import Data.Bifunctor (first)
-import Data.Either (partitionEithers)
 import Data.Foldable
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
 import Data.Set (Set)
 import Data.Set qualified as Set
-import FastString qualified as GHC
 import GHC qualified
 import GHC.Arr (Array)
 import GHC.Arr qualified as Array
 import HieTypes qualified as GHC
 import Name qualified as GHC
-import Pattern
 import Unique qualified as GHC
 
 -- TODO this can be much more efficient. Maybe do something with TangleT?
@@ -59,11 +65,6 @@ data FoldHead = FoldHead
     fhDeclType :: DeclType,
     fhDefs :: NonEmpty (Name, Use, [DeclTree])
   }
-
-type E a b = forall r. (a -> r) -> (b -> r) -> r
-
-partitionBy :: (a -> Either l r) -> [a] -> ([l], [r])
-partitionBy f = partitionEithers . fmap f
 
 data DeclTree = DeclTree
   { declType :: DeclType,
@@ -117,7 +118,7 @@ foldHeads fhs =
 
 foldNode :: GHC.HieAST a -> Either FoldError (Maybe FoldHead, Use)
 foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) =
-  if Set.member ("ClsInstD", "InstDecl") anns
+  if isInstanceNode
     then pure (Nothing, mempty)
     else do
       ns <- forM (M.toList ids) $ \case
@@ -131,10 +132,8 @@ foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) =
         (Left _, _) -> pure (Nothing, mempty)
       subs <- forM children foldNode
       foldHeads (subs <> ns)
-
-isInstance :: GHC.HieAST a -> Bool
-isInstance (GHC.Node (GHC.NodeInfo anns _ _) _ _) =
-  Set.member ("ClsInstD", "InstDecl") anns
+  where
+    isInstanceNode = Set.member ("ClsInstD", "InstDecl") anns
 
 classifyIdentifier :: Set GHC.ContextInfo -> (DeclType -> r) -> r -> r -> r -> r
 classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
@@ -163,153 +162,13 @@ classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
   [GHC.ValBind GHC.RegularBind GHC.ModuleScope _] -> ignore
   _ -> unknown
 
-data FoldNode
-  = FNClass Class
-  | FNImport String
-  | FNData Data
-  | FNCon Con
-  | FNValue Value
-  | FNValues [Value]
-  | FNRecs [Field]
-  | FNRec Field
-  | FNUse Use
-  | FNEmpty
-  deriving (Eq, Ord, Show)
-
 data FoldError
   = IdentifierError GHC.Span IdentifierError
-  | AppendError GHC.Span AppendError
   | StructuralError
   | NoFold (NonEmpty FoldHead)
 
-foldAst :: GHC.HieAST a -> Either FoldError FoldNode
-foldAst (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
-  cs <- traverse foldAst children
-  ns <- first (IdentifierError span) $
-    forM (M.toList ids) $ \case
-      (Left modname, GHC.IdentifierDetails _ info) ->
-        case fromModuleName info of
-          Nothing -> Left $ UnhandledIdentifier (Left modname) info
-          Just f -> Right $ f (GHC.moduleNameString modname)
-      (Right name, GHC.IdentifierDetails _ info) ->
-        case fromName info (unname name) of
-          Nothing -> Left $ UnhandledIdentifier (Right name) info
-          Just r -> Right r
-  first (AppendError span) $ foldM (curry (toEither (appendNodes anns))) FNEmpty (ns <> cs)
-
-markScope :: FoldNode -> FoldNode
-markScope = id
-
 data IdentifierError
   = UnhandledIdentifier GHC.Identifier (Set GHC.ContextInfo)
-
-fromName :: Set GHC.ContextInfo -> Name -> Maybe FoldNode
-fromName ctx name@(Name key _) = case Set.toAscList ctx of
-  [GHC.Decl GHC.DataDec _] -> datalike
-  [GHC.Decl GHC.PatSynDec _] -> datalike
-  [GHC.Decl GHC.FamDec _] -> datalike
-  [GHC.Decl GHC.SynDec _] -> datalike
-  [GHC.ClassTyDecl _] -> valuelike
-  [GHC.MatchBind, GHC.ValBind _ _ _] -> valuelike
-  [GHC.MatchBind] -> valuelike
-  [GHC.Decl GHC.InstDec _] -> ignore
-  [GHC.Decl GHC.ConDec _] -> pure $ FNCon (Con name mempty mempty)
-  [GHC.Use] -> uselike
-  [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> uselike
-  [GHC.Decl GHC.ClassDec _] -> pure $ FNClass $ Class name mempty
-  [GHC.ValBind GHC.RegularBind GHC.ModuleScope _, GHC.RecField GHC.RecFieldDecl _] -> recordlike
-  -- Recordfields without valbind occur when a record occurs in multiple constructors
-  [GHC.RecField GHC.RecFieldDecl _] -> recordlike
-  [GHC.PatternBind _ _ _] -> ignore
-  [GHC.RecField GHC.RecFieldMatch _] -> ignore
-  [GHC.RecField GHC.RecFieldAssign _] -> uselike
-  [GHC.TyDecl] -> ignore
-  [GHC.IEThing _] -> ignore
-  [GHC.TyVarBind _ _] -> ignore
-  -- An empty ValBind is the result of a derived instance, and should be ignored
-  [GHC.ValBind GHC.RegularBind GHC.ModuleScope _] -> ignore
-  _ -> Nothing
-  where
-    datalike = pure $ FNData $ Data name mempty mempty
-    recordlike = pure $ FNRec $ Field name mempty
-    valuelike = pure $ FNValue $ Value name mempty mempty
-    uselike = pure $ FNUse $ Use $ Set.singleton key
-    ignore = pure FNEmpty
-
-fromModuleName :: Set GHC.ContextInfo -> Maybe (String -> FoldNode)
-fromModuleName ctx = case Set.toAscList ctx of
-  [GHC.IEThing GHC.Import] -> pure FNImport
-  [GHC.IEThing GHC.ImportAs] -> pure $ const FNEmpty
-  _ -> Nothing
-
-type Annotations = Set (GHC.FastString, GHC.FastString)
-
-data AppendError
-  = CombineError Annotations FoldNode FoldNode
-
-appendNodes :: Annotations -> Pattern AppendError (FoldNode, FoldNode) FoldNode
-appendNodes anns = generic |> throws (uncurry (CombineError anns))
-  where
-    generic = fromMaybe $ \case
-      (FNEmpty, r) -> pure r
-      (l, FNEmpty) -> pure l
-      -- (FNUse l, FNUse r) -> pure $ FNUse (l <> r)
-      -- (FNCon (Con name use field), FNUse use') -> pure $ FNCon (Con name (use <> use') field)
-      -- (FNData (Data name cons use), FNCon con) -> pure $ FNData $ Data name (con : cons) use
-      -- (FNRec (Field name use), FNUse use') -> pure $ FNRec $ Field name (use <> use')
-      -- (FNRec l, FNRec r) -> pure $ FNRecs [r, l]
-      -- (FNRecs recs, FNRec rec) -> pure $ FNRecs (rec : recs)
-      -- (l, FNEmpty) -> pure l
-      -- (FNUse l, FNUse r) -> pure $ FNUse (l <> r)
-      _ -> Nothing
-    values = fromMaybe $ \case
-      (FNValue l, FNValue r) -> pure $ FNValues [r, l]
-      _ -> Nothing
-    valuelike = fromMaybe $ \case
-      (FNValue (Value name sub use), FNUse use') -> pure $ FNValue $ Value name sub (use' <> use)
-      _ -> Nothing
-    datalike = fromMaybe $ \case
-      (FNData (Data name cons use), FNUse use') -> pure $ FNData $ Data name cons (use' <> use)
-      _ -> Nothing
-    recordlike = fromMaybe $ \case
-      _ -> Nothing
-    conlike = fromMaybe $ \case
-      (FNCon (Con name use field), FNRecs recs) -> pure $ FNCon (Con name use (recs <> field))
-      (FNCon (Con name use field), FNRec rec) -> pure $ FNCon (Con name use (rec : field))
-      _ -> Nothing
-
-data Value = Value
-  { valName :: Name,
-    valChildren :: [Value],
-    valUses :: Use
-  }
-  deriving (Eq, Ord, Show)
-
-data Class = Class
-  { clName :: Name,
-    clValues :: [Value]
-  }
-  deriving (Eq, Ord, Show)
-
-data Data = Data
-  { dtName :: Name,
-    dtCons :: [Con],
-    dtUses :: Use
-  }
-  deriving (Eq, Ord, Show)
-
-data Con = Con
-  { conName :: Name,
-    conUses :: Use,
-    conFields :: [Field]
-  }
-  deriving (Eq, Ord, Show)
-
-data Field = Field
-  { recName :: Name,
-    recUses :: Use
-  }
-  deriving (Eq, Ord, Show)
 
 data Name = Name Key String
   deriving (Eq, Ord)
@@ -321,9 +180,6 @@ newtype Use = Use (Set Key)
   deriving (Eq, Ord, Semigroup, Monoid)
 
 instance Show Use where show _ = "<uses>"
-
-names :: GHC.HieAST a -> [GHC.Name]
-names = (>>= toList) . M.keys . GHC.nodeIdentifiers . GHC.nodeInfo
 
 unname :: GHC.Name -> Name
 unname n = Name (nameKey n) (GHC.occNameString $ GHC.nameOccName n)

@@ -22,9 +22,6 @@ import Parse
 import Printer
 import SrcLoc
 
-ppFoldNode :: Prints FoldNode
-ppFoldNode fn = strLn (show fn)
-
 ppDeclTree :: Prints DeclTree
 ppDeclTree (DeclTree typ (Name _ name) _ chil) = do
   strLn $ name <> ": " <> show typ
@@ -32,9 +29,6 @@ ppDeclTree (DeclTree typ (Name _ name) _ chil) = do
 
 ppFoldError :: Prints FoldError
 ppFoldError StructuralError = strLn "Structural error"
-ppFoldError (AppendError span err) = do
-  strLn $ "Error while combining at " <> showSpan span
-  indent $ ppAppendError err
 ppFoldError (IdentifierError span err) = do
   strLn $ "Error constructing identifier at " <> showSpan span
   indent $ ppIdentifierError err
@@ -57,18 +51,6 @@ ppIdentifierError (UnhandledIdentifier idn info) = do
     indent $ ppIdentifier idn
     strLn "Context"
     indent $ mapM_ (strLn . show) info
-
-ppAppendError :: Prints AppendError
-ppAppendError (CombineError anns l r) = do
-  strLn "Could not combine"
-  indent $ ppFoldNode l
-  strLn "and"
-  indent $ ppFoldNode r
-  strLn "under"
-  indent $ strLn $ unwords $ show <$> toList anns
-
-ppValue :: Prints Value
-ppValue (Value (Name _ str) children _) = strLn str >> indent (mapM_ ppValue children)
 
 ppModuleNameTree :: Prints HieFile
 ppModuleNameTree (HieFile _ mdl _types (HieASTs asts) _exps _src) = do
