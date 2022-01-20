@@ -52,7 +52,7 @@ data DeclType
   | DataDecl
   | ClassDecl
   deriving
-    (Eq, Ord)
+    (Eq, Ord, Show)
 
 data FoldHead = FoldHead
   { fhDepth :: Int,
@@ -83,6 +83,17 @@ collectMaxima ord (a :| as) = foldr f (ord a, pure a, []) as
       where
         b' = ord a
 
+foldFile :: GHC.HieFile -> Either FoldError [DeclTree]
+foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
+  case toList asts of
+    [GHC.Node _ _ asts'] -> do
+      heads <- traverse foldNode asts'
+      pure $ heads >>= toList . fst >>= toDeclTree
+    _ -> Left StructuralError
+
+toDeclTree :: FoldHead -> [DeclTree]
+toDeclTree (FoldHead _ typ defs) = flip fmap (toList defs) $ \(name, use, chil) -> DeclTree typ name use chil
+
 foldHeads :: [(Maybe FoldHead, Use)] -> Either FoldError (Maybe FoldHead, Use)
 foldHeads fhs =
   case heads of
@@ -90,35 +101,40 @@ foldHeads fhs =
     (fh : fhs) -> case collectMaxima f (fh :| fhs) of
       ((typ, dep), FoldHead _ _ ((headName, headUse, headChil) :| []) :| [], children) ->
         pure
-          ( pure $ FoldHead (dep + 1) typ ((headName, headUse <> uses, (children >>= toDeclTree) <> headChil) :| []),
+          ( pure $ FoldHead (dep - 1) typ ((headName, headUse <> uses, (children >>= toDeclTree) <> headChil) :| []),
             mempty
           )
       ((typ, dep), maxes, []) ->
         pure
-          ( pure $ FoldHead (dep + 1) typ (maxes >>= fhDefs),
+          ( pure $ FoldHead (dep - 1) typ (maxes >>= fhDefs),
             uses
           )
       _ -> Left (NoFold (fh :| fhs))
   where
     (heads, uses) = foldMap (first toList) fhs
-    toDeclTree :: FoldHead -> [DeclTree]
-    toDeclTree (FoldHead _ typ defs) = flip fmap (toList defs) $ \(name, use, chil) -> DeclTree typ name use chil
     f :: FoldHead -> (DeclType, Int)
-    f (FoldHead d t _) = (t, d)
+    f (FoldHead d t _) = (t, negate d)
 
 foldNode :: GHC.HieAST a -> Either FoldError (Maybe FoldHead, Use)
-foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do
-  ns <- forM (M.toList ids) $ \case
-    (Right name, GHC.IdentifierDetails _ info) ->
-      classifyIdentifier
-        info
-        (\decl -> pure (Just $ FoldHead 0 decl (pure (unname name, mempty, mempty)), mempty))
-        (pure (Nothing, Use $ Set.singleton (nameKey name)))
-        (pure (Nothing, mempty))
-        (Left $ IdentifierError span $ UnhandledIdentifier (Right name) info)
-    _ -> undefined
-  subs <- forM children foldNode
-  foldHeads (subs <> ns)
+foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) =
+  if Set.member ("ClsInstD", "InstDecl") anns
+    then pure (Nothing, mempty)
+    else do
+      ns <- forM (M.toList ids) $ \case
+        (Right name, GHC.IdentifierDetails _ info) ->
+          classifyIdentifier
+            info
+            (\decl -> pure (Just $ FoldHead 0 decl (pure (unname name, mempty, mempty)), mempty))
+            (pure (Nothing, Use $ Set.singleton (nameKey name)))
+            (pure (Nothing, mempty))
+            (Left $ IdentifierError span $ UnhandledIdentifier (Right name) info)
+        (Left _, _) -> pure (Nothing, mempty)
+      subs <- forM children foldNode
+      foldHeads (subs <> ns)
+
+isInstance :: GHC.HieAST a -> Bool
+isInstance (GHC.Node (GHC.NodeInfo anns _ _) _ _) =
+  Set.member ("ClsInstD", "InstDecl") anns
 
 classifyIdentifier :: Set GHC.ContextInfo -> (DeclType -> r) -> r -> r -> r -> r
 classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
@@ -165,12 +181,6 @@ data FoldError
   | AppendError GHC.Span AppendError
   | StructuralError
   | NoFold (NonEmpty FoldHead)
-
-foldFile :: GHC.HieFile -> Either FoldError [FoldNode]
-foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
-  case toList asts of
-    [GHC.Node _ _ asts'] -> traverse foldAst asts'
-    _ -> Left StructuralError
 
 foldAst :: GHC.HieAST a -> Either FoldError FoldNode
 foldAst (GHC.Node (GHC.NodeInfo anns _ ids) span children) = do

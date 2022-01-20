@@ -62,7 +62,7 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = 
       forM_ hieFilesFiltered $ \hieFile -> do
         strLn $ hie_hs_file hieFile
         when (dumpHie debugConfig) $ ppModuleNameTree hieFile
-        indent $ either ppFoldError (mapM_ ppFoldNode) (foldFile hieFile)
+        indent $ either ppFoldError (mapM_ ppDeclTree) (foldFile hieFile)
 
 -- ppModuleNameTree hieFile
 

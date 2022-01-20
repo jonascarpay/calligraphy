@@ -6,7 +6,7 @@
 
 module Debug
   ( ppModuleNameTree,
-    ppFoldNode,
+    ppDeclTree,
     ppFoldError,
   )
 where
@@ -14,7 +14,6 @@ where
 import Control.Monad.RWS
 import Data.Foldable
 import Data.Map qualified as M
-import FastString qualified as GHC
 import HieTypes hiding (nodeInfo)
 import HieTypes qualified as GHC
 import Module qualified as GHC
@@ -26,6 +25,11 @@ import SrcLoc
 ppFoldNode :: Prints FoldNode
 ppFoldNode fn = strLn (show fn)
 
+ppDeclTree :: Prints DeclTree
+ppDeclTree (DeclTree typ (Name _ name) _ chil) = do
+  strLn $ name <> ": " <> show typ
+  indent $ mapM_ ppDeclTree chil
+
 ppFoldError :: Prints FoldError
 ppFoldError StructuralError = strLn "Structural error"
 ppFoldError (AppendError span err) = do
@@ -34,6 +38,16 @@ ppFoldError (AppendError span err) = do
 ppFoldError (IdentifierError span err) = do
   strLn $ "Error constructing identifier at " <> showSpan span
   indent $ ppIdentifierError err
+ppFoldError (NoFold heads) = do
+  strLn "Error folding heads:"
+  indent $ mapM_ ppFoldHead heads
+
+ppFoldHead :: Prints FoldHead
+ppFoldHead (FoldHead dep typ defs) = do
+  strLn $ "Foldhead " <> show dep
+  indent $
+    forM_ defs $ \(name, use, chil) ->
+      ppDeclTree $ DeclTree typ name use chil
 
 ppIdentifierError :: Prints IdentifierError
 ppIdentifierError (UnhandledIdentifier idn info) = do
