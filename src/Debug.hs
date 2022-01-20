@@ -14,6 +14,7 @@ where
 import Control.Monad.RWS
 import Data.Foldable
 import Data.Map qualified as M
+import Data.Map qualified as Map
 import HieTypes hiding (nodeInfo)
 import HieTypes qualified as GHC
 import Module qualified as GHC
@@ -23,7 +24,7 @@ import Printer
 import SrcLoc
 
 ppDeclTree :: Prints DeclTree
-ppDeclTree (DeclTree typ (Name _ name) _ chil) = do
+ppDeclTree (DeclTree typ (Name (Key key) name) _ chil) = do
   strLn $ name <> ": " <> show typ
   indent $ mapM_ ppDeclTree chil
 
@@ -40,7 +41,7 @@ ppFoldHead :: Prints FoldHead
 ppFoldHead (FoldHead dep typ defs) = do
   strLn $ "Foldhead " <> show dep
   indent $
-    forM_ defs $ \(name, use, chil) ->
+    forM_ (Map.toList defs) $ \(name, (use, chil)) ->
       ppDeclTree $ DeclTree typ name use chil
 
 ppIdentifierError :: Prints IdentifierError
