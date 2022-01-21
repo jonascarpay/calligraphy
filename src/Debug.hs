@@ -26,7 +26,7 @@ import SrcLoc
 ppDeclTree :: Prints DeclTree
 ppDeclTree (DeclTree typ (Name (Key key) name) _ chil) = do
   strLn $ name <> ": " <> show typ
-  indent $ mapM_ ppDeclTree chil
+  indent $ mapM_ ppDeclTree (unScope chil)
 
 ppFoldError :: Prints FoldError
 ppFoldError StructuralError = strLn "Structural error"

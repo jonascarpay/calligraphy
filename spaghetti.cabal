@@ -47,6 +47,7 @@ library
     , directory
     , filepath
     , ghc
+    , hashable
     , microlens-platform
     , mtl
     , optparse-applicative
@@ -54,6 +55,7 @@ library
     , regex-tdfa
     , text
     , transformers
+    , unordered-containers
 
 executable spaghetti-exe
   import:         common-options

@@ -15,12 +15,16 @@ module Parse
     Key (..),
     FoldError (..),
     IdentifierError (..),
+    Scope,
+    unScope,
   )
 where
 
 import Control.Monad.State
 import Data.Bifunctor (first)
 import Data.Foldable
+import Data.IntMap (IntMap)
+import Data.IntMap qualified as IM
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
@@ -63,17 +67,32 @@ data DeclType
   deriving
     (Eq, Ord, Show)
 
+newtype Scope = Scope (IntMap DeclTree)
+
+instance Semigroup Scope where
+  Scope l <> Scope r = Scope $ IM.unionWith f l r
+    where
+      f (DeclTree t n u c) (DeclTree _ _ u' c') = DeclTree t n (u <> u') (c <> c')
+
+instance Monoid Scope where mempty = Scope mempty
+
+single :: DeclTree -> Scope
+single decl@(DeclTree _ (Name (Key key) _) _ _) = Scope $ IM.singleton key decl
+
+unScope :: Scope -> [DeclTree]
+unScope (Scope sc) = toList sc
+
 data FoldHead = FoldHead
   { fhDepth :: Int,
     fhDeclType :: DeclType,
-    fhDefs :: Map Name (Use, Map Name DeclTree)
+    fhDefs :: Map Name (Use, Scope)
   }
 
 data DeclTree = DeclTree
   { declType :: DeclType,
     declName :: Name,
     declUse :: Use,
-    children :: Map Name DeclTree
+    children :: Scope
   }
 
 collectMaxima :: forall a b. Ord b => (a -> b) -> NonEmpty a -> (b, NonEmpty a, [a])
@@ -109,24 +128,16 @@ foldHeads fhs =
             pure
               ( pure $
                   FoldHead (dep - 1) typ $
-                    Map.singleton headName (headUse <> uses, Map.unionWith merge (declsFromList $ children >>= toDeclTree) headChil),
+                    Map.singleton
+                      headName
+                      (headUse <> uses, foldMap single (children >>= toDeclTree) <> headChil),
                 mempty
               )
         ((typ, dep), maxes, []) ->
-          pure
-            ( pure $ FoldHead (dep - 1) typ (collect maxes),
-              uses
-            )
+          pure (pure $ FoldHead (dep - 1) typ (collect maxes), uses)
         _ -> Left (NoFold (fh :| fhs))
   where
-    merge :: DeclTree -> DeclTree -> DeclTree
-    merge (DeclTree typ name use chil) (DeclTree typ' name' use' chil')
-      | name == name' && typ == typ' = DeclTree typ name (use <> use') (Map.unionWith merge chil chil')
-      | otherwise = error "que que que"
-
-    declsFromList :: [DeclTree] -> Map Name DeclTree
-    declsFromList = Map.fromList . fmap (\t -> (declName t, t))
-    collect :: NonEmpty FoldHead -> Map Name (Use, Map Name DeclTree)
+    collect :: NonEmpty FoldHead -> Map Name (Use, Scope)
     collect heads = Map.fromListWith mappend (toList heads >>= Map.toList . fhDefs)
     (heads, uses) = foldMap (first toList) fhs
     f :: FoldHead -> (DeclType, Int)
