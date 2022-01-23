@@ -38,11 +38,9 @@ ppFoldError (NoFold heads) = do
   indent $ mapM_ ppFoldHead heads
 
 ppFoldHead :: Prints FoldHead
-ppFoldHead (FoldHead dep typ defs) = do
+ppFoldHead (FoldHead dep _ defs) = do
   strLn $ "Foldhead " <> show dep
-  indent $
-    forM_ (Map.toList defs) $ \(name, (use, chil)) ->
-      ppDeclTree $ DeclTree typ name use chil
+  indent $ forM_ (unScope defs) ppDeclTree
 
 ppIdentifierError :: Prints IdentifierError
 ppIdentifierError (UnhandledIdentifier idn info) = do

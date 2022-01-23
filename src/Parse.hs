@@ -27,9 +27,7 @@ import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
-import Data.Map (Map)
 import Data.Map qualified as M
-import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import GHC qualified
@@ -85,7 +83,7 @@ unScope (Scope sc) = toList sc
 data FoldHead = FoldHead
   { fhDepth :: Int,
     fhDeclType :: DeclType,
-    fhDefs :: Map Name (Use, Scope)
+    fhDefs :: Scope
   }
 
 data DeclTree = DeclTree
@@ -115,7 +113,7 @@ foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
     _ -> Left StructuralError
 
 toDeclTree :: FoldHead -> [DeclTree]
-toDeclTree (FoldHead _ typ defs) = flip fmap (Map.toList defs) $ \(name, (use, chil)) -> DeclTree typ name use chil
+toDeclTree = unScope . fhDefs
 
 foldHeads :: [(Maybe FoldHead, Use)] -> Either FoldError (Maybe FoldHead, Use)
 foldHeads fhs =
@@ -124,21 +122,16 @@ foldHeads fhs =
     (fh : fhs) ->
       case collectMaxima f (fh :| fhs) of
         ((typ, dep), FoldHead _ _ defs :| [], children)
-          | [(headName, (headUse, headChil))] <- Map.toList defs ->
+          | [DeclTree _ headName headUse headChil] <- unScope defs ->
             pure
               ( pure $
-                  FoldHead (dep - 1) typ $
-                    Map.singleton
-                      headName
-                      (headUse <> uses, foldMap single (children >>= toDeclTree) <> headChil),
+                  FoldHead (dep - 1) typ $ single $ DeclTree typ headName (headUse <> uses) (foldMap single (children >>= toDeclTree) <> headChil),
                 mempty
               )
         ((typ, dep), maxes, []) ->
-          pure (pure $ FoldHead (dep - 1) typ (collect maxes), uses)
+          pure (pure $ FoldHead (dep - 1) typ (foldMap fhDefs maxes), uses)
         _ -> Left (NoFold (fh :| fhs))
   where
-    collect :: NonEmpty FoldHead -> Map Name (Use, Scope)
-    collect heads = Map.fromListWith mappend (toList heads >>= Map.toList . fhDefs)
     (heads, uses) = foldMap (first toList) fhs
     f :: FoldHead -> (DeclType, Int)
     f (FoldHead d t _) = (t, negate d)
@@ -152,7 +145,7 @@ foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) =
         (Right name, GHC.IdentifierDetails _ info) ->
           classifyIdentifier
             info
-            (\decl -> pure (Just $ FoldHead 0 decl (Map.singleton (unname name) (mempty, mempty)), mempty))
+            (\decl -> pure (Just $ FoldHead 0 decl (single $ DeclTree decl (unname name) mempty mempty), mempty))
             (pure (Nothing, Use $ Set.singleton (nameKey name)))
             (pure (Nothing, mempty))
             (Left $ IdentifierError span $ UnhandledIdentifier (Right name) info)
