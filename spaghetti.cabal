@@ -38,6 +38,7 @@ library
     Config
     Debug
     Dummy
+    GraphViz
     Parse
     Printer
     Spaghetti

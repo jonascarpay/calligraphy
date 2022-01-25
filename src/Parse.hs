@@ -7,11 +7,14 @@
 {-# LANGUAGE StrictData #-}
 
 module Parse
-  ( foldFile,
+  ( parseModule,
     DeclTree (..),
+    Module (..),
+    DeclType (..),
     --  For Debugging
     Name (..),
-    Key (..),
+    Use (..),
+    Key,
     FoldError (..),
     IdentifierError (..),
     Scope,
@@ -23,6 +26,8 @@ import Control.Monad.State
 import Data.Foldable
 import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
+import Data.IntSet (IntSet)
+import Data.IntSet qualified as IS
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as M
 import Data.Set (Set)
@@ -31,6 +36,7 @@ import GHC qualified
 import GHC.Arr (Array)
 import GHC.Arr qualified as Array
 import HieTypes qualified as GHC
+import Module qualified as GHC
 import Name qualified as GHC
 import Unique qualified as GHC
 
@@ -50,8 +56,7 @@ resolve arr = imap (\i -> evalState (resolve1 i) mempty) arr
             GHC.HTyVarTy name -> pure [nameKey name]
             a -> fold <$> traverse resolve1 a
 
-newtype Key = Key Int
-  deriving (Eq, Ord)
+type Key = Int
 
 data DeclType
   = ValueDecl
@@ -72,7 +77,7 @@ instance Semigroup Scope where
 instance Monoid Scope where mempty = Scope mempty
 
 single :: DeclTree -> Scope
-single decl@(DeclTree _ (Name (Key key) _) _ _) = Scope $ IM.singleton key decl
+single decl@(DeclTree _ (Name key _) _ _) = Scope $ IM.singleton key decl
 
 unScope :: Scope -> [DeclTree]
 unScope (Scope sc) = toList sc
@@ -84,15 +89,21 @@ data DeclTree = DeclTree
     children :: Scope
   }
 
-foldFile :: GHC.HieFile -> Either FoldError [DeclTree]
-foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
+data Module = Module
+  { modName :: String,
+    modNodes :: [DeclTree]
+  }
+
+parseModule :: GHC.HieFile -> Either FoldError Module
+parseModule (GHC.HieFile _path (GHC.Module _ modname) _types (GHC.HieASTs asts) _info _src) =
   case toList asts of
     [GHC.Node _ _ asts'] -> do
       heads <- traverse foldNode asts'
-      pure $
-        heads >>= \(mdom, _) -> case mdom of
-          Nothing -> []
-          Just (Dominator _ _ r) -> either pure unScope r
+      let decls =
+            heads >>= \(mdom, _) -> case mdom of
+              Nothing -> []
+              Just (Dominator _ _ r) -> either pure unScope r
+      pure $ Module (GHC.moduleNameString modname) decls
     _ -> Left StructuralError
 
 data Dominator = Dominator DeclType Int (Either DeclTree Scope)
@@ -136,7 +147,7 @@ foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) =
           classifyIdentifier
             info
             (\decl -> pure (Just $ Dominator decl 0 $ Left $ DeclTree decl (unname name) mempty mempty, mempty))
-            (pure (Nothing, Use $ Set.singleton (nameKey name)))
+            (pure (Nothing, Use $ IS.singleton (nameKey name)))
             (pure (Nothing, mempty))
             (Left $ IdentifierError span $ UnhandledIdentifier (Right name) info)
         (Left _, _) -> pure (Nothing, mempty)
@@ -186,7 +197,7 @@ data Name = Name Key String
 instance Show Name where
   show (Name _ name) = name
 
-newtype Use = Use (Set Key)
+newtype Use = Use IntSet
   deriving (Eq, Ord, Semigroup, Monoid)
 
 instance Show Use where show _ = "<uses>"
@@ -195,4 +206,4 @@ unname :: GHC.Name -> Name
 unname n = Name (nameKey n) (GHC.getOccString n)
 
 nameKey :: GHC.Name -> Key
-nameKey = Key . GHC.getKey . GHC.nameUnique
+nameKey = GHC.getKey . GHC.nameUnique

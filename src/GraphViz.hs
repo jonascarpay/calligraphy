@@ -4,7 +4,8 @@
 
 module GraphViz (render) where
 
-import Config
+import Config qualified as Cfg
+import Control.Applicative
 import Control.Monad
 import Control.Monad.State
 import Data.Foldable
@@ -14,131 +15,56 @@ import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
 import Data.Set (Set)
 import Data.Set qualified as S
-import Lib
-import Printer (Printer, indent, strLn, textLn)
+import Parse
+import Printer
 
-type CallWriter = State (Set (Int, Int))
+treeKey :: DeclTree -> Int
+treeKey (DeclTree _ (Name k _) _ _) = k
 
-tell :: Set (Int, Int) -> CallWriter ()
-tell = modify . mappend
+ppNode :: DeclTree -> StateT DrawState Printer ()
+ppNode (DeclTree typ (Name key str) (Use calls) children') = do
+  DrawState ns ss cs <- get
+  unless (IS.member key ns) $ do
+    let children = unScope children'
+    put $
+      DrawState
+        (IS.insert key ns)
+        (IM.insert key (IS.fromList $ treeKey <$> children) ss)
+        (IM.insert key calls cs)
+    strLn $ show key <> " [label=" <> show str <> "];"
+    mapM_ ppNode children
 
-cowSaysA :: Int
-cowSaysA = cowSaysB
-  where
-    cowSaysB = cowSaysC
-    cowSaysC = cowSaysA
-
-render :: RenderConfig -> [ParsedModule] -> Printer ()
-render cfg modulesUnfiltered = do
-  let (RenderGraph modules calls) = toRenderGraph cfg modulesUnfiltered
-  textLn "digraph {"
-  indent $ do
-    -- textLn "newrank=true;"
-    -- unless (splines cfg) $ strLn "splines=false;"
-    textLn "graph [overlap=false];"
-    textLn "// Module Clusters"
-    forM_ (zip modules [0 :: Int ..]) $ \(RenderModule name nodes, i) -> do
-      strLn $ "subgraph cluster_" <> show i <> " {"
-      indent $ do
-        strLn "color=lightgrey;"
-        strLn $ "label=" <> show name <> ";"
-        mapM_ nodeLine nodes
-        mapM_ renderChildren (rnSubs <$> nodes)
-        mapM_ renderSubs nodes
-      textLn "}"
-    when (showCalls cfg) $ do
-      textLn "// Call graph"
-      forM_ calls $ \(caller, callee) -> strLn $ show caller <> " -> " <> show callee <> ";"
-  textLn "}"
-  where
-    style ScopeLocal = "style=dashed"
-    style ScopeExport = "shape=diamond"
-    style _ = mempty
-    renderChildren :: [RenderNode] -> Printer ()
-    renderChildren [] = pure ()
-    renderChildren nodes = do
-      strLn "{ rank=same;"
-      indent $ mapM_ nodeLine nodes
-      strLn "}"
-      mapM_ renderChildren (rnSubs <$> nodes)
-    nodeLine :: RenderNode -> Printer ()
-    nodeLine (RenderNode name key scope _) = do
-      strLn $ show key <> " [label=" <> show name <> ", " <> style scope <> "];"
-    renderSubs :: RenderNode -> Printer ()
-    renderSubs (RenderNode name key scope subs) = do
-      forM_ subs $ \sub ->
-        strLn (show key <> " -> " <> show (rnKey sub) <> " [weight=100, style=dashed, arrowhead=none];")
-      mapM_ renderSubs subs
-
-toRenderGraph :: RenderConfig -> [ParsedModule] -> RenderGraph
-toRenderGraph (RenderConfig renderLevel showCalls _splines includeFilters excludeFilters) modulesUnfiltered =
-  RenderGraph renderedModules (if showCalls then filter (flip IS.member renderedNodes . snd) $ S.toList calls else [])
-  where
-    modules = filter (\m -> isNotExcluded excludeFilters m && isIncluded includeFilters m) modulesUnfiltered
-    (renderedModules, calls) = runState (mapM (renderModule renderLevel) modules) mempty
-    renderedNodes :: IntSet
-    renderedNodes = foldMap (foldMap f . rmDecls) renderedModules
-      where
-        f (RenderNode _ key _ subs) = IS.singleton key <> foldMap f subs
-
-isIncluded :: [Filter] -> ParsedModule -> Bool
-isIncluded [] _ = True
-isIncluded fs p = any (flip match $ pmName p) fs
-
-isNotExcluded :: [Filter] -> ParsedModule -> Bool
-isNotExcluded [] _ = True
-isNotExcluded fs p = not $ any (flip match $ pmName p) fs
-
-renderModule :: RenderLevel -> ParsedModule -> CallWriter RenderModule
-renderModule renderLevel (ParsedModule name exports binds) = do
-  nodes' <- sequence $ binds >>= toList . renderBind
-  pure $ RenderModule name nodes'
-  where
-    renderBind :: Declaration -> Maybe (CallWriter RenderNode)
-    renderBind self@Declaration {declName, declKey, declSubs, declCalls} = do
-      let scope = if IS.member declKey exports then ScopeExport else ScopeModule
-       in case renderLevel of
-            Exports | scope /= ScopeExport -> Nothing
-            All ->
-              Just $ do
-                let goSubs :: Declaration -> CallWriter RenderNode
-                    goSubs Declaration {declName, declKey, declSubs, declCalls} = do
-                      modify $ mappend $ directCalls declKey declCalls
-                      RenderNode declName declKey ScopeLocal <$> mapM goSubs declSubs
-                tell $ directCalls declKey declCalls
-                RenderNode declName declKey scope <$> mapM goSubs declSubs
-            _ ->
-              Just
-                (RenderNode declName declKey scope [] <$ collectCalls self)
-
-    directCalls :: Int -> IntSet -> Set (Int, Int)
-    directCalls caller = S.fromList . fmap (caller,) . IS.toList
-    collectCalls :: Declaration -> CallWriter ()
-    collectCalls self@Declaration {declKey = caller} = go self
-      where
-        go Declaration {declCalls, declSubs} = do
-          tell $ directCalls caller (IS.delete caller declCalls)
-          mapM_ go declSubs
-
-data RenderGraph = RenderGraph
-  { rgModules :: [RenderModule],
-    rgCalls :: [(Int, Int)]
+data DrawState = DrawState
+  { drawnNodes :: IntSet,
+    subs :: IntMap IntSet,
+    calls :: IntMap IntSet
   }
 
-data RenderModule = RenderModule
-  { rmName :: String,
-    rmDecls :: [RenderNode]
-  }
+{-# INLINE foldMapM #-}
+foldMapM :: (Monoid b, Monad m, Foldable f) => (a -> m b) -> f a -> m b
+foldMapM f xs = foldr step return xs mempty
+  where
+    step x r z = f x >>= \y -> r $! z `mappend` y
 
-data NodeScope
-  = ScopeLocal
-  | ScopeModule
-  | ScopeExport
-  deriving (Eq, Show)
+{-# INLINE foldForM #-}
+foldForM :: (Monoid b, Monad m, Foldable f) => f a -> (a -> m b) -> m b
+foldForM = flip foldMapM
 
-data RenderNode = RenderNode
-  { rnName :: String,
-    rnKey :: Int,
-    rnScope :: NodeScope,
-    rnSubs :: [RenderNode]
-  }
+forEdges :: Monad m => IntSet -> IntMap IntSet -> (Int -> Int -> m ()) -> m ()
+forEdges drawn edges k = forM_ (IM.toList edges) $ \(from, tos) ->
+  when (IS.member from drawn) . forM_ (IS.toList tos) $ \to ->
+    when (IS.member to drawn) $
+      k from to
+
+render :: Prints [Module]
+render modules = brack "digraph {" "}" $ do
+  textLn "splines=false;"
+  textLn "graph [overlap=false];"
+  (ns, cs) <- foldForM (zip modules [0 :: Int ..]) $
+    \(Module modname nodes, i) -> do
+      brack ("subgraph cluster_" <> show i <> " {") "}" $ do
+        strLn $ "label=" <> modname <> ";"
+        DrawState ns ss cs <- execStateT (mapM_ ppNode nodes) (DrawState mempty mempty mempty)
+        forEdges ns ss $ \from to -> strLn $ show from <> " -> " <> show to <> " [style=dashed, arrowhead=none, weight=100];"
+        pure (ns, cs)
+  forEdges ns cs $ \from to -> strLn $ show from <> " -> " <> show to <> ";"

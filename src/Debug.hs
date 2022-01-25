@@ -25,7 +25,7 @@ import SrcLoc
 import Unique (getKey)
 
 ppDeclTree :: Prints DeclTree
-ppDeclTree (DeclTree typ (Name (Key key) name) _ chil) = do
+ppDeclTree (DeclTree typ (Name key name) _ chil) = do
   strLn $ name <> ": " <> show typ <> "   " <> show key
   indent $ mapM_ ppDeclTree (unScope chil)
 

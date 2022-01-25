@@ -1,30 +1,49 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Printer where
 
 import Control.Monad.RWS
+import Control.Monad.State
 import Data.Foldable
 import Data.Text (Text)
-import qualified Data.Text.Lazy as TL
+import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Builder (Builder)
-import qualified Data.Text.Lazy.Builder as TB
+import Data.Text.Lazy.Builder qualified as TB
 
-type Printer = RWS Int () Builder
+newtype Printer a = Printer {unPrinter :: RWS Int () Builder a}
+  deriving (Functor, Applicative, Monad)
 
 type Prints a = a -> Printer ()
 
 runPrinter :: Printer () -> Text
-runPrinter p = TL.toStrict . TB.toLazyText . fst $ execRWS p 0 mempty
+runPrinter (Printer p) = TL.toStrict . TB.toLazyText . fst $ execRWS p 0 mempty
 
-indent :: Printer a -> Printer a
-indent = local (+ 4)
+class Monad m => MonadPrint m where
+  line :: Builder -> m ()
+  indent :: m a -> m a
 
-line :: Prints Builder
-line t = do
-  n <- ask
-  modify $
-    flip mappend $ fold (replicate n (TB.singleton ' ')) <> t <> TB.singleton '\n'
+instance MonadPrint Printer where
+  {-# INLINE indent #-}
+  indent (Printer p) = Printer $ local (+ 4) p
 
-strLn :: Prints String
+  {-# INLINE line #-}
+  line t = Printer $ do
+    n <- ask
+    modify $
+      flip mappend $ fold (replicate n (TB.singleton ' ')) <> t <> TB.singleton '\n'
+
+instance MonadPrint m => MonadPrint (StateT s m) where
+  line = lift . line
+  indent (StateT m) = StateT $ indent . m
+
+{-# INLINE brack #-}
+brack :: MonadPrint m => String -> String -> m a -> m a
+brack pre post inner = strLn pre *> indent inner <* strLn post
+
+{-# INLINE strLn #-}
+strLn :: MonadPrint m => String -> m ()
 strLn = line . TB.fromString
 
-textLn :: Prints Text
+textLn :: MonadPrint m => Text -> m ()
 textLn = line . TB.fromText

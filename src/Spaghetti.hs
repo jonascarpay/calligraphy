@@ -16,6 +16,7 @@ import Data.Text.IO qualified as T
 import Data.Version (showVersion)
 import Debug
 import GHC (Module (moduleName), moduleNameString)
+import GraphViz
 import HieBin
 import HieTypes
 import NameCache
@@ -57,29 +58,31 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = 
       forM hieFilePaths readHieFileWithWarning
 
   let hieFilesFiltered = filter (match (includeFilters searchConfig) (excludeFilters searchConfig) . moduleNameString . moduleName . hie_module) hieFiles
+
   T.putStr $
     runPrinter $
       forM_ hieFilesFiltered $ \hieFile -> do
         strLn $ hie_hs_file hieFile
         when (dumpHie debugConfig) $ ppModuleNameTree hieFile
-        indent $ either ppFoldError (mapM_ ppDeclTree) (foldFile hieFile)
+  -- indent $ either ppFoldError (mapM_ ppDeclTree) (parseModule hieFile)
 
--- ppModuleNameTree hieFile
+  -- ppModuleNameTree hieFile
 
--- -- TODO WHY IS THIS IN THE GRAPH
--- let txt = runPrinter $ render renderConfig (parseModule <$> hieFiles)
+  modules <- either (die . T.unpack . runPrinter . ppFoldError) pure $ traverse parseModule hieFilesFiltered
+  -- -- TODO WHY IS THIS IN THE GRAPH
+  let txt = runPrinter $ render modules
 
--- case outputConfig of
---   OutputStdOut -> T.putStr txt
---   OutputFile fp -> T.writeFile fp txt
---   OutputPng fp -> do
---     mexe <- findExecutable "dot"
---     case mexe of
---       Nothing -> die "no dot"
---       Just exe -> do
---         (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
---         unless (code == ExitSuccess) $ do
---           putStrLn "dot crashed"
+  case outputConfig of
+    OutputStdOut -> T.putStr txt
+    OutputFile fp -> T.writeFile fp txt
+    OutputPng fp -> do
+      mexe <- findExecutable "dot"
+      case mexe of
+        Nothing -> die "no dot"
+        Just exe -> do
+          (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
+          unless (code == ExitSuccess) $ do
+            putStrLn "dot crashed"
 
 searchFiles :: SearchConfig -> IO [FilePath]
 searchFiles SearchConfig {searchDotPaths, searchRoots} = do
