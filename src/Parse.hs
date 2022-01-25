@@ -10,7 +10,6 @@ module Parse
   ( foldFile,
     DeclTree (..),
     --  For Debugging
-    FoldHead (..),
     Name (..),
     Key (..),
     FoldError (..),
@@ -21,12 +20,10 @@ module Parse
 where
 
 import Control.Monad.State
-import Data.Bifunctor (first)
 import Data.Foldable
 import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -80,12 +77,6 @@ single decl@(DeclTree _ (Name (Key key) _) _ _) = Scope $ IM.singleton key decl
 unScope :: Scope -> [DeclTree]
 unScope (Scope sc) = toList sc
 
-data FoldHead = FoldHead
-  { fhDepth :: Int,
-    fhDeclType :: DeclType,
-    fhDefs :: Scope
-  }
-
 data DeclTree = DeclTree
   { declType :: DeclType,
     declName :: Name,
@@ -93,50 +84,49 @@ data DeclTree = DeclTree
     children :: Scope
   }
 
-collectMaxima :: forall a b. Ord b => (a -> b) -> NonEmpty a -> (b, NonEmpty a, [a])
-collectMaxima ord (a :| as) = foldr f (ord a, pure a, []) as
-  where
-    f :: a -> (b, NonEmpty a, [a]) -> (b, NonEmpty a, [a])
-    f a (b, his, los) = case compare b' b of
-      LT -> (b, his, a : los)
-      EQ -> (b, NE.cons a his, los)
-      GT -> (b', pure a, toList his <> los)
-      where
-        b' = ord a
-
 foldFile :: GHC.HieFile -> Either FoldError [DeclTree]
 foldFile (GHC.HieFile _path _module _types (GHC.HieASTs asts) _info _src) =
   case toList asts of
     [GHC.Node _ _ asts'] -> do
       heads <- traverse foldNode asts'
-      pure $ heads >>= toList . fst >>= toDeclTree
+      pure $
+        heads >>= \(mdom, _) -> case mdom of
+          Nothing -> []
+          Just (Dominator _ _ r) -> either pure unScope r
     _ -> Left StructuralError
 
-toDeclTree :: FoldHead -> [DeclTree]
-toDeclTree = unScope . fhDefs
+data Dominator = Dominator DeclType Int (Either DeclTree Scope)
 
-foldHeads :: [(Maybe FoldHead, Use)] -> Either FoldError (Maybe FoldHead, Use)
-foldHeads fhs =
-  case heads of
-    [] -> pure (Nothing, uses)
-    (fh : fhs) ->
-      case collectMaxima f (fh :| fhs) of
-        ((typ, dep), FoldHead _ _ defs :| [], children)
-          | [DeclTree _ headName headUse headChil] <- unScope defs ->
-            pure
-              ( pure $
-                  FoldHead (dep - 1) typ $ single $ DeclTree typ headName (headUse <> uses) (foldMap single (children >>= toDeclTree) <> headChil),
-                mempty
-              )
-        ((typ, dep), maxes, []) ->
-          pure (pure $ FoldHead (dep - 1) typ (foldMap fhDefs maxes), uses)
-        _ -> Left (NoFold (fh :| fhs))
+combine :: Dominator -> Dominator -> Either FoldError Dominator
+combine (Dominator typ dep dec) (Dominator typ' dep' dec') = case compare (typ, negate dep) (typ', negate dep') of
+  LT -> Dominator typ' dep' . Left <$> assimilate dec' dec
+  GT -> Dominator typ dep . Left <$> assimilate dec dec'
+  EQ -> Dominator typ dep . Right <$> merge dec dec'
   where
-    (heads, uses) = foldMap (first toList) fhs
-    f :: FoldHead -> (DeclType, Int)
-    f (FoldHead d t _) = (t, negate d)
+    forceScope :: Either DeclTree Scope -> Scope
+    forceScope = either single id
+    assimilate (Left (DeclTree typ name use sub)) sub' =
+      pure $ DeclTree typ name use (forceScope sub' <> sub)
+    assimilate _ _ = undefined
+    merge l r = pure $ forceScope l <> forceScope r
 
-foldNode :: GHC.HieAST a -> Either FoldError (Maybe FoldHead, Use)
+combine' :: Maybe Dominator -> Maybe Dominator -> Either FoldError (Maybe Dominator)
+combine' Nothing a = pure a
+combine' a Nothing = pure a
+combine' (Just a) (Just b) = Just <$> combine a b
+
+foldHeads :: [(Maybe Dominator, Use)] -> Either FoldError (Maybe Dominator, Use)
+foldHeads fhs =
+  foldM combine' Nothing doms >>= \case
+    Nothing -> pure (Nothing, uses)
+    Just (Dominator typ dep (Left (DeclTree _ name use sub))) ->
+      pure (Just $ Dominator typ (dep + 1) $ Left $ DeclTree typ name (use <> uses) sub, mempty)
+    Just (Dominator typ dep (Right scope)) ->
+      pure (Just $ Dominator typ (dep + 1) $ Right scope, uses)
+  where
+    (doms, uses) = mconcat <$> unzip fhs
+
+foldNode :: GHC.HieAST a -> Either FoldError (Maybe Dominator, Use)
 foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) =
   if isInstanceNode
     then pure (Nothing, mempty)
@@ -145,7 +135,7 @@ foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) =
         (Right name, GHC.IdentifierDetails _ info) ->
           classifyIdentifier
             info
-            (\decl -> pure (Just $ FoldHead 0 decl (single $ DeclTree decl (unname name) mempty mempty), mempty))
+            (\decl -> pure (Just $ Dominator decl 0 $ Left $ DeclTree decl (unname name) mempty mempty, mempty))
             (pure (Nothing, Use $ Set.singleton (nameKey name)))
             (pure (Nothing, mempty))
             (Left $ IdentifierError span $ UnhandledIdentifier (Right name) info)
@@ -185,7 +175,7 @@ classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
 data FoldError
   = IdentifierError GHC.Span IdentifierError
   | StructuralError
-  | NoFold (NonEmpty FoldHead)
+  | NoFold (NonEmpty DeclTree)
 
 data IdentifierError
   = UnhandledIdentifier GHC.Identifier (Set GHC.ContextInfo)
@@ -202,7 +192,7 @@ newtype Use = Use (Set Key)
 instance Show Use where show _ = "<uses>"
 
 unname :: GHC.Name -> Name
-unname n = Name (nameKey n) (GHC.occNameString $ GHC.nameOccName n)
+unname n = Name (nameKey n) (GHC.getOccString n)
 
 nameKey :: GHC.Name -> Key
 nameKey = Key . GHC.getKey . GHC.nameUnique

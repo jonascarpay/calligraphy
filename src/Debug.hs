@@ -22,10 +22,11 @@ import Name
 import Parse
 import Printer
 import SrcLoc
+import Unique (getKey)
 
 ppDeclTree :: Prints DeclTree
 ppDeclTree (DeclTree typ (Name (Key key) name) _ chil) = do
-  strLn $ name <> ": " <> show typ
+  strLn $ name <> ": " <> show typ <> "   " <> show key
   indent $ mapM_ ppDeclTree (unScope chil)
 
 ppFoldError :: Prints FoldError
@@ -35,12 +36,7 @@ ppFoldError (IdentifierError span err) = do
   indent $ ppIdentifierError err
 ppFoldError (NoFold heads) = do
   strLn "Error folding heads:"
-  indent $ mapM_ ppFoldHead heads
-
-ppFoldHead :: Prints FoldHead
-ppFoldHead (FoldHead dep _ defs) = do
-  strLn $ "Foldhead " <> show dep
-  indent $ forM_ (unScope defs) ppDeclTree
+  indent $ mapM_ ppDeclTree heads
 
 ppIdentifierError :: Prints IdentifierError
 ppIdentifierError (UnhandledIdentifier idn info) = do
@@ -84,7 +80,7 @@ ppHieAst (Node (NodeInfo anns _types ids) srcSpan children) = do
     mapM_ ppHieAst children
 
 showName :: Name.Name -> String
-showName = show . occNameString . nameOccName
+showName name = getOccString name <> "    " <> show (getKey $ nameUnique name)
 
 showModuleName :: GHC.ModuleName -> String
 showModuleName = flip mappend " (module)" . show . GHC.moduleNameString
