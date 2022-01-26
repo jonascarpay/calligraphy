@@ -55,6 +55,9 @@ class Class a where
 
   hiddenMethod :: a -> a
 
+class Class a => SubClass a where
+  soup :: a -> Int
+
 instance Class ExportedT where
   type CTF ExportedT = Int
   data CDF ExportedT = FooData
@@ -81,7 +84,12 @@ recFn x = NoRecord $ field3 x
 
 expValue :: Int -> Int
 expValue 0 = 4
-expValue x = 5
+expValue x = error $ foo (Loc2 True)
+  where
+    foo :: LocalT -> String
+    foo (Loc1 a b) = "asdfasdf"
+    foo (Loc2 True) = "sdfgdfsg"
+    foo (Loc2 False) = error "soup"
 
 expArg :: a -> a
 expArg x = x

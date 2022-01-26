@@ -68,6 +68,7 @@ data DeclType
     (Eq, Ord, Show)
 
 newtype Scope = Scope (IntMap DeclTree)
+  deriving (Eq, Show)
 
 instance Semigroup Scope where
   Scope l <> Scope r = Scope $ IM.unionWith f l r
@@ -88,6 +89,7 @@ data DeclTree = DeclTree
     declUse :: Use,
     children :: Scope
   }
+  deriving (Eq, Show)
 
 data Module = Module
   { modName :: String,
@@ -110,15 +112,20 @@ data Dominator = Dominator DeclType Int (Either DeclTree Scope)
 
 combine :: Dominator -> Dominator -> Either FoldError Dominator
 combine (Dominator typ dep dec) (Dominator typ' dep' dec') = case compare (typ, negate dep) (typ', negate dep') of
-  LT -> Dominator typ' dep' . Left <$> assimilate dec' dec
-  GT -> Dominator typ dep . Left <$> assimilate dec dec'
-  EQ -> Dominator typ dep . Right <$> merge dec dec'
+  LT -> Dominator typ' dep' <$> assimilate dec' dec
+  GT -> Dominator typ dep <$> assimilate dec dec'
+  EQ -> Dominator typ dep . unsingleton <$> merge dec dec'
   where
+    unsingleton :: Scope -> Either DeclTree Scope
+    unsingleton sc = case unScope sc of
+      [decl] -> Left decl
+      _ -> Right sc
     forceScope :: Either DeclTree Scope -> Scope
     forceScope = either single id
     assimilate (Left (DeclTree typ name use sub)) sub' =
-      pure $ DeclTree typ name use (forceScope sub' <> sub)
-    assimilate _ _ = undefined
+      pure $ Left $ DeclTree typ name use (forceScope sub' <> sub)
+    assimilate (Right sc) dec =
+      pure $ Right (sc <> forceScope dec)
     merge l r = pure $ forceScope l <> forceScope r
 
 combine' :: Maybe Dominator -> Maybe Dominator -> Either FoldError (Maybe Dominator)
@@ -187,6 +194,7 @@ data FoldError
   = IdentifierError GHC.Span IdentifierError
   | StructuralError
   | NoFold (NonEmpty DeclTree)
+  | MultiplePossibleParents Scope Scope
 
 data IdentifierError
   = UnhandledIdentifier GHC.Identifier (Set GHC.ContextInfo)

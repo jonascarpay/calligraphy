@@ -83,6 +83,8 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = 
           (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
           unless (code == ExitSuccess) $ do
             putStrLn "dot crashed"
+            putStrLn out
+            putStrLn err
 
 searchFiles :: SearchConfig -> IO [FilePath]
 searchFiles SearchConfig {searchDotPaths, searchRoots} = do

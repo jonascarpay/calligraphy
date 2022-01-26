@@ -37,6 +37,13 @@ ppFoldError (IdentifierError span err) = do
 ppFoldError (NoFold heads) = do
   strLn "Error folding heads:"
   indent $ mapM_ ppDeclTree heads
+ppFoldError (MultiplePossibleParents par chl) = do
+  strLn "Multiple possible parents:"
+  indent $ do
+    strLn "Parents:"
+    indent $ mapM_ ppDeclTree (unScope par)
+    strLn "Child(ren):"
+    indent $ mapM_ ppDeclTree (unScope chl)
 
 ppIdentifierError :: Prints IdentifierError
 ppIdentifierError (UnhandledIdentifier idn info) = do

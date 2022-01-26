@@ -4,17 +4,12 @@
 
 module GraphViz (render) where
 
-import Config qualified as Cfg
-import Control.Applicative
 import Control.Monad
 import Control.Monad.State
-import Data.Foldable
 import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
-import Data.Set (Set)
-import Data.Set qualified as S
 import Parse
 import Printer
 
@@ -31,13 +26,20 @@ ppNode (DeclTree typ (Name key str) (Use calls) children') = do
         (IS.insert key ns)
         (IM.insert key (IS.fromList $ treeKey <$> children) ss)
         (IM.insert key calls cs)
-    strLn $ show key <> " [label=" <> show str <> "];"
+    strLn $ show key <> " [label=" <> show str <> nodeStyle typ <> "];"
     mapM_ ppNode children
+  where
+    nodeStyle :: DeclType -> String
+    nodeStyle DataDecl = ", shape=octagon"
+    nodeStyle ConDecl = ", shape=box"
+    nodeStyle RecDecl = ", shape=box, style=rounded"
+    nodeStyle ClassDecl = ", shape=house"
+    nodeStyle ValueDecl = ", shape=ellipse"
 
 data DrawState = DrawState
-  { drawnNodes :: IntSet,
-    subs :: IntMap IntSet,
-    calls :: IntMap IntSet
+  { _drawnNodes :: IntSet,
+    _subs :: IntMap IntSet,
+    _calls :: IntMap IntSet
   }
 
 {-# INLINE foldMapM #-}
@@ -57,14 +59,22 @@ forEdges drawn edges k = forM_ (IM.toList edges) $ \(from, tos) ->
       k from to
 
 render :: Prints [Module]
-render modules = brack "digraph {" "}" $ do
-  textLn "splines=false;"
-  textLn "graph [overlap=false];"
-  (ns, cs) <- foldForM (zip modules [0 :: Int ..]) $
-    \(Module modname nodes, i) -> do
-      brack ("subgraph cluster_" <> show i <> " {") "}" $ do
-        strLn $ "label=" <> modname <> ";"
-        DrawState ns ss cs <- execStateT (mapM_ ppNode nodes) (DrawState mempty mempty mempty)
-        forEdges ns ss $ \from to -> strLn $ show from <> " -> " <> show to <> " [style=dashed, arrowhead=none, weight=100];"
-        pure (ns, cs)
-  forEdges ns cs $ \from to -> strLn $ show from <> " -> " <> show to <> ";"
+render modules = do
+  brack "digraph spaghetti {" "}" $ do
+    textLn "splines=false;"
+    textLn "node [style=filled, fillcolor=\"#ffffffcf\"];"
+    textLn "graph [overlap=false, outputorder=edgesfirst];"
+    -- textLn "graph [overlap=false];"
+    -- textLn "newrank=true"
+    (ns, cs) <- foldForM (zip modules [0 :: Int ..]) $
+      \(Module modname nodes, i) -> do
+        brack ("subgraph cluster_" <> show i <> " {") "}" $ do
+          strLn $ "label=" <> modname <> ";"
+          foldForM (zip nodes [0 :: Int ..]) $ \(node, iNode) -> brack ("subgraph cluster_" <> show i <> "_" <> show iNode <> " {") "}" $ do
+            textLn "style=invis;"
+            DrawState ns ss cs <-
+              flip execStateT (DrawState mempty mempty mempty) $
+                ppNode node
+            forEdges ns ss $ \from to -> strLn $ show from <> " -> " <> show to <> "[style=dashed, arrowhead=none];"
+            pure (ns, cs)
+    forEdges ns cs $ \from to -> strLn $ show from <> " -> " <> show to <> ";"
