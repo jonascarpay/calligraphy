@@ -110,11 +110,11 @@ parseModule (GHC.HieFile _path (GHC.Module _ modname) _types (GHC.HieASTs asts) 
 
 data Dominator = Dominator DeclType Int (Either DeclTree Scope)
 
-combine :: Dominator -> Dominator -> Either FoldError Dominator
+combine :: Dominator -> Dominator -> Dominator
 combine (Dominator typ dep dec) (Dominator typ' dep' dec') = case compare (typ, negate dep) (typ', negate dep') of
-  LT -> Dominator typ' dep' <$> assimilate dec' dec
-  GT -> Dominator typ dep <$> assimilate dec dec'
-  EQ -> Dominator typ dep . unsingleton <$> merge dec dec'
+  LT -> Dominator typ' dep' $ assimilate dec' dec
+  GT -> Dominator typ dep $ assimilate dec dec'
+  EQ -> Dominator typ dep . unsingleton $ merge dec dec'
   where
     unsingleton :: Scope -> Either DeclTree Scope
     unsingleton sc = case unScope sc of
@@ -122,25 +122,23 @@ combine (Dominator typ dep dec) (Dominator typ' dep' dec') = case compare (typ, 
       _ -> Right sc
     forceScope :: Either DeclTree Scope -> Scope
     forceScope = either single id
-    assimilate (Left (DeclTree typ name use sub)) sub' =
-      pure $ Left $ DeclTree typ name use (forceScope sub' <> sub)
-    assimilate (Right sc) dec =
-      pure $ Right (sc <> forceScope dec)
-    merge l r = pure $ forceScope l <> forceScope r
+    assimilate (Left (DeclTree typ name use sub)) sub' = Left $ DeclTree typ name use (forceScope sub' <> sub)
+    assimilate (Right sc) dec = Right (sc <> forceScope dec)
+    merge l r = forceScope l <> forceScope r
 
-combine' :: Maybe Dominator -> Maybe Dominator -> Either FoldError (Maybe Dominator)
-combine' Nothing a = pure a
-combine' a Nothing = pure a
-combine' (Just a) (Just b) = Just <$> combine a b
+combine' :: Maybe Dominator -> Maybe Dominator -> Maybe Dominator
+combine' Nothing a = a
+combine' a Nothing = a
+combine' (Just a) (Just b) = Just $ combine a b
 
-foldHeads :: [(Maybe Dominator, Use)] -> Either FoldError (Maybe Dominator, Use)
+foldHeads :: [(Maybe Dominator, Use)] -> (Maybe Dominator, Use)
 foldHeads fhs =
-  foldM combine' Nothing doms >>= \case
-    Nothing -> pure (Nothing, uses)
+  case foldr combine' Nothing doms of
+    Nothing -> (Nothing, uses)
     Just (Dominator typ dep (Left (DeclTree _ name use sub))) ->
-      pure (Just $ Dominator typ (dep + 1) $ Left $ DeclTree typ name (use <> uses) sub, mempty)
+      (Just $ Dominator typ (dep + 1) $ Left $ DeclTree typ name (use <> uses) sub, mempty)
     Just (Dominator typ dep (Right scope)) ->
-      pure (Just $ Dominator typ (dep + 1) $ Right scope, uses)
+      (Just $ Dominator typ (dep + 1) $ Right scope, uses)
   where
     (doms, uses) = mconcat <$> unzip fhs
 
@@ -159,7 +157,7 @@ foldNode (GHC.Node (GHC.NodeInfo anns _ ids) span children) =
             (Left $ IdentifierError span $ UnhandledIdentifier (Right name) info)
         (Left _, _) -> pure (Nothing, mempty)
       subs <- forM children foldNode
-      foldHeads (subs <> ns)
+      pure $ foldHeads (subs <> ns)
   where
     isInstanceNode = Set.member ("ClsInstD", "InstDecl") anns
 
@@ -193,8 +191,6 @@ classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
 data FoldError
   = IdentifierError GHC.Span IdentifierError
   | StructuralError
-  | NoFold (NonEmpty DeclTree)
-  | MultiplePossibleParents Scope Scope
 
 data IdentifierError
   = UnhandledIdentifier GHC.Identifier (Set GHC.ContextInfo)
