@@ -10,14 +10,24 @@ import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
+import Data.List (intercalate, intersperse)
 import Parse
 import Printer
+import Text.Show (showListWith)
 
 treeKey :: DeclTree -> Int
 treeKey (DeclTree _ (Name k _) _ _) = k
 
-ppNode :: DeclTree -> StateT DrawState Printer ()
-ppNode (DeclTree typ (Name key str) (Use calls) children') = do
+type Style = [(String, String)]
+
+style :: Style -> String
+style sty = showListWith (\(key, val) -> showString key . showChar '=' . showString val) sty ";"
+
+(.=) :: String -> String -> (String, String)
+(.=) = (,)
+
+ppNode :: IntSet -> DeclTree -> StateT DrawState Printer ()
+ppNode exports (DeclTree typ (Name key str) (Use calls) children') = do
   DrawState ns ss cs <- get
   unless (IS.member key ns) $ do
     let children = unScope children'
@@ -26,15 +36,21 @@ ppNode (DeclTree typ (Name key str) (Use calls) children') = do
         (IS.insert key ns)
         (IM.insert key (IS.fromList $ treeKey <$> children) ss)
         (IM.insert key calls cs)
-    strLn $ show key <> " [label=" <> show str <> nodeStyle typ <> "];"
-    mapM_ ppNode children
+    strLn $ show key <> style ["label" .= show str, "shape" .= nodeShape typ, "style" .= nodeStyle typ key]
+    mapM_ (ppNode exports) children -- TODO worker-wrapper
   where
-    nodeStyle :: DeclType -> String
-    nodeStyle DataDecl = ", shape=octagon"
-    nodeStyle ConDecl = ", shape=box"
-    nodeStyle RecDecl = ", shape=box, style=rounded"
-    nodeStyle ClassDecl = ", shape=house"
-    nodeStyle ValueDecl = ", shape=ellipse"
+    nodeStyle :: DeclType -> Key -> String
+    nodeStyle dec key = show . intercalate ", " $
+      flip execState [] $ do
+        modify ("filled" :)
+        unless (IS.member key exports) $ modify ("dashed" :)
+        when (dec == RecDecl) $ modify ("rounded" :)
+    nodeShape :: DeclType -> String
+    nodeShape DataDecl = "octagon"
+    nodeShape ConDecl = "box"
+    nodeShape RecDecl = "box"
+    nodeShape ClassDecl = "house"
+    nodeShape ValueDecl = "ellipse"
 
 data DrawState = DrawState
   { _drawnNodes :: IntSet,
@@ -62,19 +78,19 @@ render :: Prints [Module]
 render modules = do
   brack "digraph spaghetti {" "}" $ do
     textLn "splines=false;"
-    textLn "node [style=filled, fillcolor=\"#ffffffcf\"];"
+    textLn "node [fillcolor=\"#ffffffcf\"];"
     textLn "graph [overlap=false, outputorder=edgesfirst];"
     -- textLn "graph [overlap=false];"
     -- textLn "newrank=true"
     (ns, cs) <- foldForM (zip modules [0 :: Int ..]) $
-      \(Module modname nodes, i) -> do
+      \(Module modname exports nodes, i) -> do
         brack ("subgraph cluster_" <> show i <> " {") "}" $ do
           strLn $ "label=" <> modname <> ";"
           foldForM (zip nodes [0 :: Int ..]) $ \(node, iNode) -> brack ("subgraph cluster_" <> show i <> "_" <> show iNode <> " {") "}" $ do
             textLn "style=invis;"
             DrawState ns ss cs <-
               flip execStateT (DrawState mempty mempty mempty) $
-                ppNode node
+                ppNode exports node
             forEdges ns ss $ \from to -> strLn $ show from <> " -> " <> show to <> "[style=dashed, arrowhead=none];"
             pure (ns, cs)
     forEdges ns cs $ \from to -> strLn $ show from <> " -> " <> show to <> ";"

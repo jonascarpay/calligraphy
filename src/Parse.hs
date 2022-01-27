@@ -22,6 +22,7 @@ module Parse
   )
 where
 
+import Avail qualified as GHC
 import Control.Monad.State
 import Data.Foldable
 import Data.IntMap (IntMap)
@@ -32,6 +33,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as M
 import Data.Set (Set)
 import Data.Set qualified as Set
+import FieldLabel qualified as GHC
 import GHC qualified
 import GHC.Arr (Array)
 import GHC.Arr qualified as Array
@@ -93,11 +95,12 @@ data DeclTree = DeclTree
 
 data Module = Module
   { modName :: String,
+    modExports :: IntSet,
     modNodes :: [DeclTree]
   }
 
 parseModule :: GHC.HieFile -> Either FoldError Module
-parseModule (GHC.HieFile _path (GHC.Module _ modname) _types (GHC.HieASTs asts) _info _src) =
+parseModule (GHC.HieFile _path (GHC.Module _ modname) _types (GHC.HieASTs asts) exports _src) =
   case toList asts of
     [GHC.Node _ _ asts'] -> do
       heads <- traverse foldNode asts'
@@ -105,8 +108,12 @@ parseModule (GHC.HieFile _path (GHC.Module _ modname) _types (GHC.HieASTs asts) 
             heads >>= \(mdom, _) -> case mdom of
               Nothing -> []
               Just (Dominator _ _ r) -> either pure unScope r
-      pure $ Module (GHC.moduleNameString modname) decls
+      pure $ Module (GHC.moduleNameString modname) (foldMap collect exports) decls
     _ -> Left StructuralError
+  where
+    collect :: GHC.AvailInfo -> IntSet
+    collect (GHC.Avail nm) = IS.singleton (nameKey nm)
+    collect (GHC.AvailTC nm extra recs) = IS.fromList . fmap nameKey $ nm : extra <> fmap GHC.flSelector recs
 
 data Dominator = Dominator DeclType Int (Either DeclTree Scope)
 
