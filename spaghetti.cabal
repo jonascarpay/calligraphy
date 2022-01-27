@@ -56,35 +56,10 @@ library
     , regex-tdfa
     , text
     , transformers
-    , unordered-containers
 
 executable spaghetti-exe
   import:         common-options
   hs-source-dirs: app
   main-is:        Main.hs
   build-depends:  spaghetti
-  ghc-options:    -threaded -rtsopts -with-rtsopts=-N
-
-test-suite spaghetti-test
-  import:         common-options
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        Spec.hs
-  build-depends:
-    , hspec
-    , HUnit
-    , QuickCheck
-    , spaghetti
-
-  ghc-options:    -threaded -rtsopts -with-rtsopts=-N
-
-benchmark spaghetti-bench
-  import:         common-options
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: bench
-  main-is:        Main.hs
-  build-depends:
-    , criterion
-    , spaghetti
-
   ghc-options:    -threaded -rtsopts -with-rtsopts=-N

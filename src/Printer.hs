@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
@@ -13,6 +14,7 @@ import Data.Text.Lazy.Builder qualified as TB
 
 newtype Printer a = Printer {unPrinter :: RWS Int () Builder a}
   deriving (Functor, Applicative, Monad)
+  deriving (Semigroup, Monoid) via (Ap Printer a)
 
 type Prints a = a -> Printer ()
 
