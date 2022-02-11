@@ -68,7 +68,7 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = 
 
   -- ppModuleNameTree hieFile
 
-  modules <- either (die . T.unpack . runPrinter . ppFoldError) pure $ traverse parseModule hieFilesFiltered
+  modules <- either (die . T.unpack . runPrinter . ppFoldError) pure $ traverse undefined hieFilesFiltered
   -- -- TODO WHY IS THIS IN THE GRAPH
   let txt = runPrinter $ render modules
 

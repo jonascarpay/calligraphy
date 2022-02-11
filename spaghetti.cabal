@@ -42,6 +42,7 @@ library
     Parse
     Printer
     Spaghetti
+    STree
 
   build-depends:
     , containers
@@ -63,3 +64,15 @@ executable spaghetti-exe
   main-is:        Main.hs
   build-depends:  spaghetti
   ghc-options:    -threaded -rtsopts -with-rtsopts=-N
+
+test-suite spaghetti-test
+  import:         common-options
+  hs-source-dirs: test
+  main-is:        Spec.hs
+  build-depends:
+    , hspec
+    , HUnit
+    , QuickCheck
+    , spaghetti
+
+  type:           exitcode-stdio-1.0

@@ -23,6 +23,12 @@ import Printer
 import SrcLoc
 import Unique (getKey)
 
+ppModuleNameTree, ppDeclTree, ppFoldError :: a
+ppModuleNameTree = undefined
+ppDeclTree = undefined
+ppFoldError = undefined
+
+{-
 ppDeclTree :: Prints DeclTree
 ppDeclTree (DeclTree typ (Name key name) _ chil) = do
   strLn $ name <> ": " <> show typ <> "   " <> show key
@@ -92,3 +98,4 @@ showSpan s =
       ":",
       show $ srcSpanEndCol s
     ]
+    -}

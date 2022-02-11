@@ -10,11 +10,15 @@ import Data.IntMap (IntMap)
 import Data.IntMap qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IS
-import Data.List (intercalate, intersperse)
+import Data.List (intercalate)
 import Parse
 import Printer
 import Text.Show (showListWith)
 
+render :: a
+render = undefined
+
+{-
 treeKey :: DeclTree -> Int
 treeKey (DeclTree _ (Name k _) _ _) = k
 
@@ -94,3 +98,4 @@ render modules = do
             forEdges ns ss $ \from to -> strLn $ show from <> " -> " <> show to <> "[style=dashed, arrowhead=none];"
             pure (ns, cs)
     forEdges ns cs $ \from to -> strLn $ show from <> " -> " <> show to <> ";"
+    -}
