@@ -58,8 +58,16 @@ main =
           Right t' -> check t'
       prop "inserting leaves other elements in the same order" $ \l a r (t :: STree Int Int) ->
         let f (a : as) (b : bs) | a == b = f as bs
-            f (a : as) bs = as == bs
+            f (_ : as) bs = as == bs
             f _ _ = False
          in case insert l a r t of
               Left _ -> discard
               Right t' -> f (toList t') (toList t)
+      prop "listifying and back succeeds and is valid" $ \(t :: STree Int Int) ->
+        case foldM (\acc (l, a, r) -> insert l a r acc) Tip (sTreeList t) of
+          Left _ -> False
+          Right t' -> check t'
+      prop "listifying and back succeeds and is the same tree" $ \(t :: STree Int Int) ->
+        case foldM (\acc (l, a, r) -> insert l a r acc) Tip (sTreeList t) of
+          Left _ -> False
+          Right t' -> t == t'

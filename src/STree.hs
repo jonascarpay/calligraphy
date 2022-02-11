@@ -9,13 +9,24 @@ import Data.Maybe (isJust)
 data STree p a
   = Tip
   | Bin {-# UNPACK #-} !Int !(STree p a) !p a !(STree p a) !p !(STree p a)
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Show, Functor, Foldable, Traversable)
+
+instance (Eq p, Eq a) => Eq (STree p a) where
+  ta == tb = sTreeList ta == sTreeList tb
+
+sTreeList :: STree p a -> [(p, a, p)]
+sTreeList t = foldSTree id f t []
+  where
+    f ls l a m r rs = ls . ((l, a, r) :) . m . rs
 
 foldSTree :: r -> (r -> p -> a -> r -> p -> r -> r) -> STree p a -> r
 foldSTree fTip fBin = go
   where
     go Tip = fTip
     go (Bin _ ls l a ms r rs) = fBin (go ls) l a (go ms) r (go rs)
+
+emptySTree :: STree p a
+emptySTree = Tip
 
 {-# INLINE height #-}
 height :: STree p a -> Int
