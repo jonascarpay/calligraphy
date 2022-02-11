@@ -3,6 +3,7 @@
 
 module STree where
 
+import Control.Applicative
 import Control.Monad
 import Data.Maybe (isJust)
 
@@ -13,6 +14,33 @@ data STree p a
 
 instance (Eq p, Eq a) => Eq (STree p a) where
   ta == tb = sTreeList ta == sTreeList tb
+
+lookupInner :: Ord p => p -> STree p a -> Maybe a
+lookupInner p = foldSTree Nothing f
+  where
+    f ls l a m r rs
+      | p >= l && p < r = m <|> Just a
+      | p < l = ls
+      | p >= r = rs
+      | otherwise = error "impossible"
+
+lookupOuter :: Ord p => p -> STree p a -> Maybe a
+lookupOuter p = foldSTree Nothing f
+  where
+    f ls l a m r rs
+      | p >= l && p < r = Just a
+      | p < l = ls
+      | p >= r = rs
+      | otherwise = error "impossible"
+
+lookupStack :: Ord p => p -> STree p a -> [a]
+lookupStack p = foldSTree [] f
+  where
+    f ls l a m r rs
+      | p >= l && p < r = a : m
+      | p < l = ls
+      | p >= r = rs
+      | otherwise = error "impossible"
 
 sTreeList :: STree p a -> [(p, a, p)]
 sTreeList t = foldSTree id f t []

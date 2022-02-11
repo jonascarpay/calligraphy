@@ -56,6 +56,10 @@ main =
         case insert l a r t of
           Left _ -> discard
           Right t' -> check t'
+      prop "after inserting, we can get the element back" $ \l a r (t :: STree Int Int) ->
+        case insert l a r t of
+          Left _ -> discard
+          Right t' -> elem a (lookupStack l t')
       prop "inserting leaves other elements in the same order" $ \l a r (t :: STree Int Int) ->
         let f (a : as) (b : bs) | a == b = f as bs
             f (_ : as) bs = as == bs
