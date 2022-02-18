@@ -124,9 +124,12 @@ pOutputConfig =
     <|> pure OutputStdOut
 
 data DebugConfig = DebugConfig
-  {dumpHie :: Bool}
+  { dumpHie :: Bool,
+    dumpParseTree :: Bool
+  }
 
 pDebugConfig :: Parser DebugConfig
 pDebugConfig =
   DebugConfig
     <$> switch (long "dump-hie")
+    <*> switch (long "dump-parse-tree")

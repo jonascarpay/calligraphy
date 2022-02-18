@@ -1,17 +1,29 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Parse where
+module Parse
+  ( parseHieFile,
+    Module (..),
+    DeclType (..),
+    ParseError (..),
+    unKey,
+  )
+where
 
+import Avail qualified as GHC
 import Control.Monad.Except
 import Control.Monad.State
-import Data.List.NonEmpty (NonEmpty)
-import Data.Map (Map)
+import Data.Bifunctor
 import Data.Map qualified as M
+import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import GHC qualified
 import HieTypes qualified as GHC
+import Name qualified as GHC
+import STree (STree, TreeError)
+import STree qualified as ST
 import SrcLoc qualified as GHC
+import Unique qualified as GHC
 
 -- -- TODO this can be much more efficient. Maybe do something with TangleT?
 -- resolve :: Array GHC.TypeIndex GHC.HieTypeFlat -> Array GHC.TypeIndex [Key]
@@ -49,9 +61,9 @@ data Collect = Collect
     collectedUses :: [(GHC.RealSrcLoc, GHC.Name)]
   }
 
-data CollectError = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
-
-newtype STree p a = STree (Map p (a, p))
+data ParseError
+  = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
+  | LexicalError TreeError
 
 data Node p a = Node
   { nodeLeft :: p,
@@ -60,42 +72,41 @@ data Node p a = Node
     nodeRight :: p
   }
 
--- insert :: Ord p => p -> a -> p -> STree p a -> STree p a
--- insert l a r = go
---   where
---     go (STree ns) = undefined
---       where
---         (befores, ns1) = Map.split l
---         (parents, ns2) = break ((< l) . nodeLeft) ns1
---         (children, ns3) = break ((< l) . nodeLeft) ns2
+data Module = Module
+  { modName :: String,
+    modExports :: Set Int,
+    modTree :: STree GHC.RealSrcLoc (DeclType, GHC.Name),
+    modCalls :: Set (Int, Int)
+  }
 
--- partitionNodes :: [(p, a, STree p a, p)] -> ([(p, a, STree p a, p)], [(p, a, STree p a, p)], [(p, a, STree p a, p)], [(p, a, STree p a, p)])
--- partitionNodes = undefined
+unKey :: GHC.Name -> Int
+unKey = GHC.getKey . GHC.nameUnique
 
--- go (Node lt lb val sub rb rt) = case (compare l lb, compare r rb) of
---   (LT, GT) -> undefined
---   (GT, LT) -> Node lt lb val (go sub) rb rt
---   _ -> undefined
+parseHieFile :: GHC.HieFile -> Either ParseError Module
+parseHieFile file@(GHC.HieFile _ mdl _ asts avails _) = do
+  Collect decls uses <- collect asts
+  tree <- first LexicalError $ structure decls
+  let uses' = Set.fromList $
+        flip mapMaybe uses $ \(loc, callee) -> do
+          (_, caller) <- ST.lookupInner loc tree
+          pure (unKey caller, unKey callee)
+      modString = GHC.moduleNameString $ GHC.moduleName mdl
+      exportNames = avails >>= GHC.availNames
+  pure $ Module modString (Set.fromList $ unKey <$> exportNames) tree uses'
 
--- split :: p -> STree p a -> (STree p a, STree p a)
--- split p = go
---   where
---     go Empty = undefined
---     go (Node lt lb v s rb rt) = undefined
+structure :: [Decl] -> Either TreeError (STree GHC.RealSrcLoc (DeclType, GHC.Name))
+structure = foldM (\t (Decl ty sp na) -> ST.insert (GHC.realSrcSpanStart sp) (ty, na) (GHC.realSrcSpanEnd sp) t) ST.emptySTree
 
-structure :: [Decl] -> STree GHC.RealSrcLoc Decl
-structure = undefined
-
-collect :: GHC.HieFile -> Either CollectError Collect
-collect (GHC.HieFile _ _ _ (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty)
+collect :: GHC.HieASTs a -> Either ParseError Collect
+collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty mempty)
   where
-    tellDecl :: Decl -> StateT Collect (Either CollectError) ()
+    tellDecl :: Decl -> StateT Collect (Either ParseError) ()
     tellDecl decl = modify $ \(Collect decls uses) -> Collect (decl : decls) uses
 
-    tellUse :: GHC.RealSrcLoc -> GHC.Name -> StateT Collect (Either CollectError) ()
+    tellUse :: GHC.RealSrcLoc -> GHC.Name -> StateT Collect (Either ParseError) ()
     tellUse loc name = modify $ \(Collect decls uses) -> Collect decls ((loc, name) : uses)
 
-    collect' :: GHC.HieAST a -> StateT Collect (Either CollectError) ()
+    collect' :: GHC.HieAST a -> StateT Collect (Either ParseError) ()
     collect' (GHC.Node (GHC.NodeInfo anns _ ids) nodeSpan children) = do
       forM_ (M.toList ids) $ \case
         (Right name, GHC.IdentifierDetails _ info) ->

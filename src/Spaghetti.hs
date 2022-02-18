@@ -63,12 +63,13 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = 
     runPrinter $
       forM_ hieFilesFiltered $ \hieFile -> do
         strLn $ hie_hs_file hieFile
-        when (dumpHie debugConfig) $ ppModuleNameTree hieFile
+        when (dumpHie debugConfig) $ ppHieFile hieFile
+        when (dumpParseTree debugConfig) $ either ppParseError ppModule (parseHieFile hieFile)
   -- indent $ either ppFoldError (mapM_ ppDeclTree) (parseModule hieFile)
 
-  -- ppModuleNameTree hieFile
+  -- ppHieFile hieFile
 
-  modules <- either (die . T.unpack . runPrinter . ppFoldError) pure $ traverse undefined hieFilesFiltered
+  modules <- either (die . T.unpack . runPrinter . ppParseError) pure $ traverse undefined hieFilesFiltered
   -- -- TODO WHY IS THIS IN THE GRAPH
   let txt = runPrinter $ render modules
 
