@@ -13,13 +13,14 @@ where
 
 import Control.Monad.RWS
 import Data.Foldable
+import Data.IntSet qualified as IntSet
 import Data.Map qualified as M
 import GHC qualified
 import HieTypes qualified as GHC
-import Name
+import Name qualified as GHC
 import Parse
 import Printer
-import STree (STree)
+import STree (STree, TreeError (..))
 import STree qualified
 import SrcLoc
 import Unique (getKey)
@@ -28,21 +29,38 @@ ppModule :: Prints Module
 ppModule (Module modName _exports tree _calls) = do
   strLn modName
   ppTree tree
-  where
-    ppTree :: Prints (STree GHC.RealSrcLoc (DeclType, GHC.Name))
-    ppTree = STree.foldSTree (pure ()) $ \ls l (typ, name) m r rs -> do
-      ls
-      strLn $ showName name <> " (" <> show typ <> ") " <> show l <> " " <> show r
-      indent m
-      rs
+
+ppTree :: Prints (STree GHC.RealSrcLoc (DeclType, Name))
+ppTree = STree.foldSTree (pure ()) $ \ls l (typ, name) m r rs -> do
+  ls
+  strLn $ showName name <> " (" <> show typ <> ") " <> show l <> " " <> show r
+  indent m
+  rs
 
 ppParseError :: Prints ParseError
 ppParseError (UnhandledIdentifier nm sp inf) = do
-  strLn $ "Unrecognized identifier: " <> showName nm
+  strLn $ "Unrecognized identifier: " <> showGHCName nm
   indent $ do
     strLn $ "loc: " <> show sp
     strLn $ "info: " <> show inf
-ppParseError (LexicalError err) = strLn (show err)
+ppParseError (TreeError err) = ppTreeError err
+
+ppNode :: GHC.RealSrcLoc -> GHC.RealSrcLoc -> DeclType -> Name -> Printer ()
+ppNode l r typ name = strLn $ showName name <> " (" <> show typ <> ") " <> show l <> " " <> show r
+
+ppTreeError :: Prints (TreeError GHC.RealSrcLoc (DeclType, Name))
+ppTreeError (InvalidBounds l (ty, nm) r) = strLn "Invalid bounds:" >> indent (ppNode l r ty nm)
+ppTreeError (OverlappingBounds (ty, nm) (ty', nm') l r) = do
+  strLn $ "OverlappingBounds bounds: (" <> show (l, r) <> ")"
+  indent $ do
+    strLn $ showName nm <> " (" <> show ty <> ")"
+    strLn $ showName nm' <> " (" <> show ty' <> ")"
+ppTreeError MidSplit = strLn "MidSplit"
+ppTreeError (LexicalError l (ty, nm) r t) = do
+  strLn "Lexical error"
+  indent $ do
+    ppNode l r ty nm
+    ppTree t
 
 ppHieFile :: Prints GHC.HieFile
 ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do
@@ -64,10 +82,13 @@ ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do
                 sequence_ subtrees
 
 ppIdentifier :: Prints GHC.Identifier
-ppIdentifier = strLn . either showModuleName showName
+ppIdentifier = strLn . either showModuleName showGHCName
 
-showName :: Name.Name -> String
-showName name = getOccString name <> "    " <> show (getKey $ nameUnique name)
+showGHCName :: GHC.Name -> String
+showGHCName name = GHC.getOccString name <> "    " <> show (getKey $ GHC.nameUnique name)
+
+showName :: Name -> String
+showName (Name name keys) = name <> "    " <> show (IntSet.toList keys)
 
 showSpan :: RealSrcSpan -> String
 showSpan s =

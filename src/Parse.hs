@@ -1,8 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Parse
   ( parseHieFile,
     Module (..),
+    Name (..),
     DeclType (..),
     ParseError (..),
     unKey,
@@ -13,6 +15,8 @@ import Avail qualified as GHC
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
+import Data.IntSet (IntSet)
+import Data.IntSet qualified as IntSet
 import Data.Map qualified as M
 import Data.Maybe (mapMaybe)
 import Data.Set (Set)
@@ -53,7 +57,7 @@ data DeclType
 data Decl = Decl
   { declType :: DeclType,
     declSpan :: GHC.Span,
-    declName :: GHC.Name
+    declName :: Name
   }
 
 data Collect = Collect
@@ -63,39 +67,52 @@ data Collect = Collect
 
 data ParseError
   = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
-  | LexicalError TreeError
-
-data Node p a = Node
-  { nodeLeft :: p,
-    nodeVal :: a,
-    nodeSub :: STree p a,
-    nodeRight :: p
-  }
+  | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name))
 
 data Module = Module
   { modName :: String,
     modExports :: Set Int,
-    modTree :: STree GHC.RealSrcLoc (DeclType, GHC.Name),
+    modTree :: STree GHC.RealSrcLoc (DeclType, Name),
     modCalls :: Set (Int, Int)
   }
 
+-- A single symbol can apparently declare a name with multiple distinct keys D:
+data Name = Name
+  { nameString :: String,
+    nameKeys :: IntSet
+  }
+
+mkName :: GHC.Name -> Name
+mkName nm = Name (GHC.getOccString nm) (IntSet.singleton $ unKey nm)
+
+-- TODO rename unkey and getkey
 unKey :: GHC.Name -> Int
 unKey = GHC.getKey . GHC.nameUnique
+
+getKey :: Name -> Int
+getKey = IntSet.findMin . nameKeys
 
 parseHieFile :: GHC.HieFile -> Either ParseError Module
 parseHieFile file@(GHC.HieFile _ mdl _ asts avails _) = do
   Collect decls uses <- collect asts
-  tree <- first LexicalError $ structure decls
+  tree <- structure decls
   let uses' = Set.fromList $
         flip mapMaybe uses $ \(loc, callee) -> do
           (_, caller) <- ST.lookupInner loc tree
-          pure (unKey caller, unKey callee)
+          pure (getKey caller, unKey callee)
       modString = GHC.moduleNameString $ GHC.moduleName mdl
       exportNames = avails >>= GHC.availNames
   pure $ Module modString (Set.fromList $ unKey <$> exportNames) tree uses'
 
-structure :: [Decl] -> Either TreeError (STree GHC.RealSrcLoc (DeclType, GHC.Name))
-structure = foldM (\t (Decl ty sp na) -> ST.insert (GHC.realSrcSpanStart sp) (ty, na) (GHC.realSrcSpanEnd sp) t) ST.emptySTree
+structure :: [Decl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name))
+structure =
+  foldM
+    (\t (Decl ty sp na) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, na) (GHC.realSrcSpanEnd sp) t)
+    ST.emptySTree
+  where
+    f (ta, Name na ka) (tb, Name nb kb)
+      | ta == tb && na == nb = Just (ta, Name na (ka <> kb))
+      | otherwise = Nothing
 
 collect :: GHC.HieASTs a -> Either ParseError Collect
 collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty mempty)
@@ -107,41 +124,44 @@ collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty me
     tellUse loc name = modify $ \(Collect decls uses) -> Collect decls ((loc, name) : uses)
 
     collect' :: GHC.HieAST a -> StateT Collect (Either ParseError) ()
-    collect' (GHC.Node (GHC.NodeInfo anns _ ids) nodeSpan children) = do
-      forM_ (M.toList ids) $ \case
-        (Right name, GHC.IdentifierDetails _ info) ->
-          classifyIdentifier
-            info
-            (\ty sp -> tellDecl $ Decl ty sp name)
-            (tellUse (GHC.realSrcSpanStart nodeSpan) name)
-            (pure ())
-            (throwError $ UnhandledIdentifier name nodeSpan (Set.toList info))
-        _ -> pure ()
-      mapM_ collect' children
+    collect' (GHC.Node (GHC.NodeInfo anns _ ids) nodeSpan children) =
+      if Set.member ("ClsInstD", "InstDecl") anns
+        then pure ()
+        else do
+          forM_ (M.toList ids) $ \case
+            (Right name, GHC.IdentifierDetails _ info) ->
+              classifyIdentifier
+                info
+                (\ty sp -> tellDecl $ Decl ty sp (mkName name))
+                (tellUse (GHC.realSrcSpanStart nodeSpan) name)
+                (pure ())
+                (throwError $ UnhandledIdentifier name nodeSpan (Set.toList info))
+            _ -> pure ()
+          mapM_ collect' children
 
     classifyIdentifier :: Set GHC.ContextInfo -> (DeclType -> GHC.Span -> r) -> r -> r -> r -> r
     classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
       [GHC.Decl GHC.DataDec (Just sp)] -> decl DataDecl sp
-      -- [GHC.Decl GHC.PatSynDec _] -> decl DataDecl
-      -- [GHC.Decl GHC.FamDec _] -> decl DataDecl
-      -- [GHC.Decl GHC.SynDec _] -> decl DataDecl
-      -- [GHC.ClassTyDecl _] -> decl ValueDecl
-      -- [GHC.MatchBind, GHC.ValBind _ _ _] -> decl ValueDecl
-      -- [GHC.MatchBind] -> decl ValueDecl
-      -- [GHC.Decl GHC.InstDec _] -> ignore
-      -- [GHC.Decl GHC.ConDec _] -> decl ConDecl
-      -- [GHC.Use] -> use
-      -- [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> use
-      -- [GHC.Decl GHC.ClassDec _] -> decl ClassDecl
-      -- [GHC.ValBind GHC.RegularBind GHC.ModuleScope _, GHC.RecField GHC.RecFieldDecl _] -> decl RecDecl
+      [GHC.Decl GHC.PatSynDec (Just sp)] -> decl DataDecl sp
+      [GHC.Decl GHC.FamDec (Just sp)] -> decl DataDecl sp
+      [GHC.Decl GHC.SynDec (Just sp)] -> decl DataDecl sp
+      [GHC.ClassTyDecl (Just sp)] -> decl ValueDecl sp
+      [GHC.MatchBind, GHC.ValBind _ _ (Just sp)] -> decl ValueDecl sp
+      [GHC.MatchBind] -> ignore
+      [GHC.Decl GHC.InstDec _] -> ignore
+      [GHC.Decl GHC.ConDec (Just sp)] -> decl ConDecl sp
+      [GHC.Use] -> use
+      [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> use
+      [GHC.Decl GHC.ClassDec (Just sp)] -> decl ClassDecl sp
+      [GHC.ValBind GHC.RegularBind GHC.ModuleScope (Just sp), GHC.RecField GHC.RecFieldDecl _] -> decl RecDecl sp
       -- -- Recordfields without valbind occur when a record occurs in multiple constructors
-      -- [GHC.RecField GHC.RecFieldDecl _] -> decl RecDecl
-      -- [GHC.PatternBind _ _ _] -> ignore
-      -- [GHC.RecField GHC.RecFieldMatch _] -> ignore
-      -- [GHC.RecField GHC.RecFieldAssign _] -> use
-      -- [GHC.TyDecl] -> ignore
-      -- [GHC.IEThing _] -> ignore
-      -- [GHC.TyVarBind _ _] -> ignore
+      [GHC.RecField GHC.RecFieldDecl (Just sp)] -> decl RecDecl sp
+      [GHC.PatternBind _ _ _] -> ignore
+      [GHC.RecField GHC.RecFieldMatch _] -> ignore
+      [GHC.RecField GHC.RecFieldAssign _] -> use
+      [GHC.TyDecl] -> ignore
+      [GHC.IEThing _] -> ignore
+      [GHC.TyVarBind _ _] -> ignore
       -- -- An empty ValBind is the result of a derived instance, and should be ignored
-      -- [GHC.ValBind GHC.RegularBind GHC.ModuleScope _] -> ignore
+      [GHC.ValBind GHC.RegularBind GHC.ModuleScope _] -> ignore
       _ -> unknown

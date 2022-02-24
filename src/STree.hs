@@ -123,12 +123,12 @@ checkBalance (Bin _ l _ _ m _ r) =
       abs (height l - height r) < 2
     ]
 
-data TreeError
-  = InvalidBounds
-  | OverlappingBounds
+data TreeError p a
+  = InvalidBounds p a p
+  | OverlappingBounds a a p p
   | MidSplit
-  | LexicalError
-  deriving (Eq, Show)
+  | LexicalError p a p (STree p a)
+  deriving (Functor, Foldable, Traversable, Eq, Show)
 
 {-# INLINE bin' #-}
 bin' :: STree p a -> p -> a -> STree p a -> p -> STree p a -> STree p a
@@ -149,7 +149,7 @@ bin ls l a ms r (Bin rh rls rl ra rms rr rrs)
       _ -> bin' (bin' ls l a ms r rls) rl ra rms rr rrs
 bin ls l a ms r rs = bin' ls l a ms r rs
 
-split :: Ord p => p -> STree p a -> Either TreeError (STree p a, STree p a)
+split :: Ord p => p -> STree p a -> Either (TreeError p a) (STree p a, STree p a)
 split p = go
   where
     go Tip = pure (Tip, Tip)
@@ -162,19 +162,38 @@ split p = go
         pure (bin ls l a ms r rl, rr)
       | otherwise = Left MidSplit
 
-insert :: Ord p => p -> a -> p -> STree p a -> Either TreeError (STree p a)
+insertWith :: Ord p => (a -> a -> Maybe a) -> p -> a -> p -> STree p a -> Either (TreeError p a) (STree p a)
+insertWith f il ia ir t
+  | il >= ir = Left $ InvalidBounds il ia ir
+  | otherwise = go t
+  where
+    go Tip = pure $ bin Tip il ia Tip ir Tip
+    go (Bin h ls l a ms r rs)
+      | ir <= l = flip fmap (go ls) $ \ls' -> bin ls' l a ms r rs
+      | il >= r = flip fmap (go rs) $ \rs' -> bin ls l a ms r rs'
+      | il == l && ir == r = case f ia a of
+        Just a' -> pure $ Bin h ls l a' ms r rs
+        Nothing -> Left $ OverlappingBounds ia a il ir
+      | il >= l && ir <= r = flip fmap (go ms) $ \ms' -> bin ls l a ms' r rs
+      | il <= l && ir >= r = do
+        (ll, lr) <- split il ls
+        (rl, rr) <- split ir rs
+        pure $ bin ll il ia (bin lr l a ms r rl) ir rr
+      | otherwise = Left $ LexicalError il ia ir t
+
+insert :: Ord p => p -> a -> p -> STree p a -> Either (TreeError p a) (STree p a)
 insert il ia ir t
-  | il >= ir = Left InvalidBounds
+  | il >= ir = Left $ InvalidBounds il ia ir
   | otherwise = go t
   where
     go Tip = pure $ bin Tip il ia Tip ir Tip
     go (Bin _ ls l a ms r rs)
       | ir <= l = flip fmap (go ls) $ \ls' -> bin ls' l a ms r rs
       | il >= r = flip fmap (go rs) $ \rs' -> bin ls l a ms r rs'
-      | il == l && ir == r = Left OverlappingBounds
+      | il == l && ir == r = Left $ OverlappingBounds ia a il ir
       | il >= l && ir <= r = flip fmap (go ms) $ \ms' -> bin ls l a ms' r rs
       | il <= l && ir >= r = do
         (ll, lr) <- split il ls
         (rl, rr) <- split ir rs
         pure $ bin ll il ia (bin lr l a ms r rl) ir rr
-      | otherwise = Left LexicalError
+      | otherwise = Left $ LexicalError il ia ir t
