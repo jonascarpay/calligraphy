@@ -7,6 +7,7 @@ module Parse
     Name (..),
     DeclType (..),
     ParseError (..),
+    SemanticTree (..),
     unKey,
   )
 where
@@ -17,7 +18,9 @@ import Control.Monad.State
 import Data.Bifunctor
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IntSet
+import Data.Map (Map)
 import Data.Map qualified as M
+import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -71,8 +74,8 @@ data ParseError
 
 data Module = Module
   { modName :: String,
-    modExports :: Set Int,
-    modTree :: STree GHC.RealSrcLoc (DeclType, Name),
+    modExports :: IntSet,
+    modTree :: SemanticTree,
     modCalls :: Set (Int, Int)
   }
 
@@ -102,14 +105,30 @@ parseHieFile file@(GHC.HieFile _ mdl _ asts avails _) = do
           pure (getKey caller, unKey callee)
       modString = GHC.moduleNameString $ GHC.moduleName mdl
       exportNames = avails >>= GHC.availNames
-  pure $ Module modString (Set.fromList $ unKey <$> exportNames) tree uses'
+  pure $ Module modString (IntSet.fromList $ unKey <$> exportNames) (deduplicate tree) uses'
+
+newtype SemanticTree = SemanticTree (Map String (IntSet, DeclType, SemanticTree))
+
+instance Semigroup SemanticTree where
+  SemanticTree ta <> SemanticTree tb = SemanticTree $ Map.unionWith f ta tb
+    where
+      f (ks, typ, sub) (ks', _, sub') = (ks <> ks', typ, sub <> sub')
+
+instance Monoid SemanticTree where mempty = SemanticTree mempty
+
+deduplicate :: STree GHC.RealSrcLoc (DeclType, Name) -> SemanticTree
+deduplicate = ST.foldSTree mempty $ \l _ (typ, Name str ks) sub _ r ->
+  let this = SemanticTree $ Map.singleton str (ks, typ, sub)
+   in l <> this <> r
 
 structure :: [Decl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name))
-structure =
-  foldM
-    (\t (Decl ty sp na) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, na) (GHC.realSrcSpanEnd sp) t)
-    ST.emptySTree
+structure = lexTree
   where
+    lexTree :: [Decl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name))
+    lexTree =
+      foldM
+        (\t (Decl ty sp na) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, na) (GHC.realSrcSpanEnd sp) t)
+        ST.emptySTree
     f (ta, Name na ka) (tb, Name nb kb)
       | ta == tb && na == nb = Just (ta, Name na (ka <> kb))
       | otherwise = Nothing

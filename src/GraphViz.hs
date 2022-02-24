@@ -7,70 +7,73 @@ module GraphViz (render) where
 import Control.Monad
 import Control.Monad.State
 import Data.IntMap (IntMap)
-import Data.IntMap qualified as IM
+import Data.IntMap qualified as IntMap
 import Data.IntSet (IntSet)
-import Data.IntSet qualified as IS
+import Data.IntSet qualified as IntSet
 import Data.List (intercalate)
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Parse
 import Printer
 import Text.Show (showListWith)
 
-render :: a
-render = undefined
+data DrawState = DrawState
+  { representative :: !(IntMap Int),
+    fresh :: !Int
+  }
 
-{-
 render :: Prints [Module]
 render modules = do
   brack "digraph spaghetti {" "}" $ do
-    textLn "splines=false;"
-    textLn "node [fillcolor=\"#ffffffcf\"];"
-    textLn "graph [overlap=false, outputorder=edgesfirst];"
-    -- textLn "graph [overlap=false];"
-    -- textLn "newrank=true"
-    (ns, cs) <- foldForM (zip modules [0 :: Int ..]) $
-      \(Module modname exports tree calls, i) -> do
-        brack ("subgraph cluster_" <> show i <> " {") "}" $ do
-          strLn $ "label=" <> modname <> ";"
-          foldForM (zip nodes [0 :: Int ..]) $ \(node, iNode) -> brack ("subgraph cluster_" <> show i <> "_" <> show iNode <> " {") "}" $ do
-            textLn "style=invis;"
-            DrawState ns ss cs <-
-              flip execStateT (DrawState mempty mempty mempty) $
-                ppNode exports node
-            forEdges ns ss $ \from to -> strLn $ show from <> " -> " <> show to <> "[style=dashed, arrowhead=none];"
-            pure (ns, cs)
-    forEdges ns cs $ \from to -> strLn $ show from <> " -> " <> show to <> ";"
+    -- textLn "splines=false;"
+    textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
+    textLn "graph [outputorder=edgesfirst];"
+    DrawState reps _ <- flip execStateT (DrawState mempty 0) $
+      forM_ (zip modules [0 :: Int ..]) $
+        \(Module modName exports (SemanticTree tree) _, ix) ->
+          brack ("subgraph cluster_module_" <> show ix <> " {") "}" $ do
+            strLn $ "label=" <> show modName <> ";"
+            forM_ (Map.toList tree) $ \node -> do
+              nCluster <- tick
+              brack ("subgraph cluster_" <> show nCluster <> " {") "}" $ do
+                textLn "style=invis;"
+                tick >>= renderTreeNode exports node
+    forM_ (modules >>= Set.toList . modCalls) $ \(caller, callee) -> sequence_ $ do
+      nCaller <- reps IntMap.!? caller
+      nCallee <- reps IntMap.!? callee
+      pure $ strLn $ show nCaller <> " -> " <> show nCallee <> ";"
+  where
+    tellRep :: Int -> Int -> StateT DrawState Printer ()
+    tellRep key rep = modify $ \(DrawState r n) -> DrawState (IntMap.insert key rep r) n
+    tick :: StateT DrawState Printer Int
+    tick = state $ \(DrawState r n) -> (n, DrawState r (n + 1))
 
-data DrawState = DrawState
-  { _drawnNodes :: IntSet,
-    _subs :: IntMap IntSet,
-    _calls :: IntMap IntSet
-  }
-
-type Style = [(String, String)]
-
-style :: Style -> String
-style sty = showListWith (\(key, val) -> showString key . showChar '=' . showString val) sty ";"
+    renderTreeNode :: IntSet -> (String, (IntSet, DeclType, SemanticTree)) -> Int -> StateT DrawState Printer ()
+    renderTreeNode exports (str, (keys, typ, SemanticTree sub)) this = do
+      forM_ (IntSet.toList keys) $ \k -> tellRep k this
+      strLn $ show this <> " " <> style ["label" .= show str, "shape" .= nodeShape typ, "style" .= nodeStyle]
+      forM_ (Map.toList sub) $ \child -> do
+        nChild <- tick
+        renderTreeNode exports child nChild
+        strLn $ show this <> " -> " <> show nChild <> " [style=dashed, arrowhead=none];"
+      where
+        nodeStyle :: String
+        nodeStyle = show . intercalate ", " $
+          flip execState [] $ do
+            modify ("filled" :)
+            unless (any (flip IntSet.member exports) (IntSet.toList keys)) $ modify ("dashed" :)
+            when (typ == RecDecl) $ modify ("rounded" :)
+        nodeShape :: DeclType -> String
+        nodeShape DataDecl = "octagon"
+        nodeShape ConDecl = "box"
+        nodeShape RecDecl = "box"
+        nodeShape ClassDecl = "house"
+        nodeShape ValueDecl = "ellipse"
 
 (.=) :: String -> String -> (String, String)
 (.=) = (,)
 
-{-# INLINE foldMapM #-}
-foldMapM :: (Monoid b, Monad m, Foldable f) => (a -> m b) -> f a -> m b
-foldMapM f xs = foldr step return xs mempty
-  where
-    step x r z = f x >>= \y -> r $! z `mappend` y
+style :: Style -> String
+style sty = showListWith (\(key, val) -> showString key . showChar '=' . showString val) sty ";"
 
-{-# INLINE foldForM #-}
-foldForM :: (Monoid b, Monad m, Foldable f) => f a -> (a -> m b) -> m b
-foldForM = flip foldMapM
-
-treeKey :: DeclTree -> Int
-treeKey (DeclTree _ (Name k _) _ _) = k
-
-forEdges :: Monad m => IntSet -> IntMap IntSet -> (Int -> Int -> m ()) -> m ()
-forEdges drawn edges k = forM_ (IM.toList edges) $ \(from, tos) ->
-  when (IS.member from drawn) . forM_ (IS.toList tos) $ \to ->
-    when (IS.member to drawn) $
-      k from to
-
-    -}
+type Style = [(String, String)]

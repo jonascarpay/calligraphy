@@ -15,6 +15,7 @@ import Control.Monad.RWS
 import Data.Foldable
 import Data.IntSet qualified as IntSet
 import Data.Map qualified as M
+import Data.Map qualified as Map
 import GHC qualified
 import HieTypes qualified as GHC
 import Name qualified as GHC
@@ -28,7 +29,12 @@ import Unique (getKey)
 ppModule :: Prints Module
 ppModule (Module modName _exports tree _calls) = do
   strLn modName
-  ppTree tree
+  ppSemTree tree
+
+ppSemTree :: Prints SemanticTree
+ppSemTree (SemanticTree m) = forM_ (Map.toList m) $ \(str, (ks, typ, sub)) -> do
+  strLn $ str <> " " <> show (IntSet.toList ks) <> " (" <> show typ <> ")"
+  indent $ ppSemTree sub
 
 ppTree :: Prints (STree GHC.RealSrcLoc (DeclType, Name))
 ppTree = STree.foldSTree (pure ()) $ \ls l (typ, name) m r rs -> do
