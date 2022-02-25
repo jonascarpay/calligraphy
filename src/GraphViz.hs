@@ -41,7 +41,7 @@ render modules = do
     forM_ (modules >>= Set.toList . modCalls) $ \(caller, callee) -> sequence_ $ do
       nCaller <- reps IntMap.!? caller
       nCallee <- reps IntMap.!? callee
-      pure $ strLn $ show nCaller <> " -> " <> show nCallee <> ";"
+      pure $ edge nCallee nCaller ["dir" .= "back"]
   where
     tellRep :: Int -> Int -> StateT DrawState Printer ()
     tellRep key rep = modify $ \(DrawState r n) -> DrawState (IntMap.insert key rep r) n
@@ -55,7 +55,7 @@ render modules = do
       forM_ (Map.toList sub) $ \child -> do
         nChild <- tick
         renderTreeNode exports child nChild
-        strLn $ show this <> " -> " <> show nChild <> " [style=dashed, arrowhead=none];"
+        edge this nChild ["style" .= "dashed", "arrowhead" .= "none"]
       where
         nodeStyle :: String
         nodeStyle = show . intercalate ", " $
@@ -69,6 +69,9 @@ render modules = do
         nodeShape RecDecl = "box"
         nodeShape ClassDecl = "house"
         nodeShape ValueDecl = "ellipse"
+
+edge :: MonadPrint m => Int -> Int -> Style -> m ()
+edge from to sty = strLn $ show from <> " -> " <> show to <> " " <> style sty
 
 (.=) :: String -> String -> (String, String)
 (.=) = (,)
