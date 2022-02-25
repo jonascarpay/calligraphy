@@ -70,7 +70,7 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = 
   -- ppHieFile hieFile
 
   modules <- either (die . T.unpack . runPrinter . ppParseError) pure $ traverse parseHieFile hieFilesFiltered
-  let txt = runPrinter $ render modules
+  let txt = runPrinter $ render renderConfig modules
 
   case outputConfig of
     OutputStdOut -> T.putStr txt

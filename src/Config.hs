@@ -5,7 +5,6 @@ module Config
     DebugConfig (..),
     AppConfig (..),
     pConfig,
-    RenderLevel (..),
     Filter,
     match,
   )
@@ -53,8 +52,7 @@ data SearchConfig = SearchConfig
 -- TODO these are mostly "filtering" options, with the exception of splines
 --   alternative, splines is a graphviz option
 data RenderConfig = RenderConfig
-  { renderLevel :: RenderLevel,
-    showCalls :: Bool,
+  { showCalls :: Bool,
     splines :: Bool
   }
 
@@ -62,12 +60,6 @@ data OutputConfig
   = OutputStdOut
   | OutputFile FilePath
   | OutputPng FilePath
-
-data RenderLevel
-  = All
-  | Module
-  | Exports
-  deriving (Eq, Show)
 
 pConfig :: Parser AppConfig
 pConfig = AppConfig <$> pSearchConfig <*> pRenderConfig <*> pOutputConfig <*> pDebugConfig
@@ -103,18 +95,11 @@ pSearchConfig =
             )
       )
 
-pRenderLevel :: Parser RenderLevel
-pRenderLevel =
-  flag' Module (long "only-toplevel" <> help "Only render top-level bindings")
-    <|> flag' Exports (long "only-exports" <> help "Only render exported bindings")
-    <|> pure All
-
 pRenderConfig :: Parser RenderConfig
 pRenderConfig =
   RenderConfig
-    <$> pRenderLevel
-    <*> flag True False (long "hide-calls" <> help "Don't show function call arrows")
-    <*> switch (long "splines" <> help "Render arrows as splines")
+    <$> flag True False (long "hide-calls" <> help "Don't show function call arrows")
+    <*> flag True False (long "no-splines" <> help "Render arrows as straight lines instead of splines")
 
 -- TODO allow output to multiple places
 pOutputConfig :: Parser OutputConfig

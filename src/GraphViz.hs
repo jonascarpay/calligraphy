@@ -4,6 +4,7 @@
 
 module GraphViz (render) where
 
+import Config (RenderConfig (..))
 import Control.Monad
 import Control.Monad.State
 import Data.IntMap (IntMap)
@@ -22,10 +23,10 @@ data DrawState = DrawState
     fresh :: !Int
   }
 
-render :: Prints [Module]
-render modules = do
+render :: RenderConfig -> Prints [Module]
+render (RenderConfig _ splines) modules = do
   brack "digraph spaghetti {" "}" $ do
-    -- textLn "splines=false;"
+    unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
     textLn "graph [outputorder=edgesfirst];"
     DrawState reps _ <- flip execStateT (DrawState mempty 0) $
