@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 
 module GraphViz (render) where
@@ -24,7 +25,7 @@ data DrawState = DrawState
   }
 
 render :: RenderConfig -> Prints [Module]
-render (RenderConfig _ splines) modules = do
+render RenderConfig {..} modules = do
   brack "digraph spaghetti {" "}" $ do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
@@ -42,7 +43,10 @@ render (RenderConfig _ splines) modules = do
     forM_ (modules >>= Set.toList . modCalls) $ \(caller, callee) -> sequence_ $ do
       nCaller <- reps IntMap.!? caller
       nCallee <- reps IntMap.!? callee
-      pure $ edge nCallee nCaller ["dir" .= "back"]
+      pure $
+        if reverseDependencyRank
+          then edge nCaller nCallee []
+          else edge nCallee nCaller ["dir" .= "back"]
   where
     tellRep :: Int -> Int -> StateT DrawState Printer ()
     tellRep key rep = modify $ \(DrawState r n) -> DrawState (IntMap.insert key rep r) n

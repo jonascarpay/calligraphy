@@ -47,13 +47,11 @@ data SearchConfig = SearchConfig
 -- TODO qualified names
 -- TODO LR rankdir
 -- TODO move to Render module
--- TODO children on same rank
--- TODO experiment with arrow direction (rendering, ordering)
 -- TODO these are mostly "filtering" options, with the exception of splines
---   alternative, splines is a graphviz option
 data RenderConfig = RenderConfig
   { showCalls :: Bool,
-    splines :: Bool
+    splines :: Bool,
+    reverseDependencyRank :: Bool
   }
 
 data OutputConfig
@@ -100,6 +98,7 @@ pRenderConfig =
   RenderConfig
     <$> flag True False (long "hide-calls" <> help "Don't show function call arrows")
     <*> flag True False (long "no-splines" <> help "Render arrows as straight lines instead of splines")
+    <*> flag False True (long "reverse-dependency-rank" <> short 'r' <> help "Make dependencies have lower rank than the dependee, i.e. show dependencies above their parent.")
 
 -- TODO allow output to multiple places
 pOutputConfig :: Parser OutputConfig
