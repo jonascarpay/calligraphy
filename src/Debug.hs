@@ -12,6 +12,7 @@ module Debug
 where
 
 import Control.Monad.RWS
+import Data.EnumSet qualified as EnumSet
 import Data.Foldable
 import Data.IntSet qualified as IntSet
 import Data.Map qualified as M
@@ -33,7 +34,7 @@ ppModule (Module modName _exports tree _calls) = do
 
 ppSemTree :: Prints SemanticTree
 ppSemTree (SemanticTree m) = forM_ (Map.toList m) $ \(str, (ks, typ, sub)) -> do
-  strLn $ str <> " " <> show (IntSet.toList ks) <> " (" <> show typ <> ")"
+  strLn $ str <> " " <> show (EnumSet.toList ks) <> " (" <> show typ <> ")"
   indent $ ppSemTree sub
 
 ppTree :: Prints (STree GHC.RealSrcLoc (DeclType, Name))
@@ -94,7 +95,7 @@ showGHCName :: GHC.Name -> String
 showGHCName name = GHC.getOccString name <> "    " <> show (getKey $ GHC.nameUnique name)
 
 showName :: Name -> String
-showName (Name name keys) = name <> "    " <> show (IntSet.toList keys)
+showName (Name name keys) = name <> "    " <> show (EnumSet.toList keys)
 
 showSpan :: RealSrcSpan -> String
 showSpan s =

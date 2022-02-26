@@ -8,19 +8,20 @@ module GraphViz (render) where
 import Config (RenderConfig (..))
 import Control.Monad
 import Control.Monad.State
-import Data.IntMap (IntMap)
-import Data.IntMap qualified as IntMap
-import Data.IntSet (IntSet)
-import Data.IntSet qualified as IntSet
+import Data.EnumMap (EnumMap)
+import Data.EnumMap qualified as EnumMap
+import Data.EnumSet (EnumSet)
+import Data.EnumSet qualified as EnumSet
 import Data.List (intercalate)
 import Data.Map qualified as Map
-import Data.Set qualified as Set
 import Parse
 import Printer
 import Text.Show (showListWith)
 
+newtype Key = Key {runKey :: Int}
+
 data DrawState = DrawState
-  { representative :: !(IntMap Int),
+  { representative :: !(EnumMap GHCKey Key),
     fresh :: !Int
   }
 
@@ -36,27 +37,28 @@ render RenderConfig {..} modules = do
           brack ("subgraph cluster_module_" <> show ix <> " {") "}" $ do
             strLn $ "label=" <> show modName <> ";"
             forM_ (Map.toList tree) $ \node -> do
-              nCluster <- tick
+              Key nCluster <- tick
               brack ("subgraph cluster_" <> show nCluster <> " {") "}" $ do
                 textLn "style=invis;"
                 tick >>= renderTreeNode exports node
-    forM_ (modules >>= Set.toList . modCalls) $ \(caller, callee) -> sequence_ $ do
-      nCaller <- reps IntMap.!? caller
-      nCallee <- reps IntMap.!? callee
+    forM_ (modules >>= EnumMap.toList . modCalls >>= traverse EnumSet.toList) $ \(caller, callee) -> sequence_ $ do
+      nCaller <- EnumMap.lookup caller reps
+      nCallee <- EnumMap.lookup callee reps
       pure $
         if reverseDependencyRank
           then edge nCaller nCallee []
           else edge nCallee nCaller ["dir" .= "back"]
   where
-    tellRep :: Int -> Int -> StateT DrawState Printer ()
-    tellRep key rep = modify $ \(DrawState r n) -> DrawState (IntMap.insert key rep r) n
-    tick :: StateT DrawState Printer Int
-    tick = state $ \(DrawState r n) -> (n, DrawState r (n + 1))
+    tellRep :: GHCKey -> Key -> StateT DrawState Printer ()
+    tellRep key rep = modify $ \(DrawState r n) -> DrawState (EnumMap.insert key rep r) n
+    tick :: StateT DrawState Printer Key
+    tick = state $ \(DrawState r n) -> (Key n, DrawState r (n + 1))
 
-    renderTreeNode :: IntSet -> (String, (IntSet, DeclType, SemanticTree)) -> Int -> StateT DrawState Printer ()
+    renderTreeNode :: EnumSet GHCKey -> (String, (EnumSet GHCKey, DeclType, SemanticTree)) -> Key -> StateT DrawState Printer ()
     renderTreeNode exports (str, (keys, typ, SemanticTree sub)) this = do
-      forM_ (IntSet.toList keys) $ \k -> tellRep k this
-      strLn $ show this <> " " <> style ["label" .= show str, "shape" .= nodeShape typ, "style" .= nodeStyle]
+      forM_ (EnumSet.toList keys) $ \k -> tellRep k this
+      -- TODO `node`
+      strLn $ show (runKey this) <> " " <> style ["label" .= show str, "shape" .= nodeShape typ, "style" .= nodeStyle]
       forM_ (Map.toList sub) $ \child -> do
         nChild <- tick
         renderTreeNode exports child nChild
@@ -66,7 +68,7 @@ render RenderConfig {..} modules = do
         nodeStyle = show . intercalate ", " $
           flip execState [] $ do
             modify ("filled" :)
-            unless (any (flip IntSet.member exports) (IntSet.toList keys)) $ modify ("dashed" :)
+            unless (any (flip EnumSet.member exports) (EnumSet.toList keys)) $ modify ("dashed" :)
             when (typ == RecDecl) $ modify ("rounded" :)
         nodeShape :: DeclType -> String
         nodeShape DataDecl = "octagon"
@@ -75,8 +77,8 @@ render RenderConfig {..} modules = do
         nodeShape ClassDecl = "house"
         nodeShape ValueDecl = "ellipse"
 
-edge :: MonadPrint m => Int -> Int -> Style -> m ()
-edge from to sty = strLn $ show from <> " -> " <> show to <> " " <> style sty
+edge :: MonadPrint m => Key -> Key -> Style -> m ()
+edge (Key from) (Key to) sty = strLn $ show from <> " -> " <> show to <> " " <> style sty
 
 (.=) :: String -> String -> (String, String)
 (.=) = (,)

@@ -47,6 +47,7 @@ library
   build-depends:
     , containers
     , directory
+    , enummapset
     , filepath
     , ghc
     , hashable

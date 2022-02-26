@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -8,6 +10,7 @@ module Parse
     DeclType (..),
     ParseError (..),
     SemanticTree (..),
+    GHCKey (..),
     unKey,
   )
 where
@@ -16,12 +19,13 @@ import Avail qualified as GHC
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
-import Data.IntSet (IntSet)
-import Data.IntSet qualified as IntSet
+import Data.EnumMap (EnumMap)
+import Data.EnumMap qualified as EnumMap
+import Data.EnumSet (EnumSet)
+import Data.EnumSet qualified as EnumSet
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Map qualified as Map
-import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import GHC qualified
@@ -57,6 +61,9 @@ data DeclType
   deriving
     (Eq, Ord, Show)
 
+newtype GHCKey = GHCKey {unGHCKey :: Int}
+  deriving newtype (Show, Enum)
+
 data Decl = Decl
   { declType :: DeclType,
     declSpan :: GHC.Span,
@@ -74,40 +81,40 @@ data ParseError
 
 data Module = Module
   { modName :: String,
-    modExports :: IntSet,
+    modExports :: EnumSet GHCKey,
     modTree :: SemanticTree,
-    modCalls :: Set (Int, Int)
+    modCalls :: EnumMap GHCKey (EnumSet GHCKey)
   }
 
 -- A single symbol can apparently declare a name with multiple distinct keys D:
 data Name = Name
   { nameString :: String,
-    nameKeys :: IntSet
+    nameKeys :: EnumSet GHCKey
   }
 
 mkName :: GHC.Name -> Name
-mkName nm = Name (GHC.getOccString nm) (IntSet.singleton $ unKey nm)
+mkName nm = Name (GHC.getOccString nm) (EnumSet.singleton $ unKey nm)
 
 -- TODO rename unkey and getkey
-unKey :: GHC.Name -> Int
-unKey = GHC.getKey . GHC.nameUnique
+unKey :: GHC.Name -> GHCKey
+unKey = GHCKey . GHC.getKey . GHC.nameUnique
 
-getKey :: Name -> Int
-getKey = IntSet.findMin . nameKeys
+getKey :: Name -> GHCKey
+getKey = EnumSet.findMin . nameKeys
 
 parseHieFile :: GHC.HieFile -> Either ParseError Module
 parseHieFile file@(GHC.HieFile _ mdl _ asts avails _) = do
   Collect decls uses <- collect asts
   tree <- structure decls
-  let uses' = Set.fromList $
-        flip mapMaybe uses $ \(loc, callee) -> do
-          (_, caller) <- ST.lookupInner loc tree
-          pure (getKey caller, unKey callee)
+  let uses' = EnumMap.unionsWith (<>) . flip fmap uses $ \(loc, callee) ->
+        case ST.lookupInner loc tree of
+          Nothing -> mempty
+          Just (_, caller) -> EnumMap.singleton (getKey caller) . EnumSet.singleton . unKey $ callee
       modString = GHC.moduleNameString $ GHC.moduleName mdl
       exportNames = avails >>= GHC.availNames
-  pure $ Module modString (IntSet.fromList $ unKey <$> exportNames) (deduplicate tree) uses'
+  pure $ Module modString (EnumSet.fromList $ unKey <$> exportNames) (deduplicate tree) uses'
 
-newtype SemanticTree = SemanticTree (Map String (IntSet, DeclType, SemanticTree))
+newtype SemanticTree = SemanticTree (Map String (EnumSet GHCKey, DeclType, SemanticTree))
 
 instance Semigroup SemanticTree where
   SemanticTree ta <> SemanticTree tb = SemanticTree $ Map.unionWith f ta tb
