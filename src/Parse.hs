@@ -8,10 +8,13 @@ module Parse
   ( parseHieFiles,
     Modules (..),
     Name (..),
+    Decl (..),
+    Key (..),
     DeclType (..),
     ParseError (..),
     GHCKey (..),
     unKey,
+    mapMaybeSet,
   )
 where
 
@@ -79,7 +82,7 @@ data ParseError
   | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name))
 
 newtype Key = Key {runKey :: Int}
-  deriving (Enum)
+  deriving (Enum, Eq, Ord)
 
 data Decl = Decl
   { declName :: String,
@@ -90,8 +93,7 @@ data Decl = Decl
 
 data Modules = Modules
   { modules :: [(String, Forest Decl)],
-    forwardDeps :: EnumMap Key (EnumSet Key),
-    reverseDeps :: EnumMap Key (EnumSet Key)
+    calls :: Set (Key, Key)
   }
 
 -- A single symbol can apparently declare a name multiple times in the same place, with multiple distinct keys D:
@@ -110,15 +112,15 @@ unKey = GHCKey . GHC.getKey . GHC.nameUnique
 getKey :: Name -> GHCKey
 getKey = EnumSet.findMin . nameKeys
 
+mapMaybeSet :: Ord b => Set a -> (a -> Maybe b) -> Set b
+mapMaybeSet s f = foldr (maybe id Set.insert . f) mempty s
+
 parseHieFiles :: [GHC.HieFile] -> Either ParseError Modules
 parseHieFiles files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
   let (mods, calls) = unzip (fmap (\(name, forest, call) -> ((name, forest), call)) parsed)
-      f (caller, callee) = case liftA2 (,) (EnumMap.lookup caller keymap) (EnumMap.lookup callee keymap) of
-        Nothing -> id
-        Just (caller', callee') -> bimap (add caller' callee') (add callee' caller')
-      (fw, rev) = foldr f mempty (mconcat calls)
-  pure $ Modules mods fw rev
+      f (caller, callee) = liftA2 (,) (EnumMap.lookup caller keymap) (EnumMap.lookup callee keymap)
+  pure $ Modules mods (mapMaybeSet (mconcat calls) f)
   where
     add :: Key -> Key -> EnumMap Key (EnumSet Key) -> EnumMap Key (EnumSet Key)
     add from to = EnumMap.insertWith (<>) from (EnumSet.singleton to)

@@ -19,6 +19,7 @@ import Printer
 import Text.Show (showListWith)
 
 newtype Key = Key {runKey :: Int}
+  deriving (Eq, Ord)
 
 data DrawState = DrawState
   { representative :: !(EnumMap GHCKey Key),
