@@ -2,20 +2,21 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Parse
-  ( parseHieFile,
-    Module (..),
+  ( parseHieFiles,
+    Modules (..),
     Name (..),
     DeclType (..),
     ParseError (..),
-    SemanticTree (..),
     GHCKey (..),
     unKey,
   )
 where
 
 import Avail qualified as GHC
+import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
@@ -28,6 +29,8 @@ import Data.Map qualified as M
 import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.Tree (Forest)
+import Data.Tree qualified as Tree
 import GHC qualified
 import HieTypes qualified as GHC
 import Name qualified as GHC
@@ -62,31 +65,36 @@ data DeclType
     (Eq, Ord, Show)
 
 newtype GHCKey = GHCKey {unGHCKey :: Int}
-  deriving newtype (Show, Enum)
+  deriving newtype (Show, Enum, Eq, Ord)
 
-data Decl = Decl
-  { declType :: DeclType,
-    declSpan :: GHC.Span,
-    declName :: Name
-  }
+type GHCDecl = (DeclType, GHC.Span, GHC.Name)
 
 data Collect = Collect
-  { collectedDecls :: [Decl],
-    collectedUses :: [(GHC.RealSrcLoc, GHC.Name)]
+  { collectedDecls :: [GHCDecl],
+    collectedUses :: [(GHC.RealSrcLoc, GHCKey)]
   }
 
 data ParseError
   = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
   | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name))
 
-data Module = Module
-  { modName :: String,
-    modExports :: EnumSet GHCKey,
-    modTree :: SemanticTree,
-    modCalls :: EnumMap GHCKey (EnumSet GHCKey)
+newtype Key = Key {runKey :: Int}
+  deriving (Enum)
+
+data Decl = Decl
+  { declName :: String,
+    declKey :: Key,
+    declExported :: Bool,
+    declType :: DeclType
   }
 
--- A single symbol can apparently declare a name with multiple distinct keys D:
+data Modules = Modules
+  { modules :: [(String, Forest Decl)],
+    forwardDeps :: EnumMap Key (EnumSet Key),
+    reverseDeps :: EnumMap Key (EnumSet Key)
+  }
+
+-- A single symbol can apparently declare a name multiple times in the same place, with multiple distinct keys D:
 data Name = Name
   { nameString :: String,
     nameKeys :: EnumSet GHCKey
@@ -102,40 +110,66 @@ unKey = GHCKey . GHC.getKey . GHC.nameUnique
 getKey :: Name -> GHCKey
 getKey = EnumSet.findMin . nameKeys
 
-parseHieFile :: GHC.HieFile -> Either ParseError Module
-parseHieFile file@(GHC.HieFile _ mdl _ asts avails _) = do
-  Collect decls uses <- collect asts
-  tree <- structure decls
-  let uses' = EnumMap.unionsWith (<>) . flip fmap uses $ \(loc, callee) ->
-        case ST.lookupInner loc tree of
-          Nothing -> mempty
-          Just (_, caller) -> EnumMap.singleton (getKey caller) . EnumSet.singleton . unKey $ callee
-      modString = GHC.moduleNameString $ GHC.moduleName mdl
-      exportNames = avails >>= GHC.availNames
-  pure $ Module modString (EnumSet.fromList $ unKey <$> exportNames) (deduplicate tree) uses'
+parseHieFiles :: [GHC.HieFile] -> Either ParseError Modules
+parseHieFiles files = do
+  (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
+  let (mods, calls) = unzip (fmap (\(name, forest, call) -> ((name, forest), call)) parsed)
+      f (caller, callee) = case liftA2 (,) (EnumMap.lookup caller keymap) (EnumMap.lookup callee keymap) of
+        Nothing -> id
+        Just (caller', callee') -> bimap (add caller' callee') (add callee' caller')
+      (fw, rev) = foldr f mempty (mconcat calls)
+  pure $ Modules mods fw rev
+  where
+    add :: Key -> Key -> EnumMap Key (EnumSet Key) -> EnumMap Key (EnumSet Key)
+    add from to = EnumMap.insertWith (<>) from (EnumSet.singleton to)
 
-newtype SemanticTree = SemanticTree (Map String (EnumSet GHCKey, DeclType, SemanticTree))
+    parseFile :: GHC.HieFile -> StateT (Int, EnumMap GHCKey Key) (Either ParseError) (String, Forest Decl, Set (GHCKey, GHCKey))
+    parseFile (GHC.HieFile _ mdl _ asts avails _) = do
+      Collect decls uses <- lift $ collect asts
+      tree <- lift $ structure decls
+      let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
+            case ST.lookupInner loc tree of
+              Nothing -> mempty
+              Just (_, callerName) -> Set.singleton (getKey callerName, callee)
+      let exportKeys = EnumSet.fromList $ fmap unKey $ avails >>= GHC.availNames
+      forest <- rekey exportKeys (deduplicate tree)
+      pure (GHC.moduleNameString (GHC.moduleName mdl), forest, calls)
 
-instance Semigroup SemanticTree where
-  SemanticTree ta <> SemanticTree tb = SemanticTree $ Map.unionWith f ta tb
+rekey :: forall m. Monad m => EnumSet GHCKey -> NameTree -> StateT (Int, EnumMap GHCKey Key) m (Forest Decl)
+rekey exports = go
+  where
+    fresh :: StateT (Int, EnumMap GHCKey Key) m Key
+    fresh = state $ \(n, m) -> (Key n, (n + 1, m))
+    assoc :: Key -> GHCKey -> StateT (Int, EnumMap GHCKey Key) m ()
+    assoc key ghckey = modify $ fmap (EnumMap.insert ghckey key)
+    go :: NameTree -> StateT (Int, EnumMap GHCKey Key) m (Forest Decl)
+    go (NameTree nt) = forM (Map.toList nt) $ \(name, (ghckeys, typ, sub)) -> do
+      key <- fresh
+      forM_ (EnumSet.toList ghckeys) (assoc key)
+      sub' <- go sub
+      let exported = any (flip EnumSet.member exports) (EnumSet.toList ghckeys)
+      pure $ Tree.Node (Decl name key exported typ) sub'
+
+newtype NameTree = NameTree (Map String (EnumSet GHCKey, DeclType, NameTree))
+
+instance Semigroup NameTree where
+  NameTree ta <> NameTree tb = NameTree $ Map.unionWith f ta tb
     where
       f (ks, typ, sub) (ks', _, sub') = (ks <> ks', typ, sub <> sub')
 
-instance Monoid SemanticTree where mempty = SemanticTree mempty
+instance Monoid NameTree where mempty = NameTree mempty
 
-deduplicate :: STree GHC.RealSrcLoc (DeclType, Name) -> SemanticTree
+deduplicate :: STree GHC.RealSrcLoc (DeclType, Name) -> NameTree
 deduplicate = ST.foldSTree mempty $ \l _ (typ, Name str ks) sub _ r ->
-  let this = SemanticTree $ Map.singleton str (ks, typ, sub)
+  let this = NameTree $ Map.singleton str (ks, typ, sub)
    in l <> this <> r
 
-structure :: [Decl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name))
-structure = lexTree
+structure :: [GHCDecl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name))
+structure =
+  foldM
+    (\t (ty, sp, na) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, mkName na) (GHC.realSrcSpanEnd sp) t)
+    ST.emptySTree
   where
-    lexTree :: [Decl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name))
-    lexTree =
-      foldM
-        (\t (Decl ty sp na) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, na) (GHC.realSrcSpanEnd sp) t)
-        ST.emptySTree
     f (ta, Name na ka) (tb, Name nb kb)
       | ta == tb && na == nb = Just (ta, Name na (ka <> kb))
       | otherwise = Nothing
@@ -143,11 +177,11 @@ structure = lexTree
 collect :: GHC.HieASTs a -> Either ParseError Collect
 collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty mempty)
   where
-    tellDecl :: Decl -> StateT Collect (Either ParseError) ()
+    tellDecl :: GHCDecl -> StateT Collect (Either ParseError) ()
     tellDecl decl = modify $ \(Collect decls uses) -> Collect (decl : decls) uses
 
-    tellUse :: GHC.RealSrcLoc -> GHC.Name -> StateT Collect (Either ParseError) ()
-    tellUse loc name = modify $ \(Collect decls uses) -> Collect decls ((loc, name) : uses)
+    tellUse :: GHC.RealSrcLoc -> GHCKey -> StateT Collect (Either ParseError) ()
+    tellUse loc key = modify $ \(Collect decls uses) -> Collect decls ((loc, key) : uses)
 
     collect' :: GHC.HieAST a -> StateT Collect (Either ParseError) ()
     collect' (GHC.Node (GHC.NodeInfo anns _ ids) nodeSpan children) =
@@ -158,8 +192,8 @@ collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty me
             (Right name, GHC.IdentifierDetails _ info) ->
               classifyIdentifier
                 info
-                (\ty sp -> tellDecl $ Decl ty sp (mkName name))
-                (tellUse (GHC.realSrcSpanStart nodeSpan) name)
+                (\ty sp -> tellDecl (ty, sp, name))
+                (tellUse (GHC.realSrcSpanStart nodeSpan) (unKey name))
                 (pure ())
                 (throwError $ UnhandledIdentifier name nodeSpan (Set.toList info))
             _ -> pure ()
@@ -174,7 +208,7 @@ collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty me
       [GHC.ClassTyDecl (Just sp)] -> decl ValueDecl sp
       [GHC.MatchBind, GHC.ValBind _ _ (Just sp)] -> decl ValueDecl sp
       [GHC.MatchBind] -> ignore
-      [GHC.Decl GHC.InstDec _] -> ignore
+      -- [GHC.Decl GHC.InstDec _] -> ignore
       [GHC.Decl GHC.ConDec (Just sp)] -> decl ConDecl sp
       [GHC.Use] -> use
       [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> use

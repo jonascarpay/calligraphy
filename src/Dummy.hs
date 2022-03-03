@@ -49,9 +49,11 @@ data GADT a where
 class Class a where
   type CTF a :: Type
   data CDF a
-  method :: a -> a
-  default method :: a -> a
-  method = id
+  method :: a -> LocalT
+  default method :: a -> LocalT
+  method _ = impl
+    where
+      impl = Loc2 True
 
   hiddenMethod :: a -> a
 
@@ -61,7 +63,7 @@ class Class a => SubClass a where
 instance Class ExportedT where
   type CTF ExportedT = Int
   data CDF ExportedT = FooData
-  method = id
+  method _ = Loc1 1 2
   hiddenMethod = id
 
 type TypeSynonym a = Int
