@@ -34,10 +34,11 @@ render RenderConfig {showCalls, splines, reverseDependencyRank} (Modules modules
             brack ("subgraph cluster_" <> show ix <> "_" <> show ix' <> " {") "}" $ do
               textLn "style=invis;"
               renderTreeNode root
-    forM_ calls $ \(caller, callee) -> do
-      if reverseDependencyRank
-        then edge caller callee []
-        else edge callee caller ["dir" .= "back"]
+    when showCalls $
+      forM_ calls $ \(caller, callee) -> do
+        if reverseDependencyRank
+          then edge caller callee []
+          else edge callee caller ["dir" .= "back"]
   where
     renderTreeNode :: Prints (Tree Decl)
     renderTreeNode (Node (Decl name key exported typ) children) = do
