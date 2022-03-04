@@ -35,12 +35,14 @@ library
   other-modules:   Paths_spaghetti
   autogen-modules: Paths_spaghetti
   exposed-modules:
-    Config
+    Collapse
     Debug
     Dummy
+    Filter
     GraphViz
     Parse
     Printer
+    Search
     Spaghetti
     STree
 

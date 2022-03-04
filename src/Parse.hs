@@ -7,6 +7,7 @@
 module Parse
   ( parseHieFiles,
     Modules (..),
+    ModulesDebugInfo (..),
     Name (..),
     Decl (..),
     Key (..),
@@ -14,15 +15,15 @@ module Parse
     ParseError (..),
     GHCKey (..),
     unKey,
-    mapMaybeSet,
+    rekeyCalls,
   )
 where
 
 import Avail qualified as GHC
-import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
+import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
 import Data.EnumMap qualified as EnumMap
 import Data.EnumSet (EnumSet)
@@ -112,20 +113,29 @@ unKey = GHCKey . GHC.getKey . GHC.nameUnique
 getKey :: Name -> GHCKey
 getKey = EnumSet.findMin . nameKeys
 
-mapMaybeSet :: Ord b => Set a -> (a -> Maybe b) -> Set b
-mapMaybeSet s f = foldr (maybe id Set.insert . f) mempty s
+rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
+rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
 
-parseHieFiles :: [GHC.HieFile] -> Either ParseError Modules
+newtype ModulesDebugInfo = ModulesDebugInfo
+  { modulesSTrees :: [(String, STree GHC.RealSrcLoc (DeclType, Name))]
+  }
+
+parseHieFiles ::
+  [GHC.HieFile] -> Either ParseError (ModulesDebugInfo, Modules)
 parseHieFiles files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
-  let (mods, calls) = unzip (fmap (\(name, forest, call) -> ((name, forest), call)) parsed)
-      f (caller, callee) = liftA2 (,) (EnumMap.lookup caller keymap) (EnumMap.lookup callee keymap)
-  pure $ Modules mods (mapMaybeSet (mconcat calls) f)
+  let (mods, debugs, calls) = unzip3 (fmap (\(name, forest, call, stree) -> ((name, forest), (name, stree), call)) parsed)
+  pure (ModulesDebugInfo debugs, Modules mods (rekeyCalls keymap (mconcat calls)))
   where
     add :: Key -> Key -> EnumMap Key (EnumSet Key) -> EnumMap Key (EnumSet Key)
     add from to = EnumMap.insertWith (<>) from (EnumSet.singleton to)
 
-    parseFile :: GHC.HieFile -> StateT (Int, EnumMap GHCKey Key) (Either ParseError) (String, Forest Decl, Set (GHCKey, GHCKey))
+    parseFile ::
+      GHC.HieFile ->
+      StateT
+        (Int, EnumMap GHCKey Key)
+        (Either ParseError)
+        (String, Forest Decl, Set (GHCKey, GHCKey), STree GHC.RealSrcLoc (DeclType, Name))
     parseFile (GHC.HieFile _ mdl _ asts avails _) = do
       Collect decls uses <- lift $ collect asts
       tree <- lift $ structure decls
@@ -135,7 +145,7 @@ parseHieFiles files = do
               Just (_, callerName) -> Set.singleton (getKey callerName, callee)
       let exportKeys = EnumSet.fromList $ fmap unKey $ avails >>= GHC.availNames
       forest <- rekey exportKeys (deduplicate tree)
-      pure (GHC.moduleNameString (GHC.moduleName mdl), forest, calls)
+      pure (GHC.moduleNameString (GHC.moduleName mdl), forest, calls, tree)
 
 rekey :: forall m. Monad m => EnumSet GHCKey -> NameTree -> StateT (Int, EnumMap GHCKey Key) m (Forest Decl)
 rekey exports = go
@@ -210,7 +220,7 @@ collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty me
       [GHC.ClassTyDecl (Just sp)] -> decl ValueDecl sp
       [GHC.MatchBind, GHC.ValBind _ _ (Just sp)] -> decl ValueDecl sp
       [GHC.MatchBind] -> ignore
-      -- [GHC.Decl GHC.InstDec _] -> ignore
+      [GHC.Decl GHC.InstDec _] -> ignore
       [GHC.Decl GHC.ConDec (Just sp)] -> decl ConDecl sp
       [GHC.Use] -> use
       [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> use

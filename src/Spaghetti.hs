@@ -4,31 +4,27 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- | This module provides an entry point to the Weeder executable.
 module Spaghetti (main, mainWithConfig) where
 
-import Config
+import Collapse
 import Control.Monad.RWS
-import Control.Monad.State
-import Data.List (isPrefixOf)
+import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
+import Data.Text.IO qualified as Text
 import Data.Version (showVersion)
 import Debug
-import GHC (Module (moduleName), moduleNameString)
+import Filter
 import GraphViz
-import HieBin
-import HieTypes
-import NameCache
+import HieTypes qualified as GHC
 import Options.Applicative
 import Parse
 import Paths_spaghetti (version)
 import Printer
-import System.Directory (doesDirectoryExist, doesFileExist, findExecutable, listDirectory, makeAbsolute)
+import Search
+import System.Directory (findExecutable)
 import System.Exit
-import System.FilePath
+import System.IO (stderr)
 import System.Process
-import UniqSupply
 
 main :: IO ()
 main = do
@@ -40,42 +36,62 @@ main = do
         ( "spaghetti version "
             <> showVersion version
             <> "\nhie version "
-            <> show hieVersion
+            <> show GHC.hieVersion
         )
         (long "version" <> help "Show version")
 
+printStderr :: Printer () -> IO ()
+printStderr = Text.hPutStrLn stderr . runPrinter
+
+printDie :: Printer () -> IO a
+printDie txt = printStderr txt >> exitFailure
+
 mainWithConfig :: AppConfig -> IO ()
-mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = do
-  hieFilePaths <- searchFiles searchConfig
-  print hieFilePaths
+mainWithConfig AppConfig {searchConfig, renderConfig, outputConfig, debugConfig, collapseConfig, filterConfig} = do
+  let debug :: (DebugConfig -> Bool) -> Printer () -> IO ()
+      debug fp printer = when (fp debugConfig) (printStderr printer)
 
-  nameCache <- do
-    uniqSupply <- mkSplitUniqSupply 'z'
-    return (initNameCache uniqSupply [])
+  hieFiles <- searchFiles searchConfig
+  when (null hieFiles) $ die "No files matched your search criteria.."
+  debug dumpHieFile $ mapM_ ppHieFile hieFiles
 
-  hieFiles <-
-    flip evalStateT nameCache $
-      forM hieFilePaths readHieFileWithWarning
+  (modulesDebug, modules) <- either (printDie . ppParseError) pure (parseHieFiles hieFiles)
+  debug dumpLexicalTree $ ppModulesDebugInfo modulesDebug
+  debug dumpParsedModules $ ppModules modules
 
-  let hieFilesFiltered = filter (match (includeFilters searchConfig) (excludeFilters searchConfig) . moduleNameString . moduleName . hie_module) hieFiles
+  let modulesCollapsed = collapse collapseConfig modules
+  debug dumpCollapsedModules $ ppModules modulesCollapsed
 
-  T.putStr $
-    runPrinter $
-      forM_ hieFilesFiltered $ \hieFile -> do
-        strLn $ hie_hs_file hieFile
-        when (dumpHie debugConfig) $ ppHieFile hieFile
-        when (dumpParseTree debugConfig) $ either ppParseError ppModule (parseHieFile hieFile)
-  -- indent $ either ppFoldError (mapM_ ppDeclTree) (parseModule hieFile)
+  modulesFiltered <- either (printDie . ppFilterError) pure $ filterModules filterConfig modulesCollapsed
+  debug dumpFilteredModules $ ppModules modulesFiltered
 
-  -- ppHieFile hieFile
+  let txt = runPrinter $ render renderConfig modulesFiltered
 
-  modules <- either (die . T.unpack . runPrinter . ppParseError) pure $ traverse parseHieFile hieFilesFiltered
-  let txt = runPrinter $ render renderConfig modules
+  output outputConfig txt
 
-  case outputConfig of
-    OutputStdOut -> T.putStr txt
-    OutputFile fp -> T.writeFile fp txt
-    OutputPng fp -> do
+data AppConfig = AppConfig
+  { searchConfig :: SearchConfig,
+    collapseConfig :: CollapseConfig,
+    filterConfig :: FilterConfig,
+    renderConfig :: RenderConfig,
+    outputConfig :: OutputConfig,
+    debugConfig :: DebugConfig
+  }
+
+pConfig :: Parser AppConfig
+pConfig = AppConfig <$> pSearchConfig <*> pCollapseConfig <*> pFilterConfig <*> pRenderConfig <*> pOutputConfig <*> pDebugConfig
+
+output :: OutputConfig -> Text -> IO ()
+output cfg@OutputConfig {outputDotPath, outputPngPath, outputStdout} txt = do
+  unless (hasOutput cfg) $ Text.hPutStrLn stderr "Warning: no output options specified, run with --help to see options"
+  forM_ outputDotPath $ \fp -> Text.writeFile fp txt
+  forM_ outputPngPath writePng
+  when outputStdout $ Text.putStrLn txt
+  where
+    hasOutput (OutputConfig Nothing Nothing False) = False
+    hasOutput _ = True
+
+    writePng fp = do
       mexe <- findExecutable "dot"
       case mexe of
         Nothing -> die "no dot"
@@ -86,32 +102,33 @@ mainWithConfig (AppConfig searchConfig renderConfig outputConfig debugConfig) = 
             putStrLn out
             putStrLn err
 
-searchFiles :: SearchConfig -> IO [FilePath]
-searchFiles SearchConfig {searchDotPaths, searchRoots} = do
-  roots <- mapM makeAbsolute (if null searchRoots then ["./."] else searchRoots)
-  foldMap go roots
-  where
-    go :: FilePath -> IO [FilePath]
-    go path = do
-      isFile <- doesFileExist path
-      if isFile && isExtensionOf ".hie" path
-        then pure [path]
-        else do
-          isDir <- doesDirectoryExist path
-          if isDir
-            then do
-              contents <- (if searchDotPaths then id else filter (not . isPrefixOf ".")) <$> listDirectory path
-              foldMap (go . (path </>)) contents
-            else pure []
+data OutputConfig = OutputConfig
+  { outputDotPath :: Maybe FilePath,
+    outputPngPath :: Maybe FilePath,
+    outputStdout :: Bool
+  }
 
-readHieFileWithWarning :: FilePath -> StateT NameCache IO HieFile
-readHieFileWithWarning path = do
-  nameCache <- get
-  (HieFileResult fileHieVersion fileGHCVersion hie, cache') <- liftIO $ readHieFile nameCache path
-  when (hieVersion /= fileHieVersion) $
-    liftIO $ do
-      putStrLn $ "WARNING: version mismatch in " <> path
-      putStrLn $ "    The hie files in this project were generated with GHC version: " <> show fileGHCVersion
-      putStrLn $ "    This version of spaghetti was compiled with GHC version: " <> show hieVersion
-      putStrLn $ "    Optimistically continuing anyway..."
-  hie <$ put cache'
+-- TODO allow output to multiple places
+pOutputConfig :: Parser OutputConfig
+pOutputConfig =
+  OutputConfig
+    <$> optional (strOption (short 'd' <> long "output-dot" <> help ".dot output path"))
+    <*> optional (strOption (short 'p' <> long "output-png" <> help ".png output path"))
+    <*> switch (long "output-stdout" <> help "Output to stdout")
+
+data DebugConfig = DebugConfig
+  { dumpHieFile :: Bool,
+    dumpLexicalTree :: Bool,
+    dumpParsedModules :: Bool,
+    dumpCollapsedModules :: Bool,
+    dumpFilteredModules :: Bool
+  }
+
+pDebugConfig :: Parser DebugConfig
+pDebugConfig =
+  DebugConfig
+    <$> switch (long "ddump-hie-file" <> help "Debug dump raw HIE files.")
+    <*> switch (long "ddump-lexical-tree" <> help "Debug dump the reconstructed lexical structure of HIE files, the intermediate output in the parsing phase.")
+    <*> switch (long "ddump-parsed" <> help "Debug dump the final parsing phase output, i.e. reconstructed and cleaned up AST.")
+    <*> switch (long "ddump-collapsed" <> help "Debug dump ASTs after the collapsing phase.")
+    <*> switch (long "ddump-filtered" <> help "Debug dump ASTs after the filtering phase.")

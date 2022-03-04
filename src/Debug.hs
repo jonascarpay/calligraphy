@@ -5,18 +5,20 @@
 -- TODO export list
 
 module Debug
-  ( ppHieFile,
-    ppModule,
+  ( ppModules,
+    ppHieFile,
     ppParseError,
+    ppFilterError,
+    ppModulesDebugInfo,
   )
 where
 
 import Control.Monad.RWS
 import Data.EnumSet qualified as EnumSet
 import Data.Foldable
-import Data.IntSet qualified as IntSet
 import Data.Map qualified as M
-import Data.Map qualified as Map
+import Data.Tree
+import Filter (FilterError (..))
 import GHC qualified
 import HieTypes qualified as GHC
 import Name qualified as GHC
@@ -27,23 +29,29 @@ import STree qualified
 import SrcLoc
 import Unique (getKey)
 
-ppModule :: Prints Module
-ppModule (Module modName _exports tree _calls) = do
+ppModules :: Prints Modules
+ppModules (Modules modules _) = forM_ modules $ \(modName, forest) -> do
   strLn modName
-  ppSemTree tree
+  indent $ mapM_ ppTree forest
 
-ppSemTree :: Prints SemanticTree
-ppSemTree (SemanticTree m) = forM_ (Map.toList m) $ \(str, (ks, typ, sub)) -> do
-  strLn $ str <> " " <> show (EnumSet.toList ks) <> " (" <> show typ <> ")"
-  indent $ ppSemTree sub
+ppModulesDebugInfo :: Prints ModulesDebugInfo
+ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, stree) -> do
+  strLn modName
+  indent $ ppSTree stree
 
-ppTree :: Prints (STree GHC.RealSrcLoc (DeclType, Name))
-ppTree = STree.foldSTree (pure ()) $ \ls l (typ, name) m r rs -> do
+ppTree :: Prints (Tree Decl)
+ppTree (Node (Decl name _key _exp typ) children) = do
+  strLn $ name <> " (" <> show typ <> ")"
+  indent $ mapM_ ppTree children
+
+ppSTree :: Prints (STree GHC.RealSrcLoc (DeclType, Name))
+ppSTree = STree.foldSTree (pure ()) $ \ls l (typ, name) m r rs -> do
   ls
-  strLn $ showName name <> " (" <> show typ <> ") " <> show l <> " " <> show r
+  ppLocNode l r typ name
   indent m
   rs
 
+-- TODO move to Parse
 ppParseError :: Prints ParseError
 ppParseError (UnhandledIdentifier nm sp inf) = do
   strLn $ "Unrecognized identifier: " <> showGHCName nm
@@ -52,11 +60,15 @@ ppParseError (UnhandledIdentifier nm sp inf) = do
     strLn $ "info: " <> show inf
 ppParseError (TreeError err) = ppTreeError err
 
-ppNode :: GHC.RealSrcLoc -> GHC.RealSrcLoc -> DeclType -> Name -> Printer ()
-ppNode l r typ name = strLn $ showName name <> " (" <> show typ <> ") " <> show l <> " " <> show r
+-- TODO move to Parse
+ppFilterError :: Prints FilterError
+ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
+
+ppLocNode :: GHC.RealSrcLoc -> GHC.RealSrcLoc -> DeclType -> Name -> Printer ()
+ppLocNode l r typ name = strLn $ showName name <> " (" <> show typ <> ") " <> show l <> " " <> show r
 
 ppTreeError :: Prints (TreeError GHC.RealSrcLoc (DeclType, Name))
-ppTreeError (InvalidBounds l (ty, nm) r) = strLn "Invalid bounds:" >> indent (ppNode l r ty nm)
+ppTreeError (InvalidBounds l (ty, nm) r) = strLn "Invalid bounds:" >> indent (ppLocNode l r ty nm)
 ppTreeError (OverlappingBounds (ty, nm) (ty', nm') l r) = do
   strLn $ "OverlappingBounds bounds: (" <> show (l, r) <> ")"
   indent $ do
@@ -66,8 +78,8 @@ ppTreeError MidSplit = strLn "MidSplit"
 ppTreeError (LexicalError l (ty, nm) r t) = do
   strLn "Lexical error"
   indent $ do
-    ppNode l r ty nm
-    ppTree t
+    ppLocNode l r ty nm
+    ppSTree t
 
 ppHieFile :: Prints GHC.HieFile
 ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do

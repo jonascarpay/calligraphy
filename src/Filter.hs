@@ -1,53 +1,95 @@
-module Filter where
+{-# LANGUAGE ScopedTypeVariables #-}
+
+module Filter (filterModules, FilterConfig, pFilterConfig, FilterError (..)) where
 
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
 import Data.EnumMap qualified as EnumMap
+import Data.EnumSet (EnumSet)
+import Data.EnumSet qualified as EnumSet
+import Data.Foldable (toList)
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Maybe (catMaybes)
+import Data.Monoid
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Tree
+import Data.Tuple (swap)
+import Options.Applicative
 import Parse
 import Prelude hiding (filter)
 
-newtype Rep = Rep {unRep :: Int}
-
-filter :: FilterConfig -> Modules -> Modules
-filter = undefined
-
-data CollapseConfig = CollapseConfig
-  { collapseValues :: Bool,
-    collapseClasses :: Bool,
-    collapseConstructors :: Bool,
-    collapseData :: Bool
-  }
-
 data FilterConfig = FilterConfig
-  { collapseConfig :: CollapseConfig,
-    onlyExports :: Bool,
-    depRoot :: Maybe [String],
-    revDepRoot :: Maybe [String]
+  { onlyExports :: Bool,
+    depRoot :: Maybe (NonEmpty String),
+    revDepRoot :: Maybe (NonEmpty String)
   }
 
-collapse :: CollapseConfig -> Modules -> Modules
-collapse cfg (Modules forests calls) =
-  let (forests', reps) = flip runState mempty $ (traverse . traverse . traverse) go forests
-   in Modules forests' (mapMaybeSet calls $ \(caller, callee) -> _)
+resolveNames :: Forest Decl -> Map String (EnumSet Key)
+resolveNames forest =
+  flip execState mempty $
+    flip (traverse . traverse) forest $
+      \(Decl name key _ _) -> modify (Map.insertWith (<>) name (EnumSet.singleton key))
+
+transitives :: forall a. Enum a => [a] -> Set (a, a) -> EnumSet a
+transitives roots deps = go mempty (EnumSet.fromList roots)
   where
-    shouldCollapse :: DeclType -> CollapseConfig -> Bool
-    shouldCollapse ValueDecl (CollapseConfig True _ _ _) = True
-    shouldCollapse ConDecl (CollapseConfig _ True _ _) = True
-    shouldCollapse DataDecl (CollapseConfig _ _ True _) = True
-    shouldCollapse ClassDecl (CollapseConfig _ _ _ True) = True
-    shouldCollapse _ _ = False
+    go :: EnumSet a -> EnumSet a -> EnumSet a
+    go old new
+      | EnumSet.null new = old
+      | otherwise =
+        let old' = old <> new
+            new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
+         in go old' (new' EnumSet.\\ old')
+    adjacencies :: EnumMap a (EnumSet a)
+    adjacencies = foldr (\(from, to) -> EnumMap.insertWith (<>) from (EnumSet.singleton to)) mempty deps
 
-    assoc :: Key -> Rep -> State (EnumMap Key Rep) ()
-    assoc key rep = modify (EnumMap.insert key rep)
+newtype FilterError = UnknownRootName String
 
-    collapseNode :: Key -> Tree Decl -> State (EnumMap Key Key) ()
-    collapseNode rep = go
+filterModules :: FilterConfig -> Modules -> Either FilterError Modules
+filterModules (FilterConfig exps mfw mbw) (Modules modules calls) = do
+  fwFilter <- depFilter calls
+  bwFilter <- depFilter (Set.map swap calls)
+  let p decl = exportFilter decl && (fwFilter decl || bwFilter decl)
+      (modules', filteredKeys) = runState ((traverse . traverse . traverse) (filterTree p) modules) mempty
+      calls' = Set.filter (\(a, b) -> EnumSet.member a filteredKeys && EnumSet.member b filteredKeys) calls
+  pure $ Modules ((fmap . fmap) catMaybes modules') calls'
+  where
+    parentChildEdges :: Set (Key, Key)
+    parentChildEdges = execState ((mapM_ . mapM_ . mapM_) (go . fmap declKey) modules) mempty
       where
-        go :: Tree Decl -> State (EnumMap Key Key) ()
-        go (Node decl children) = modify (EnumMap.insert (declKey decl) rep) >> mapM_ go children
+        go :: Tree Key -> State (Set (Key, Key)) ()
+        go (Node parent children) = do
+          forM_ children $ \(Node child _) -> modify (Set.insert (parent, child))
+          mapM_ go children
+    names :: Map String (EnumSet Key)
+    names = resolveNames (modules >>= snd)
+    depFilter :: Set (Key, Key) -> Either FilterError (Decl -> Bool)
+    depFilter edges = case mfw of
+      Nothing -> pure (const True)
+      Just rootNames -> do
+        rootKeys <- forM rootNames $ \name -> maybe (Left $ UnknownRootName name) (pure . EnumSet.toList) (Map.lookup name names)
+        let ins = transitives (mconcat $ toList rootKeys) edges
+        pure $ \decl -> EnumSet.member (declKey decl) ins
+    exportFilter :: Decl -> Bool
+    exportFilter
+      | exps = declExported
+      | otherwise = const True
+    filterTree :: (Decl -> Bool) -> Tree Decl -> State (EnumSet Key) (Maybe (Tree Decl))
+    filterTree p = go
+      where
+        go :: Tree Decl -> State (EnumSet Key) (Maybe (Tree Decl))
+        go (Node decl children) = do
+          children' <- catMaybes <$> mapM go children
+          if not (p decl) && null children'
+            then pure Nothing
+            else Just (Node decl children') <$ modify (EnumSet.insert (declKey decl))
 
-    go :: Tree Decl -> State (EnumMap Key Key) (Tree Decl)
-    go (Node decl children)
-      | shouldCollapse (declType decl) cfg = Node decl [] <$ forM_ children (collapseNode (declKey decl))
-      | otherwise = Node decl <$> mapM go children
+pFilterConfig :: Parser FilterConfig
+pFilterConfig =
+  FilterConfig
+    <$> switch (long "hide-local-bindings" <> help "Don't draw non-exported bindings")
+    <*> (fmap nonEmpty . many) (strOption (long "forward-dep-root" <> short 'f' <> help "Dependency filter root. Will hide everything that's not a (transitive) dependency of this root. Can be repeated."))
+    <*> (fmap nonEmpty . many) (strOption (long "reverse-dep-root" <> short 'r' <> help "Reverse dependency filter root. Will hide everything that's not a (transitive) reverse dependency of this root. Can be repeated."))
