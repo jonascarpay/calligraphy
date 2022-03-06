@@ -17,11 +17,12 @@ data RenderConfig = RenderConfig
   { showCalls :: Bool,
     showLoc :: Bool,
     splines :: Bool,
-    reverseDependencyRank :: Bool
+    reverseDependencyRank :: Bool,
+    hideLoops :: Bool
   }
 
 render :: RenderConfig -> Prints Modules
-render RenderConfig {showCalls, splines, reverseDependencyRank, showLoc} (Modules modules calls) = do
+render RenderConfig {showCalls, splines, reverseDependencyRank, showLoc, hideLoops} (Modules modules calls) = do
   brack "digraph spaghetti {" "}" $ do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
@@ -36,10 +37,11 @@ render RenderConfig {showCalls, splines, reverseDependencyRank, showLoc} (Module
               textLn "style=invis;"
               renderTreeNode root
     when showCalls $
-      forM_ calls $ \(caller, callee) -> do
-        if reverseDependencyRank
-          then edge caller callee []
-          else edge callee caller ["dir" .= "back"]
+      forM_ calls $ \(caller, callee) ->
+        when (not hideLoops || caller /= callee) $
+          if reverseDependencyRank
+            then edge caller callee []
+            else edge callee caller ["dir" .= "back"]
   where
     nodeLabel :: Decl -> String
     nodeLabel (Decl name _ _ _ loc)
@@ -84,3 +86,4 @@ pRenderConfig =
     <*> flag False True (long "show-loc" <> help "Show definition locations as line:col")
     <*> flag True False (long "no-splines" <> help "Render arrows as straight lines instead of splines")
     <*> flag False True (long "reverse-dependency-rank" <> short 'r' <> help "Make dependencies have lower rank than the dependee, i.e. show dependencies above their parent.")
+    <*> flag False True (long "hide-loops" <> help "Hide loops, i.e. edges that start and end at the same node.")
