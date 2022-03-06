@@ -95,7 +95,7 @@ filterModules (FilterConfig exps mfw mbw maxDepth) (Modules modules calls) = do
 pFilterConfig :: Parser FilterConfig
 pFilterConfig =
   FilterConfig
-    <$> switch (long "hide-local-bindings" <> help "Don't draw non-exported bindings.")
+    <$> switch (long "hide-local-bindings" <> long "exports-only" <> help "Don't draw non-exported bindings.")
     <*> (fmap nonEmpty . many) (strOption (long "forward-dep-root" <> short 'f' <> help "Dependency filter root. Will hide everything that's not a (transitive) dependency of this root. Can be repeated."))
     <*> (fmap nonEmpty . many) (strOption (long "reverse-dep-root" <> short 'r' <> help "Reverse dependency filter root. Will hide everything that's not a (transitive) reverse dependency of this root. Can be repeated."))
     <*> optional (option auto (long "max-depth" <> help "Maximum search depth for transitive dependencies."))
