@@ -23,9 +23,9 @@ collapse CollapseConfig {collapseValues, collapseClasses, collapseConstructors, 
   where
     shouldCollapse :: DeclType -> Bool
     shouldCollapse ValueDecl | collapseValues = True
-    shouldCollapse ConDecl | collapseClasses = True
-    shouldCollapse DataDecl | collapseConstructors = True
-    shouldCollapse ClassDecl | collapseData = True
+    shouldCollapse ClassDecl | collapseClasses = True
+    shouldCollapse ConDecl | collapseConstructors = True
+    shouldCollapse DataDecl | collapseData = True
     shouldCollapse _ = False
 
     assoc :: Key -> Key -> State (EnumMap Key Key) ()
