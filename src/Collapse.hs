@@ -32,7 +32,7 @@ collapse CollapseConfig {collapseValues, collapseClasses, collapseConstructors, 
     assoc key rep = modify (EnumMap.insert key rep)
 
     go :: Tree Decl -> State (EnumMap Key Key) (Tree Decl)
-    go (Node decl@(Decl _ key _ _) children) = do
+    go (Node decl@(Decl _ key _ _ _) children) = do
       assoc key key
       if shouldCollapse (declType decl)
         then Node decl [] <$ (mapM_ . mapM_) (flip assoc key . declKey) children

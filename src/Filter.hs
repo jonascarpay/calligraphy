@@ -21,6 +21,11 @@ import Options.Applicative
 import Parse
 import Prelude hiding (filter)
 
+-- TODO
+-- hide-classes
+-- hide-values
+-- hide-data
+-- etc
 data FilterConfig = FilterConfig
   { onlyExports :: Bool,
     depRoot :: Maybe (NonEmpty String),
@@ -32,7 +37,7 @@ resolveNames :: Forest Decl -> Map String (EnumSet Key)
 resolveNames forest =
   flip execState mempty $
     flip (traverse . traverse) forest $
-      \(Decl name key _ _) -> modify (Map.insertWith (<>) name (EnumSet.singleton key))
+      \(Decl name key _ _ _) -> modify (Map.insertWith (<>) name (EnumSet.singleton key))
 
 transitives :: forall a. Enum a => Maybe Int -> [a] -> Set (a, a) -> EnumSet a
 transitives maxDepth roots deps = go 0 mempty (EnumSet.fromList roots)

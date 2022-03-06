@@ -11,6 +11,7 @@ module Parse
     Name (..),
     Decl (..),
     Key (..),
+    Loc (..),
     DeclType (..),
     ParseError (..),
     GHCKey (..),
@@ -71,7 +72,7 @@ data DeclType
 newtype GHCKey = GHCKey {unGHCKey :: Int}
   deriving newtype (Show, Enum, Eq, Ord)
 
-type GHCDecl = (DeclType, GHC.Span, GHC.Name)
+type GHCDecl = (DeclType, GHC.Span, GHC.Name, Loc)
 
 data Collect = Collect
   { collectedDecls :: [GHCDecl],
@@ -80,7 +81,7 @@ data Collect = Collect
 
 data ParseError
   = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
-  | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name))
+  | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
 
 newtype Key = Key {runKey :: Int}
   deriving (Enum, Eq, Ord)
@@ -89,8 +90,17 @@ data Decl = Decl
   { declName :: String,
     declKey :: Key,
     declExported :: Bool,
-    declType :: DeclType
+    declType :: DeclType,
+    declLoc :: Loc
   }
+
+data Loc = Loc
+  { locLine :: Int,
+    locCol :: Int
+  }
+
+instance Show Loc where
+  showsPrec _ (Loc line col) = shows line . showChar ':' . shows col
 
 data Modules = Modules
   { modules :: [(String, Forest Decl)],
@@ -117,7 +127,7 @@ rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
 rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
 
 newtype ModulesDebugInfo = ModulesDebugInfo
-  { modulesSTrees :: [(String, STree GHC.RealSrcLoc (DeclType, Name))]
+  { modulesSTrees :: [(String, STree GHC.RealSrcLoc (DeclType, Name, Loc))]
   }
 
 parseHieFiles ::
@@ -135,14 +145,14 @@ parseHieFiles files = do
       StateT
         (Int, EnumMap GHCKey Key)
         (Either ParseError)
-        (String, Forest Decl, Set (GHCKey, GHCKey), STree GHC.RealSrcLoc (DeclType, Name))
+        (String, Forest Decl, Set (GHCKey, GHCKey), STree GHC.RealSrcLoc (DeclType, Name, Loc))
     parseFile (GHC.HieFile _ mdl _ asts avails _) = do
       Collect decls uses <- lift $ collect asts
       tree <- lift $ structure decls
       let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
             case ST.lookupInner loc tree of
               Nothing -> mempty
-              Just (_, callerName) -> Set.singleton (getKey callerName, callee)
+              Just (_, callerName, _) -> Set.singleton (getKey callerName, callee)
       let exportKeys = EnumSet.fromList $ fmap unKey $ avails >>= GHC.availNames
       forest <- rekey exportKeys (deduplicate tree)
       pure (GHC.moduleNameString (GHC.moduleName mdl), forest, calls, tree)
@@ -155,36 +165,39 @@ rekey exports = go
     assoc :: Key -> GHCKey -> StateT (Int, EnumMap GHCKey Key) m ()
     assoc key ghckey = modify $ fmap (EnumMap.insert ghckey key)
     go :: NameTree -> StateT (Int, EnumMap GHCKey Key) m (Forest Decl)
-    go (NameTree nt) = forM (Map.toList nt) $ \(name, (ghckeys, typ, sub)) -> do
+    go (NameTree nt) = forM (Map.toList nt) $ \(name, (ghckeys, typ, sub, mloc)) -> do
       key <- fresh
       forM_ (EnumSet.toList ghckeys) (assoc key)
       sub' <- go sub
       let exported = any (flip EnumSet.member exports) (EnumSet.toList ghckeys)
-      pure $ Tree.Node (Decl name key exported typ) sub'
+      pure $ Tree.Node (Decl name key exported typ mloc) sub'
 
-newtype NameTree = NameTree (Map String (EnumSet GHCKey, DeclType, NameTree))
+newtype NameTree = NameTree (Map String (EnumSet GHCKey, DeclType, NameTree, Loc))
 
 instance Semigroup NameTree where
   NameTree ta <> NameTree tb = NameTree $ Map.unionWith f ta tb
     where
-      f (ks, typ, sub) (ks', _, sub') = (ks <> ks', typ, sub <> sub')
+      f (ks, typ, sub, loc) (ks', _, sub', _) = (ks <> ks', typ, sub <> sub', loc)
 
 instance Monoid NameTree where mempty = NameTree mempty
 
-deduplicate :: STree GHC.RealSrcLoc (DeclType, Name) -> NameTree
-deduplicate = ST.foldSTree mempty $ \l _ (typ, Name str ks) sub _ r ->
-  let this = NameTree $ Map.singleton str (ks, typ, sub)
+deduplicate :: STree GHC.RealSrcLoc (DeclType, Name, Loc) -> NameTree
+deduplicate = ST.foldSTree mempty $ \l _ (typ, Name str ks, mloc) sub _ r ->
+  let this = NameTree $ Map.singleton str (ks, typ, sub, mloc)
    in l <> this <> r
 
-structure :: [GHCDecl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name))
+structure :: [GHCDecl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name, Loc))
 structure =
   foldM
-    (\t (ty, sp, na) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, mkName na) (GHC.realSrcSpanEnd sp) t)
+    (\t (ty, sp, na, mloc) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, mkName na, mloc) (GHC.realSrcSpanEnd sp) t)
     ST.emptySTree
   where
-    f (ta, Name na ka) (tb, Name nb kb)
-      | ta == tb && na == nb = Just (ta, Name na (ka <> kb))
+    f (ta, Name na ka, mloc) (tb, Name nb kb, _)
+      | ta == tb && na == nb = Just (ta, Name na (ka <> kb), mloc)
       | otherwise = Nothing
+
+spanToLoc :: GHC.RealSrcSpan -> Loc
+spanToLoc spn = Loc (GHC.srcSpanStartLine spn) (GHC.srcSpanStartCol spn)
 
 collect :: GHC.HieASTs a -> Either ParseError Collect
 collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty mempty)
@@ -204,7 +217,7 @@ collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty me
             (Right name, GHC.IdentifierDetails _ info) ->
               classifyIdentifier
                 info
-                (\ty sp -> tellDecl (ty, sp, name))
+                (\ty scope -> tellDecl (ty, scope, name, spanToLoc nodeSpan))
                 (tellUse (GHC.realSrcSpanStart nodeSpan) (unKey name))
                 (pure ())
                 (throwError $ UnhandledIdentifier name nodeSpan (Set.toList info))

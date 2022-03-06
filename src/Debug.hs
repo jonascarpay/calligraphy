@@ -40,12 +40,12 @@ ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, stree) -> d
   indent $ ppSTree stree
 
 ppTree :: Prints (Tree Decl)
-ppTree (Node (Decl name _key _exp typ) children) = do
-  strLn $ name <> " (" <> show typ <> ")"
+ppTree (Node (Decl name _key _exp typ loc) children) = do
+  strLn $ name <> " (" <> show typ <> ", " <> show loc <> ")"
   indent $ mapM_ ppTree children
 
-ppSTree :: Prints (STree GHC.RealSrcLoc (DeclType, Name))
-ppSTree = STree.foldSTree (pure ()) $ \ls l (typ, name) m r rs -> do
+ppSTree :: Prints (STree GHC.RealSrcLoc (DeclType, Name, Loc))
+ppSTree = STree.foldSTree (pure ()) $ \ls l (typ, name, _loc) m r rs -> do
   ls
   ppLocNode l r typ name
   indent m
@@ -67,15 +67,15 @@ ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 ppLocNode :: GHC.RealSrcLoc -> GHC.RealSrcLoc -> DeclType -> Name -> Printer ()
 ppLocNode l r typ name = strLn $ showName name <> " (" <> show typ <> ") " <> show l <> " " <> show r
 
-ppTreeError :: Prints (TreeError GHC.RealSrcLoc (DeclType, Name))
-ppTreeError (InvalidBounds l (ty, nm) r) = strLn "Invalid bounds:" >> indent (ppLocNode l r ty nm)
-ppTreeError (OverlappingBounds (ty, nm) (ty', nm') l r) = do
+ppTreeError :: Prints (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
+ppTreeError (InvalidBounds l (ty, nm, _) r) = strLn "Invalid bounds:" >> indent (ppLocNode l r ty nm)
+ppTreeError (OverlappingBounds (ty, nm, _) (ty', nm', _) l r) = do
   strLn $ "OverlappingBounds bounds: (" <> show (l, r) <> ")"
   indent $ do
     strLn $ showName nm <> " (" <> show ty <> ")"
     strLn $ showName nm' <> " (" <> show ty' <> ")"
 ppTreeError MidSplit = strLn "MidSplit"
-ppTreeError (LexicalError l (ty, nm) r t) = do
+ppTreeError (LexicalError l (ty, nm, _) r t) = do
   strLn "Lexical error"
   indent $ do
     ppLocNode l r ty nm
