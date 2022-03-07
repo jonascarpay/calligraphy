@@ -9,3 +9,6 @@
 
 - ignore:
     name: Use record patterns
+
+- ignore:
+    name: Use infix
