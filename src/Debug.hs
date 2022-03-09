@@ -30,7 +30,7 @@ import SrcLoc
 import Unique (getKey)
 
 ppModules :: Prints Modules
-ppModules (Modules modules _) = forM_ modules $ \(modName, forest) -> do
+ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
   strLn modName
   indent $ mapM_ ppTree forest
 

@@ -38,6 +38,7 @@ library
     Collapse
     Debug
     Dummy
+    EdgeFilter
     Filter
     GraphViz
     Parse

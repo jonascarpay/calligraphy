@@ -17,6 +17,7 @@ module Parse
     GHCKey (..),
     unKey,
     rekeyCalls,
+    resolveTypes,
   )
 where
 
@@ -29,6 +30,8 @@ import Data.EnumMap (EnumMap)
 import Data.EnumMap qualified as EnumMap
 import Data.EnumSet (EnumSet)
 import Data.EnumSet qualified as EnumSet
+import Data.Foldable qualified as Foldable
+import Data.List (unzip4)
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Map qualified as Map
@@ -37,28 +40,38 @@ import Data.Set qualified as Set
 import Data.Tree (Forest)
 import Data.Tree qualified as Tree
 import GHC qualified
+import GHC.Arr qualified as Arr
+import GHC.Arr qualified as GHC
 import HieTypes qualified as GHC
+import IfaceType qualified as GHC
 import Name qualified as GHC
 import STree (STree, TreeError)
 import STree qualified as ST
 import SrcLoc qualified as GHC
 import Unique qualified as GHC
 
--- -- TODO this can be much more efficient. Maybe do something with TangleT?
--- resolve :: Array GHC.TypeIndex GHC.HieTypeFlat -> Array GHC.TypeIndex [Key]
--- resolve arr = imap (\i -> evalState (resolve1 i) mempty) arr
---   where
---     imap :: (GHC.TypeIndex -> b) -> Array GHC.TypeIndex a -> Array GHC.TypeIndex b
---     imap f aa = Array.array (Array.bounds aa) ((\i -> (i, f i)) <$> Array.indices aa)
---     resolve1 :: GHC.TypeIndex -> State (Set GHC.TypeIndex) [Key]
---     resolve1 current = do
---       gets (Set.member current) >>= \case
---         True -> pure []
---         False -> do
---           modify (Set.insert current)
---           case arr Array.! current of
---             GHC.HTyVarTy name -> pure [nameKey name]
---             a -> fold <$> traverse resolve1 a
+-- TODO This can be faster by storing intermediate restuls, but that has proven tricky to get right.
+resolveTypes :: GHC.Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (EnumSet GHCKey)
+resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <- Arr.indices typeArray]
+  where
+    keys :: GHC.HieType a -> EnumSet GHCKey
+    keys (GHC.HTyConApp (GHC.IfaceTyCon name _) _) = EnumSet.singleton (unKey name)
+    keys (GHC.HForAllTy ((name, _), _) _) = EnumSet.singleton (unKey name)
+    -- These are variables, which we ignore, but it can't hurt
+    keys (GHC.HTyVarTy name) = EnumSet.singleton (unKey name)
+    keys _ = mempty
+    go ::
+      GHC.TypeIndex ->
+      State
+        (EnumSet GHC.TypeIndex)
+        (EnumSet GHCKey)
+    go current =
+      gets (EnumSet.member current) >>= \case
+        True -> pure mempty
+        False -> do
+          modify (EnumSet.insert current)
+          let ty = typeArray Arr.! current
+          mappend (keys ty) . mconcat <$> mapM go (Foldable.toList ty)
 
 data DeclType
   = ValueDecl
@@ -76,7 +89,8 @@ type GHCDecl = (DeclType, GHC.Span, GHC.Name, Loc)
 
 data Collect = Collect
   { collectedDecls :: [GHCDecl],
-    collectedUses :: [(GHC.RealSrcLoc, GHCKey)]
+    collectedUses :: [(GHC.RealSrcLoc, GHCKey)],
+    collectedInferences :: EnumMap GHCKey (EnumSet GHCKey)
   }
 
 data ParseError
@@ -84,7 +98,7 @@ data ParseError
   | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
 
 newtype Key = Key {runKey :: Int}
-  deriving (Enum, Eq, Ord)
+  deriving (Enum, Show, Eq, Ord)
 
 data Decl = Decl
   { declName :: String,
@@ -104,7 +118,8 @@ instance Show Loc where
 
 data Modules = Modules
   { modules :: [(String, Forest Decl)],
-    calls :: Set (Key, Key)
+    calls :: Set (Key, Key),
+    inferences :: Set (Key, Key)
   }
 
 -- A single symbol can apparently declare a name multiple times in the same place, with multiple distinct keys D:
@@ -134,8 +149,12 @@ parseHieFiles ::
   [GHC.HieFile] -> Either ParseError (ModulesDebugInfo, Modules)
 parseHieFiles files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
-  let (mods, debugs, calls) = unzip3 (fmap (\(name, forest, call, stree) -> ((name, forest), (name, stree), call)) parsed)
-  pure (ModulesDebugInfo debugs, Modules mods (rekeyCalls keymap (mconcat calls)))
+  let (mods, debugs, calls, infers) = unzip4 (fmap (\(name, forest, call, infer, stree) -> ((name, forest), (name, stree), call, infer)) parsed)
+      inferPairs = rekeyCalls keymap . Set.fromList $ do
+        (term, types) <- EnumMap.toList (mconcat infers)
+        typ <- EnumSet.toList types
+        pure (term, typ)
+  pure (ModulesDebugInfo debugs, Modules mods (rekeyCalls keymap (mconcat calls)) inferPairs)
   where
     add :: Key -> Key -> EnumMap Key (EnumSet Key) -> EnumMap Key (EnumSet Key)
     add from to = EnumMap.insertWith (<>) from (EnumSet.singleton to)
@@ -145,9 +164,9 @@ parseHieFiles files = do
       StateT
         (Int, EnumMap GHCKey Key)
         (Either ParseError)
-        (String, Forest Decl, Set (GHCKey, GHCKey), STree GHC.RealSrcLoc (DeclType, Name, Loc))
-    parseFile (GHC.HieFile _ mdl _ asts avails _) = do
-      Collect decls uses <- lift $ collect asts
+        (String, Forest Decl, Set (GHCKey, GHCKey), EnumMap GHCKey (EnumSet GHCKey), STree GHC.RealSrcLoc (DeclType, Name, Loc))
+    parseFile file@(GHC.HieFile _ mdl _ _ avails _) = do
+      Collect decls uses infers <- lift $ collect file
       tree <- lift $ structure decls
       let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
             case ST.lookupInner loc tree of
@@ -155,7 +174,7 @@ parseHieFiles files = do
               Just (_, callerName, _) -> Set.singleton (getKey callerName, callee)
       let exportKeys = EnumSet.fromList $ fmap unKey $ avails >>= GHC.availNames
       forest <- rekey exportKeys (deduplicate tree)
-      pure (GHC.moduleNameString (GHC.moduleName mdl), forest, calls, tree)
+      pure (GHC.moduleNameString (GHC.moduleName mdl), forest, calls, infers, tree)
 
 rekey :: forall m. Monad m => EnumSet GHCKey -> NameTree -> StateT (Int, EnumMap GHCKey Key) m (Forest Decl)
 rekey exports = go
@@ -199,22 +218,28 @@ structure =
 spanToLoc :: GHC.RealSrcSpan -> Loc
 spanToLoc spn = Loc (GHC.srcSpanStartLine spn) (GHC.srcSpanStartCol spn)
 
-collect :: GHC.HieASTs a -> Either ParseError Collect
-collect (GHC.HieASTs asts) = execStateT (mapM_ collect' asts) (Collect mempty mempty)
+collect :: GHC.HieFile -> Either ParseError Collect
+collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty mempty)
   where
     tellDecl :: GHCDecl -> StateT Collect (Either ParseError) ()
-    tellDecl decl = modify $ \(Collect decls uses) -> Collect (decl : decls) uses
+    tellDecl decl = modify $ \(Collect decls uses infers) -> Collect (decl : decls) uses infers
 
     tellUse :: GHC.RealSrcLoc -> GHCKey -> StateT Collect (Either ParseError) ()
-    tellUse loc key = modify $ \(Collect decls uses) -> Collect decls ((loc, key) : uses)
+    tellUse loc key = modify $ \(Collect decls uses infers) -> Collect decls ((loc, key) : uses) infers
 
-    collect' :: GHC.HieAST a -> StateT Collect (Either ParseError) ()
+    tellInfer :: GHC.Name -> GHC.TypeIndex -> StateT Collect (Either ParseError) ()
+    tellInfer name ix = modify $ \(Collect decls uses infers) -> Collect decls uses (EnumMap.insertWith (<>) (unKey name) (typeMap EnumMap.! ix) infers)
+
+    typeMap = resolveTypes typeArr
+
+    collect' :: GHC.HieAST GHC.TypeIndex -> StateT Collect (Either ParseError) ()
     collect' (GHC.Node (GHC.NodeInfo anns _ ids) nodeSpan children) =
       if Set.member ("ClsInstD", "InstDecl") anns
         then pure ()
         else do
           forM_ (M.toList ids) $ \case
-            (Right name, GHC.IdentifierDetails _ info) ->
+            (Right name, GHC.IdentifierDetails mtyp info) -> do
+              forM_ mtyp (tellInfer name)
               classifyIdentifier
                 info
                 (\ty scope -> tellDecl (ty, scope, name, spanToLoc nodeSpan))

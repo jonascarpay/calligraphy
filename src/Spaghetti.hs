@@ -13,6 +13,7 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as Text
 import Data.Version (showVersion)
 import Debug
+import EdgeFilter
 import Filter
 import GraphViz
 import HieTypes qualified as GHC
@@ -47,7 +48,7 @@ printDie :: Printer () -> IO a
 printDie txt = printStderr txt >> exitFailure
 
 mainWithConfig :: AppConfig -> IO ()
-mainWithConfig AppConfig {searchConfig, renderConfig, outputConfig, debugConfig, collapseConfig, filterConfig} = do
+mainWithConfig AppConfig {searchConfig, renderConfig, outputConfig, edgeFilterConfig, debugConfig, collapseConfig, filterConfig} = do
   let debug :: (DebugConfig -> Bool) -> Printer () -> IO ()
       debug fp printer = when (fp debugConfig) (printStderr printer)
 
@@ -62,7 +63,8 @@ mainWithConfig AppConfig {searchConfig, renderConfig, outputConfig, debugConfig,
   let modulesCollapsed = collapse collapseConfig modules
   debug dumpCollapsedModules $ ppModules modulesCollapsed
 
-  modulesFiltered <- either (printDie . ppFilterError) pure $ filterModules filterConfig modulesCollapsed
+  let modulesEdgeFiltered = filterEdges edgeFilterConfig modulesCollapsed
+  modulesFiltered <- either (printDie . ppFilterError) pure $ filterModules filterConfig modulesEdgeFiltered
   debug dumpFilteredModules $ ppModules modulesFiltered
 
   let txt = runPrinter $ render renderConfig modulesFiltered
@@ -72,6 +74,7 @@ mainWithConfig AppConfig {searchConfig, renderConfig, outputConfig, debugConfig,
 data AppConfig = AppConfig
   { searchConfig :: SearchConfig,
     collapseConfig :: CollapseConfig,
+    edgeFilterConfig :: EdgeFilterConfig,
     filterConfig :: FilterConfig,
     renderConfig :: RenderConfig,
     outputConfig :: OutputConfig,
@@ -79,7 +82,14 @@ data AppConfig = AppConfig
   }
 
 pConfig :: Parser AppConfig
-pConfig = AppConfig <$> pSearchConfig <*> pCollapseConfig <*> pFilterConfig <*> pRenderConfig <*> pOutputConfig <*> pDebugConfig
+pConfig =
+  AppConfig <$> pSearchConfig
+    <*> pCollapseConfig
+    <*> pEdgeFilterConfig
+    <*> pFilterConfig
+    <*> pRenderConfig
+    <*> pOutputConfig
+    <*> pDebugConfig
 
 output :: OutputConfig -> Text -> IO ()
 output cfg@OutputConfig {outputDotPath, outputPngPath, outputStdout} txt = do

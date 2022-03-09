@@ -56,9 +56,9 @@ transitives maxDepth roots deps = go 0 mempty (EnumSet.fromList roots)
 newtype FilterError = UnknownRootName String
 
 filterModules :: FilterConfig -> Modules -> Either FilterError Modules
-filterModules (FilterConfig exps mfw mbw maxDepth) (Modules modules calls) = do
-  fwFilter <- forM mfw $ flip mkDepFilter calls
-  bwFilter <- forM mbw $ flip mkDepFilter (Set.map swap calls)
+filterModules (FilterConfig exps mfw mbw maxDepth) (Modules modules calls infers) = do
+  fwFilter <- forM mfw $ flip mkDepFilter (calls <> infers)
+  bwFilter <- forM mbw $ flip mkDepFilter (Set.map swap (calls <> infers))
   let depFilter = case (fwFilter, bwFilter) of
         (Nothing, Nothing) -> const True
         (Just fa, Nothing) -> fa
@@ -67,15 +67,9 @@ filterModules (FilterConfig exps mfw mbw maxDepth) (Modules modules calls) = do
   let p decl = exportFilter decl && depFilter decl
       (modules', filteredKeys) = runState ((traverse . traverse . traverse) (filterTree p) modules) mempty
       calls' = Set.filter (\(a, b) -> EnumSet.member a filteredKeys && EnumSet.member b filteredKeys) calls
-  pure $ Modules ((fmap . fmap) catMaybes modules') calls'
+      infers' = Set.filter (\(a, b) -> EnumSet.member a filteredKeys && EnumSet.member b filteredKeys) infers
+  pure $ Modules ((fmap . fmap) catMaybes modules') calls' infers'
   where
-    -- parentChildEdges :: Set (Key, Key)
-    -- parentChildEdges = execState ((mapM_ . mapM_ . mapM_) (go . fmap declKey) modules) mempty
-    --   where
-    --     go :: Tree Key -> State (Set (Key, Key)) ()
-    --     go (Node parent children) = do
-    --       forM_ children $ \(Node child _) -> modify (Set.insert (parent, child))
-    --       mapM_ go children
     names :: Map String (EnumSet Key)
     names = resolveNames (modules >>= snd)
     mkDepFilter :: NonEmpty String -> Set (Key, Key) -> Either FilterError (Decl -> Bool)

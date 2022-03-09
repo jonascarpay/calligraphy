@@ -76,6 +76,8 @@ newtype Newtype = Newtype {accessor :: Int}
 localFun :: Class a => a -> a
 localFun = hiddenMethod
 
+untyped = Single
+
 emptyMap :: M.Map Int Int
 emptyMap = M.empty
 
