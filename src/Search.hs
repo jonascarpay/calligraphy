@@ -89,6 +89,7 @@ pSearchConfig =
       ( strOption
           ( long "input"
               <> short 'i'
+              <> metavar "PATH"
               <> help "Filepaths to search. If passed a file, it will be processed as is. If passed a directory, the directory will be searched recursively. Can be repeated. Defaults to ./."
           )
       )
@@ -97,6 +98,7 @@ pSearchConfig =
           <$> strOption
             ( long "module"
                 <> short 'm'
+                <> metavar "PATTERN"
                 <> help "Only include modules that match the specified pattern. Can contain '*' wildcards. Can be repeated."
             )
       )
@@ -105,6 +107,7 @@ pSearchConfig =
           <$> strOption
             ( long "exclude"
                 <> short 'e'
+                <> metavar "PATTERN"
                 <> help "Exclude modules that match the specified pattern. Can contain '*' wildcards. Can be repeated."
             )
       )
