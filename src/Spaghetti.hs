@@ -123,7 +123,7 @@ pOutputConfig :: Parser OutputConfig
 pOutputConfig =
   OutputConfig
     <$> optional (strOption (short 'd' <> long "output-dot" <> metavar "FILE" <> help ".dot output path"))
-    <*> optional (strOption (short 'p' <> long "output-png" <> metavar "FILE" <> help ".png output path"))
+    <*> optional (strOption (short 'p' <> long "output-png" <> metavar "FILE" <> help ".png output path (requires 'dot' executable in PATH)"))
     <*> switch (long "output-stdout" <> help "Output to stdout")
 
 data DebugConfig = DebugConfig
