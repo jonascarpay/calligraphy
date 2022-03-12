@@ -1,0 +1,75 @@
+name: CI
+
+on: push
+
+jobs:
+
+  nix-build:
+    name: Nix build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/install-nix-action@v16
+        with:
+          extra_nix_config: |
+            trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+            substituters = https://hydra.iohk.io https://cache.nixos.org/
+      - uses: cachix/cachix-action@v10
+        # This Cachix is specific for `template-haskell`.
+        # It contains nothing that is not also in the `hydra.iohk.io` cache, but it should be significantly faster.
+        # If you are not on the same version locks as `template-haskell`, it should be removed.
+        with:
+          name: jmc
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - name: Build dependencies
+        run: nix develop --command ghc --version
+      - name: Build spaghetti
+        run: nix build -L
+      - name: Build spaghetti checks
+        # TODO this should use `nix flake check` once that works as expected
+        run: nix build -L '.#checks.x86_64-linux."spaghetti:test:spaghetti-test"'
+      - name: Build spaghetti shell
+        run: nix build -L '.#devShell.x86_64-linux'
+
+  stack-build:
+    name: Stack ${{ matrix.resolver }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        resolver: [ nightly, lts-18, lts-17, lts-16, lts-15, lts-14 ]
+        os: [ macos-latest, ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: haskell/actions/setup@v1
+        with:
+          enable-stack: true
+      ## For some reason, stack caching seems to be very brittle, and cause a lot of build failures.
+      ## I haven't investigated very thoroughly what to best do about this, but for now, I'm just not caching stack builds.
+      - run: stack init --resolver ${{ matrix.resolver }}
+      - run: stack build --resolver ${{ matrix.resolver }} --only-dependencies
+      - run: stack build --resolver ${{ matrix.resolver }}
+      - run: stack build --resolver ${{ matrix.resolver }} --haddock --test --bench --no-run-benchmarks
+
+  cabal-build:
+    name: Cabal with GHC ${{ matrix.ghc }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc: [ '8.6.5', '8.8.3', '8.10.5', '9.0.1' ]
+        os: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: haskell/actions/setup@v1
+        with:
+          ghc-version: ${{ matrix.ghc }}
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cabal
+            dist-newstyle
+          key: cabal-cache-${{ matrix.os }}-${{ matrix.ghc }}-${{ hashFiles('**/*.cabal') }}
+      - run: cabal new-build --only-dependencies
+      - run: cabal new-build
+      - run: cabal new-test --test-show-details=direct
