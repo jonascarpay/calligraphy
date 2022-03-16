@@ -4,17 +4,17 @@ module Filter (filterModules, FilterConfig, pFilterConfig, FilterError (..)) whe
 
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
-import Data.EnumMap qualified as EnumMap
+import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
-import Data.EnumSet qualified as EnumSet
+import qualified Data.EnumSet as EnumSet
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map (Map)
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import Data.Monoid
 import Data.Set (Set)
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Data.Tree
 import Data.Tuple (swap)
 import Options.Applicative

@@ -14,18 +14,18 @@ module Debug
 where
 
 import Control.Monad.RWS
-import Data.EnumSet qualified as EnumSet
+import qualified Data.EnumSet as EnumSet
 import Data.Foldable
-import Data.Map qualified as M
+import qualified Data.Map as M
 import Data.Tree
 import Filter (FilterError (..))
-import GHC qualified
-import HieTypes qualified as GHC
-import Name qualified as GHC
+import qualified GHC
+import qualified HieTypes as GHC
+import qualified Name as GHC
 import Parse
 import Printer
 import STree (STree, TreeError (..))
-import STree qualified
+import qualified STree
 import SrcLoc
 import Unique (getKey)
 

@@ -2,7 +2,7 @@
 
 module EdgeFilter (EdgeFilterConfig, filterEdges, pEdgeFilterConfig) where
 
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Options.Applicative
 import Parse
 

@@ -21,34 +21,34 @@ module Parse
   )
 where
 
-import Avail qualified as GHC
+import qualified Avail as GHC
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
-import Data.EnumMap qualified as EnumMap
+import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
-import Data.EnumSet qualified as EnumSet
-import Data.Foldable qualified as Foldable
+import qualified Data.EnumSet as EnumSet
+import qualified Data.Foldable as Foldable
 import Data.List (unzip4)
 import Data.Map (Map)
-import Data.Map qualified as M
-import Data.Map qualified as Map
+import qualified Data.Map as M
+import qualified Data.Map as Map
 import Data.Set (Set)
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Data.Tree (Forest)
-import Data.Tree qualified as Tree
-import GHC qualified
-import GHC.Arr qualified as Arr
-import GHC.Arr qualified as GHC
-import HieTypes qualified as GHC
-import IfaceType qualified as GHC
-import Name qualified as GHC
+import qualified Data.Tree as Tree
+import qualified GHC
+import qualified GHC.Arr as Arr
+import qualified GHC.Arr as GHC
+import qualified HieTypes as GHC
+import qualified IfaceType as GHC
+import qualified Name as GHC
 import STree (STree, TreeError)
-import STree qualified as ST
-import SrcLoc qualified as GHC
-import Unique qualified as GHC
+import qualified STree as ST
+import qualified SrcLoc as GHC
+import qualified Unique as GHC
 
 -- TODO This can be faster by storing intermediate restuls, but that has proven tricky to get right.
 resolveTypes :: GHC.Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (EnumSet GHCKey)

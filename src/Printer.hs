@@ -8,9 +8,9 @@ import Control.Monad.RWS
 import Control.Monad.State
 import Data.Foldable
 import Data.Text (Text)
-import Data.Text.Lazy qualified as TL
+import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (Builder)
-import Data.Text.Lazy.Builder qualified as TB
+import qualified Data.Text.Lazy.Builder as TB
 
 newtype Printer a = Printer {unPrinter :: RWS Int () Builder a}
   deriving (Functor, Applicative, Monad)

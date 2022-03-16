@@ -4,7 +4,7 @@ module Collapse (collapse, CollapseConfig, pCollapseConfig) where
 
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
-import Data.EnumMap qualified as EnumMap
+import qualified Data.EnumMap as EnumMap
 import Data.Tree
 import Options.Applicative
 import Parse

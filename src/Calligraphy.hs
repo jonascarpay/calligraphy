@@ -9,14 +9,14 @@ module Calligraphy (main, mainWithConfig) where
 import Collapse
 import Control.Monad.RWS
 import Data.Text (Text)
-import Data.Text qualified as T
-import Data.Text.IO qualified as Text
+import qualified Data.Text as T
+import qualified Data.Text.IO as Text
 import Data.Version (showVersion)
 import Debug
 import EdgeFilter
 import Filter
 import GraphViz
-import HieTypes qualified as GHC
+import qualified HieTypes as GHC
 import Options.Applicative
 import Parse
 import Paths_calligraphy (version)

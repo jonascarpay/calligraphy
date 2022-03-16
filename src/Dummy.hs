@@ -14,7 +14,7 @@ where
 import Control.Monad hiding (when)
 import Data.Functor.Identity
 import Data.Kind (Type)
-import Data.Map qualified as M
+import qualified Data.Map as M
 
 data ExportedT
   = Exported (Identity Int)

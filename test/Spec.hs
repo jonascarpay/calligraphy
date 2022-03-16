@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 import Test.Hspec
-import Test.STree qualified as TS
+import qualified Test.STree as TS
 
 main :: IO ()
 main =

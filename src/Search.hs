@@ -6,14 +6,14 @@ import Control.Applicative
 import Control.Monad.State
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import HieBin qualified as GHC
-import HieTypes qualified as GHC
-import Module qualified as GHC
-import NameCache qualified as GHC
+import qualified HieBin as GHC
+import qualified HieTypes as GHC
+import qualified Module as GHC
+import qualified NameCache as GHC
 import Options.Applicative hiding (str)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
 import System.FilePath (isExtensionOf, (</>))
-import UniqSupply qualified as GHC
+import qualified UniqSupply as GHC
 
 searchFiles :: SearchConfig -> IO [GHC.HieFile]
 searchFiles SearchConfig {searchDotPaths, searchRoots, includeFilters, excludeFilters} = do
