@@ -33,13 +33,22 @@ module Compat
     moduleName,
     moduleNameString,
     nameUnique,
-    readHieFile,
     realSrcSpanEnd,
     realSrcSpanStart,
     srcSpanStartCol,
     srcSpanStartLine,
+    srcSpanEndCol,
+    srcSpanEndLine,
+    --
+    forNodeInfos_,
+    showContextInfo,
+    readHieFileCompat,
   )
 where
+
+import Control.Monad
+import Prelude
+import Data.IORef
 
 #if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Ext.Binary
@@ -54,6 +63,7 @@ import GHC.Types.Unique
 import GHC.Types.Unique.Supply
 import GHC.Unit.Module.Name
 import GHC.Unit.Types
+import GHC.Utils.Outputable (ppr, showSDocUnsafe)
 #else
 import Avail 
 import GHC
@@ -65,4 +75,32 @@ import NameCache
 import SrcLoc 
 import UniqSupply
 import Unique 
+#endif
+
+forNodeInfos_ :: Monad m => HieAST a -> (NodeInfo a -> m ()) -> m ()
+
+showContextInfo :: ContextInfo -> String
+
+readHieFileCompat :: IORef NameCache -> FilePath -> IO HieFileResult
+
+#if MIN_VERSION_ghc(9,0,0)
+
+forNodeInfos_ (Node (SourcedNodeInfo sourcedNodeInfos) span children) = forM_ sourcedNodeInfos
+
+showContextInfo = showSDocUnsafe . ppr
+
+readHieFileCompat ref fp = readHieFile (NCU (atomicModifyIORef ref)) fp
+
+#else
+
+forNodeInfos_ (Node sourceInfo span children) f = f sourceInfo
+
+showContextInfo = show
+
+readHieFileCompat ref fp = do
+  cache <- readIORef ref
+  (res, cache') <- readHieFile cache fp
+  writeIORef ref cache'
+  pure res
+
 #endif

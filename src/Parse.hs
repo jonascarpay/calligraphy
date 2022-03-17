@@ -227,21 +227,22 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
     typeMap = resolveTypes typeArr
 
     collect' :: GHC.HieAST GHC.TypeIndex -> StateT Collect (Either ParseError) ()
-    collect' (GHC.Node (GHC.NodeInfo anns _ ids) nodeSpan children) =
-      if Set.member ("ClsInstD", "InstDecl") anns
-        then pure ()
-        else do
-          forM_ (M.toList ids) $ \case
-            (Right name, GHC.IdentifierDetails mtyp info) -> do
-              forM_ mtyp (tellInfer name)
-              classifyIdentifier
-                info
-                (\ty scope -> tellDecl (ty, scope, name, spanToLoc nodeSpan))
-                (tellUse (GHC.realSrcSpanStart nodeSpan) (unKey name))
-                (pure ())
-                (throwError $ UnhandledIdentifier name nodeSpan (Set.toList info))
-            _ -> pure ()
-          mapM_ collect' children
+    collect' node@(GHC.Node _  nodeSpan children) =
+      GHC.forNodeInfos_ node $ \(GHC.NodeInfo anns _ ids) ->
+        if Set.member ("ClsInstD", "InstDecl") anns
+          then pure ()
+          else do
+            forM_ (M.toList ids) $ \case
+              (Right name, GHC.IdentifierDetails mtyp info) -> do
+                forM_ mtyp (tellInfer name)
+                classifyIdentifier
+                  info
+                  (\ty scope -> tellDecl (ty, scope, name, spanToLoc nodeSpan))
+                  (tellUse (GHC.realSrcSpanStart nodeSpan) (unKey name))
+                  (pure ())
+                  (throwError $ UnhandledIdentifier name nodeSpan (Set.toList info))
+              _ -> pure ()
+            mapM_ collect' children
 
     classifyIdentifier :: Set GHC.ContextInfo -> (DeclType -> GHC.Span -> r) -> r -> r -> r -> r
     classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of

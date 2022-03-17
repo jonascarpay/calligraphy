@@ -6,6 +6,7 @@ import qualified Compat as GHC
 import Control.Applicative
 import Control.Monad.State
 import Data.List (isPrefixOf)
+import Data.IORef
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Options.Applicative hiding (str)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
@@ -14,13 +15,11 @@ import System.FilePath (isExtensionOf, (</>))
 searchFiles :: SearchConfig -> IO [GHC.HieFile]
 searchFiles SearchConfig {searchDotPaths, searchRoots, includeFilters, excludeFilters} = do
   hieFilePaths <- searchHieFilePaths
-  nameCache <- do
-    uniqSupply <- GHC.mkSplitUniqSupply 'z'
-    return (GHC.initNameCache uniqSupply [])
 
-  hieFiles <-
-    flip evalStateT nameCache $
-      forM hieFilePaths readHieFileWithWarning
+  hieFiles <- do
+    uniqSupply <- GHC.mkSplitUniqSupply 'z'
+    ref <- newIORef (GHC.initNameCache uniqSupply [])
+    forM hieFilePaths (readHieFileWithWarning ref)
 
   pure $
     flip filter hieFiles $ \file ->
@@ -44,17 +43,15 @@ searchFiles SearchConfig {searchDotPaths, searchRoots, includeFilters, excludeFi
                   foldMap (go . (path </>)) contents
                 else pure []
 
-readHieFileWithWarning :: FilePath -> StateT GHC.NameCache IO GHC.HieFile
-readHieFileWithWarning path = do
-  nameCache <- get
-  (GHC.HieFileResult fileHieVersion fileGHCVersion hie, cache') <- liftIO $ GHC.readHieFile nameCache path
-  when (GHC.hieVersion /= fileHieVersion) $
-    liftIO $ do
-      putStrLn $ "WARNING: version mismatch in " <> path
-      putStrLn $ "    The hie files in this project were generated with GHC version: " <> show fileGHCVersion
-      putStrLn $ "    This version of calligraphy was compiled with GHC version: " <> show GHC.hieVersion
-      putStrLn $ "    Optimistically continuing anyway..."
-  hie <$ put cache'
+readHieFileWithWarning :: IORef GHC.NameCache -> FilePath -> IO GHC.HieFile
+readHieFileWithWarning ref path = do
+  GHC.HieFileResult fileHieVersion fileGHCVersion hie <- GHC.readHieFileCompat ref path
+  when (GHC.hieVersion /= fileHieVersion) $ do
+    putStrLn $ "WARNING: version mismatch in " <> path
+    putStrLn $ "    The hie files in this project were generated with GHC version: " <> show fileGHCVersion
+    putStrLn $ "    This version of calligraphy was compiled with GHC version: " <> show GHC.hieVersion
+    putStrLn $ "    Optimistically continuing anyway..."
+  pure hie
 
 data SearchConfig = SearchConfig
   { searchDotPaths :: Bool,

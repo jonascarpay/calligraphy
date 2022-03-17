@@ -24,8 +24,6 @@ import Parse
 import Printer
 import STree (STree, TreeError (..))
 import qualified STree
-import SrcLoc
-import Unique (getKey)
 
 ppModules :: Prints Modules
 ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
@@ -55,7 +53,8 @@ ppParseError (UnhandledIdentifier nm sp inf) = do
   strLn $ "Unrecognized identifier: " <> showGHCName nm
   indent $ do
     strLn $ "loc: " <> show sp
-    strLn $ "info: " <> show inf
+    strLn $ "info:"
+    indent $ mapM_ (strLn . GHC.showContextInfo) inf
 ppParseError (TreeError err) = ppTreeError err
 
 -- TODO move to Parse
@@ -82,41 +81,38 @@ ppTreeError (LexicalError l (ty, nm, _) r t) = do
 ppHieFile :: Prints GHC.HieFile
 ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do
   strLn $ showModuleName $ GHC.moduleName mdl
-  indent $ forM_ asts $ sequence_ . ppNameTree
+  indent $ forM_ asts $ ppNameTree
   where
-    ppNameTree :: GHC.HieAST a -> Maybe (Printer ())
-    ppNameTree (GHC.Node (GHC.NodeInfo anns _ ids) spn children) =
-      let subtrees = children >>= toList . ppNameTree
-          pids = fmap GHC.identInfo <$> M.toList ids
-       in if null subtrees && null pids && null anns
-            then Nothing
-            else pure $ do
-              strLn $ ">> " <> showSpan spn <> " " <> unwords (fmap show (toList anns))
-              indent $ do
-                forM_ pids $ \(idn, ctxInfo) -> do
-                  ppIdentifier idn
-                  indent $ mapM_ (strLn . show) ctxInfo
-                sequence_ subtrees
+    ppNameTree :: GHC.HieAST a -> Printer ()
+    ppNameTree node@(GHC.Node _ spn children) =
+      GHC.forNodeInfos_ node $ \(GHC.NodeInfo anns _ ids) -> do
+        strLn $ ">> " <> showSpan spn <> " " <> unwords (fmap show (toList anns))
+        indent $ do
+          let pids = fmap GHC.identInfo <$> M.toList ids
+          forM_ pids $ \(idn, ctxInfo) -> do
+            ppIdentifier idn
+            indent $ mapM_ (strLn . GHC.showContextInfo) ctxInfo
+          forM_ children ppNameTree
 
 ppIdentifier :: Prints GHC.Identifier
 ppIdentifier = strLn . either showModuleName showGHCName
 
 showGHCName :: GHC.Name -> String
-showGHCName name = GHC.getOccString name <> "    " <> show (getKey $ GHC.nameUnique name)
+showGHCName name = GHC.getOccString name <> "    " <> show (GHC.getKey $ GHC.nameUnique name)
 
 showName :: Name -> String
 showName (Name name keys) = name <> "    " <> show (EnumSet.toList keys)
 
-showSpan :: RealSrcSpan -> String
+showSpan :: GHC.RealSrcSpan -> String
 showSpan s =
   mconcat
-    [ show $ srcSpanStartLine s,
+    [ show $ GHC.srcSpanStartLine s,
       ":",
-      show $ srcSpanStartCol s,
+      show $ GHC.srcSpanStartCol s,
       " - ",
-      show $ srcSpanEndLine s,
+      show $ GHC.srcSpanEndLine s,
       ":",
-      show $ srcSpanEndCol s
+      show $ GHC.srcSpanEndCol s
     ]
 
 showModuleName :: GHC.ModuleName -> String
