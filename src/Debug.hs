@@ -13,15 +13,13 @@ module Debug
   )
 where
 
+import qualified Compat as GHC
 import Control.Monad.RWS
 import qualified Data.EnumSet as EnumSet
 import Data.Foldable
 import qualified Data.Map as M
 import Data.Tree
 import Filter (FilterError (..))
-import qualified GHC
-import qualified HieTypes as GHC
-import qualified Name as GHC
 import Parse
 import Printer
 import STree (STree, TreeError (..))

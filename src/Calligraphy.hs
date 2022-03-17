@@ -7,6 +7,7 @@
 module Calligraphy (main, mainWithConfig) where
 
 import Collapse
+import qualified Compat as GHC
 import Control.Monad.RWS
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -16,7 +17,6 @@ import Debug
 import EdgeFilter
 import Filter
 import GraphViz
-import qualified HieTypes as GHC
 import Options.Applicative
 import Parse
 import Paths_calligraphy (version)

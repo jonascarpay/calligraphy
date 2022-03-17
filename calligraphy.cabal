@@ -36,6 +36,7 @@ library
   exposed-modules:
     Calligraphy
     Collapse
+    Compat
     Debug
     Dummy
     EdgeFilter
@@ -47,6 +48,7 @@ library
     STree
 
   build-depends:
+    , array
     , containers
     , directory
     , enummapset

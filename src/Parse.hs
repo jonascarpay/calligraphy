@@ -21,9 +21,11 @@ module Parse
   )
 where
 
-import qualified Avail as GHC
+import qualified Compat as GHC
 import Control.Monad.Except
 import Control.Monad.State
+import Data.Array (Array)
+import qualified Data.Array as Array
 import Data.Bifunctor
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
@@ -39,20 +41,12 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tree (Forest)
 import qualified Data.Tree as Tree
-import qualified GHC
-import qualified GHC.Arr as Arr
-import qualified GHC.Arr as GHC
-import qualified HieTypes as GHC
-import qualified IfaceType as GHC
-import qualified Name as GHC
 import STree (STree, TreeError)
 import qualified STree as ST
-import qualified SrcLoc as GHC
-import qualified Unique as GHC
 
 -- TODO This can be faster by storing intermediate restuls, but that has proven tricky to get right.
-resolveTypes :: GHC.Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (EnumSet GHCKey)
-resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <- Arr.indices typeArray]
+resolveTypes :: Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (EnumSet GHCKey)
+resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <- Array.indices typeArray]
   where
     keys :: GHC.HieType a -> EnumSet GHCKey
     keys (GHC.HTyConApp (GHC.IfaceTyCon name _) _) = EnumSet.singleton (unKey name)
@@ -70,7 +64,7 @@ resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <
         True -> pure mempty
         False -> do
           modify (EnumSet.insert current)
-          let ty = typeArray Arr.! current
+          let ty = typeArray Array.! current
           mappend (keys ty) . mconcat <$> mapM go (Foldable.toList ty)
 
 data DeclType

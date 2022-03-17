@@ -2,18 +2,14 @@
 
 module Search (searchFiles, pSearchConfig, SearchConfig) where
 
+import qualified Compat as GHC
 import Control.Applicative
 import Control.Monad.State
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import qualified HieBin as GHC
-import qualified HieTypes as GHC
-import qualified Module as GHC
-import qualified NameCache as GHC
 import Options.Applicative hiding (str)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
 import System.FilePath (isExtensionOf, (</>))
-import qualified UniqSupply as GHC
 
 searchFiles :: SearchConfig -> IO [GHC.HieFile]
 searchFiles SearchConfig {searchDotPaths, searchRoots, includeFilters, excludeFilters} = do
