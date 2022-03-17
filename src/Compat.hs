@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -44,11 +45,13 @@ module Compat
     forNodeInfos_,
     showContextInfo,
     readHieFileCompat,
+    isInstanceNode,
   )
 where
 
 import Control.Monad
 import Data.IORef
+import qualified Data.Set as Set
 import Prelude
 
 #if MIN_VERSION_ghc(9,0,0)
@@ -81,7 +84,6 @@ import Unique
 forNodeInfos_ :: Monad m => HieAST a -> (NodeInfo a -> m ()) -> m ()
 showContextInfo :: ContextInfo -> String
 readHieFileCompat :: IORef NameCache -> FilePath -> IO HieFileResult
-
 #if MIN_VERSION_ghc(9,0,0)
 
 forNodeInfos_ (Node (SourcedNodeInfo sourcedNodeInfos) span children) = forM_ sourcedNodeInfos
@@ -101,5 +103,17 @@ readHieFileCompat ref fp = do
   (res, cache') <- readHieFile cache fp
   writeIORef ref cache'
   pure res
+
+#endif
+
+isInstanceNode :: NodeInfo a -> Bool
+
+#if MIN_VERSION_ghc(9,2,0)
+
+isInstanceNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "ClsInstD" "InstDecl") anns
+
+#else
+
+isInstanceNode (NodeInfo anns _ _) = Set.member ("ClsInstD", "InstDecl") anns
 
 #endif

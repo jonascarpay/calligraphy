@@ -228,11 +228,11 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
 
     collect' :: GHC.HieAST GHC.TypeIndex -> StateT Collect (Either ParseError) ()
     collect' node@(GHC.Node _ nodeSpan children) =
-      GHC.forNodeInfos_ node $ \(GHC.NodeInfo anns _ ids) ->
-        if Set.member ("ClsInstD", "InstDecl") anns
+      GHC.forNodeInfos_ node $ \nodeInfo ->
+        if GHC.isInstanceNode nodeInfo
           then pure ()
           else do
-            forM_ (M.toList ids) $ \case
+            forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
               (Right name, GHC.IdentifierDetails mtyp info) -> do
                 forM_ mtyp (tellInfer name)
                 classifyIdentifier
