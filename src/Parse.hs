@@ -227,7 +227,7 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
     typeMap = resolveTypes typeArr
 
     collect' :: GHC.HieAST GHC.TypeIndex -> StateT Collect (Either ParseError) ()
-    collect' node@(GHC.Node _  nodeSpan children) =
+    collect' node@(GHC.Node _ nodeSpan children) =
       GHC.forNodeInfos_ node $ \(GHC.NodeInfo anns _ ids) ->
         if Set.member ("ClsInstD", "InstDecl") anns
           then pure ()

@@ -5,8 +5,8 @@ module Search (searchFiles, pSearchConfig, SearchConfig) where
 import qualified Compat as GHC
 import Control.Applicative
 import Control.Monad.State
-import Data.List (isPrefixOf)
 import Data.IORef
+import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Options.Applicative hiding (str)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)

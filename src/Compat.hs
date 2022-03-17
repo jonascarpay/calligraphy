@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Compat
   ( BindType (..),
@@ -47,8 +48,8 @@ module Compat
 where
 
 import Control.Monad
-import Prelude
 import Data.IORef
+import Prelude
 
 #if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Ext.Binary
@@ -78,9 +79,7 @@ import Unique
 #endif
 
 forNodeInfos_ :: Monad m => HieAST a -> (NodeInfo a -> m ()) -> m ()
-
 showContextInfo :: ContextInfo -> String
-
 readHieFileCompat :: IORef NameCache -> FilePath -> IO HieFileResult
 
 #if MIN_VERSION_ghc(9,0,0)
@@ -93,7 +92,7 @@ readHieFileCompat ref fp = readHieFile (NCU (atomicModifyIORef ref)) fp
 
 #else
 
-forNodeInfos_ (Node sourceInfo span children) f = f sourceInfo
+forNodeInfos_ (Node sourceInfo _ _) f = f sourceInfo
 
 showContextInfo = show
 
