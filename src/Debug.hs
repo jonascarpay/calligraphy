@@ -81,14 +81,14 @@ ppTreeError (LexicalError l (ty, nm, _) r t) = do
 ppHieFile :: Prints GHC.HieFile
 ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do
   strLn $ showModuleName $ GHC.moduleName mdl
-  indent $ forM_ asts $ ppNameTree
+  indent $ forM_ asts ppNameTree
   where
     ppNameTree :: GHC.HieAST a -> Printer ()
     ppNameTree node@(GHC.Node _ spn children) =
-      GHC.forNodeInfos_ node $ \(GHC.NodeInfo anns _ ids) -> do
-        strLn $ ">> " <> showSpan spn <> " " <> unwords (fmap show (toList anns))
+      GHC.forNodeInfos_ node $ \nodeInfo -> do
+        strLn $ ">> " <> showSpan spn <> " " <> GHC.showAnns nodeInfo
         indent $ do
-          let pids = fmap GHC.identInfo <$> M.toList ids
+          let pids = fmap GHC.identInfo <$> M.toList (GHC.nodeIdentifiers nodeInfo)
           forM_ pids $ \(idn, ctxInfo) -> do
             ppIdentifier idn
             indent $ mapM_ (strLn . GHC.showContextInfo) ctxInfo

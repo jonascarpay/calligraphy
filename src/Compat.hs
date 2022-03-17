@@ -46,6 +46,7 @@ module Compat
     showContextInfo,
     readHieFileCompat,
     isInstanceNode,
+    showAnns,
   )
 where
 
@@ -107,13 +108,20 @@ readHieFileCompat ref fp = do
 #endif
 
 isInstanceNode :: NodeInfo a -> Bool
+showAnns :: NodeInfo a -> String
 
 #if MIN_VERSION_ghc(9,2,0)
 
 isInstanceNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "ClsInstD" "InstDecl") anns
 
+showAnns (NodeInfo anns _ _) = unwords (show . unNodeAnnotation <$> Set.toList anns)
+  where
+    unNodeAnnotation (NodeAnnotation a b) = (a, b)
+
 #else
 
 isInstanceNode (NodeInfo anns _ _) = Set.member ("ClsInstD", "InstDecl") anns
+
+showAnns (NodeInfo anns _ _) = unwords (show <$> Set.toList anns)
 
 #endif
