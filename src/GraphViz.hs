@@ -23,7 +23,7 @@ data RenderConfig = RenderConfig
 
 render :: RenderConfig -> Prints Modules
 render RenderConfig {showCalls, showInfers, splines, reverseDependencyRank, showLoc} (Modules modules calls infers) = do
-  brack "digraph spaghetti {" "}" $ do
+  brack "digraph calligraphy {" "}" $ do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
     textLn "graph [outputorder=edgesfirst];"

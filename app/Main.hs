@@ -1,8 +1,8 @@
 import Dummy
-import Spaghetti qualified as S
+import Calligraphy qualified as C
 
 main :: IO ()
-main = S.main
+main = C.main
 
 a, b :: Int
 a = b

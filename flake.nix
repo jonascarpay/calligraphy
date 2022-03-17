@@ -1,5 +1,5 @@
 {
-  description = "spaghetti";
+  description = "calligraphy";
 
   inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
@@ -37,6 +37,6 @@
         };
         flake = pkgs.hsPkgs.flake { };
       in
-      flake // { defaultPackage = flake.packages."spaghetti:exe:spaghetti-exe"; }
+      flake // { defaultPackage = flake.packages."calligraphy:exe:calligraphy"; }
     );
 }

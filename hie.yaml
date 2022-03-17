@@ -4,13 +4,10 @@ cradle:
     #   config: {cradle: {none: }}
 
     - path: "src"
-      config: {cradle: {cabal: {component: "lib:spaghetti"}}}
+      config: {cradle: {cabal: {component: "lib:calligraphy"}}}
 
     - path: "app"
-      config: {cradle: {cabal: {component: "spaghetti:spaghetti-exe"}}}
+      config: {cradle: {cabal: {component: "calligraphy:calligraphy"}}}
 
     - path: "test"
-      config: {cradle: {cabal: {component: "spaghetti:spaghetti-test"}}}
-
-    - path: "bench"
-      config: {cradle: {cabal: {component: "spaghetti:spaghetti-bench"}}}
+      config: {cradle: {cabal: {component: "calligraphy:calligraphy-test"}}}

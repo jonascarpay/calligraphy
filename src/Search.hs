@@ -56,7 +56,7 @@ readHieFileWithWarning path = do
     liftIO $ do
       putStrLn $ "WARNING: version mismatch in " <> path
       putStrLn $ "    The hie files in this project were generated with GHC version: " <> show fileGHCVersion
-      putStrLn $ "    This version of spaghetti was compiled with GHC version: " <> show GHC.hieVersion
+      putStrLn $ "    This version of calligraphy was compiled with GHC version: " <> show GHC.hieVersion
       putStrLn $ "    Optimistically continuing anyway..."
   hie <$ put cache'
 

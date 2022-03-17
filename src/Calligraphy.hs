@@ -4,7 +4,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Spaghetti (main, mainWithConfig) where
+module Calligraphy (main, mainWithConfig) where
 
 import Collapse
 import Control.Monad.RWS
@@ -19,7 +19,7 @@ import GraphViz
 import HieTypes qualified as GHC
 import Options.Applicative
 import Parse
-import Paths_spaghetti (version)
+import Paths_calligraphy (version)
 import Printer
 import Search
 import System.Directory (findExecutable)
@@ -34,7 +34,7 @@ main = do
   where
     versionP =
       infoOption
-        ( "spaghetti version "
+        ( "calligraphy version "
             <> showVersion version
             <> "\nhie version "
             <> show GHC.hieVersion

@@ -1,5 +1,5 @@
 cabal-version:   2.4
-name:            spaghetti
+name:            calligraphy
 version:         0
 license:         BSD-3-Clause
 build-type:      Simple
@@ -15,10 +15,10 @@ extra-doc-files:
 -- category:
 -- description:     description
 -- synopsis:        one-line synopsis
--- homepage:        https://github.com/FIXME/spaghetti#readme
+-- homepage:        https://github.com/FIXME/calligraphy#readme
 -- source-repository head
 --   type:     git
---   location: git://github.com/FIXME/spaghetti.git
+--   location: git://github.com/FIXME/calligraphy
 
 common common-options
   build-depends:      base >=4.9 && <5
@@ -32,9 +32,10 @@ common common-options
 library
   import:          common-options
   hs-source-dirs:  src
-  other-modules:   Paths_spaghetti
-  autogen-modules: Paths_spaghetti
+  other-modules:   Paths_calligraphy
+  autogen-modules: Paths_calligraphy
   exposed-modules:
+    Calligraphy
     Collapse
     Debug
     Dummy
@@ -44,7 +45,6 @@ library
     Parse
     Printer
     Search
-    Spaghetti
     STree
 
   build-depends:
@@ -62,22 +62,22 @@ library
     , text
     , transformers
 
-executable spaghetti-exe
+executable calligraphy
   import:         common-options
   hs-source-dirs: app
   main-is:        Main.hs
-  build-depends:  spaghetti
+  build-depends:  calligraphy
   ghc-options:    -threaded -rtsopts -with-rtsopts=-N
 
-test-suite spaghetti-test
+test-suite calligraphy-test
   import:         common-options
   hs-source-dirs: test
   main-is:        Spec.hs
   other-modules:  Test.STree
   build-depends:
+    , calligraphy
     , hspec
     , HUnit
     , QuickCheck
-    , spaghetti
 
   type:           exitcode-stdio-1.0
