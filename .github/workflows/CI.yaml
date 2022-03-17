@@ -23,12 +23,12 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - name: Build dependencies
         run: nix develop --command ghc --version
-      - name: Build spaghetti
+      - name: Build calligraphy
         run: nix build -L
-      - name: Build spaghetti checks
+      - name: Build calligraphy checks
         # TODO this should use `nix flake check` once that works as expected
-        run: nix build -L '.#checks.x86_64-linux."spaghetti:test:spaghetti-test"'
-      - name: Build spaghetti shell
+        run: nix build -L '.#checks.x86_64-linux."calligraphy:test:calligraphy-test"'
+      - name: Build calligraphy shell
         run: nix build -L '.#devShell.x86_64-linux'
 
   stack-build:
