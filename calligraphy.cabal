@@ -38,7 +38,6 @@ library
     Collapse
     Compat
     Debug
-    Dummy
     EdgeFilter
     Filter
     GraphViz
@@ -74,9 +73,13 @@ test-suite calligraphy-test
   import:         common-options
   hs-source-dirs: test
   main-is:        Spec.hs
-  other-modules:  Test.STree
+  other-modules:
+    Test.Reference
+    Test.STree
+
   build-depends:
     , calligraphy
+    , containers
     , hspec
     , HUnit
     , QuickCheck

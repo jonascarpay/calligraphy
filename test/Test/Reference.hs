@@ -3,7 +3,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Dummy
+module Test.Reference
   ( ExportedT (Exported),
     exportedFun,
     Class (method),
