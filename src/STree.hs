@@ -88,7 +88,7 @@ checkBounds t = isJust $ foldSTreeM (pure Nothing) f t
   where
     f ml bl _ msub br mr = do
       guard (bl < br)
-      forM_ msub $ \(sl, sr) -> guard $ sl >= bl && sr <= br && (sl /= bl || sr /= br)
+      forM_ msub $ \(sl, sr) -> guard $ sl >= bl && sr <= br
       l <- case ml of
         Nothing -> pure bl
         Just (ll, lr) -> do

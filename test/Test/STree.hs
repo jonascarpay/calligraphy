@@ -53,10 +53,19 @@ spec =
       case insert l a r t of
         Left _ -> discard
         Right t' -> length t + 1 == length t'
-    prop "inserting produces valid trees" $ \l a r (t :: STree Int Int) ->
-      case insert l a r t of
-        Left _ -> discard
-        Right t' -> check t'
+    describe "inserting produces valid trees" $ do
+      prop "inserting produces trees with valid bounds" $ \l a r (t :: STree Int Int) ->
+        case insert l a r t of
+          Left _ -> discard
+          Right t' -> checkBounds t'
+      prop "inserting produces trees with valid height" $ \l a r (t :: STree Int Int) ->
+        case insert l a r t of
+          Left _ -> discard
+          Right t' -> checkHeight t'
+      prop "inserting produces trees with valid balance" $ \l a r (t :: STree Int Int) ->
+        case insert l a r t of
+          Left _ -> discard
+          Right t' -> checkBalance t'
     prop "after inserting, we can get the element back" $ \l a r (t :: STree Int Int) ->
       case insert l a r t of
         Left _ -> discard
