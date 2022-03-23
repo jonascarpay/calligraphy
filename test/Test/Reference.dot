@@ -1,4 +1,3 @@
-Up to date
 digraph calligraphy {
     node [style=filled fillcolor="#ffffffcf"];
     graph [outputorder=edgesfirst];
