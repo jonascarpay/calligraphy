@@ -235,38 +235,16 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
               (Right name, GHC.IdentifierDetails mtyp info) -> do
                 forM_ mtyp (tellInfer name)
-                classifyIdentifier
+                let decl ty scope = tellDecl (ty, scope, name, spanToLoc nodeSpan)
+                GHC.classifyIdentifier
                   info
-                  (\ty scope -> tellDecl (ty, scope, name, spanToLoc nodeSpan))
+                  (decl ValueDecl)
+                  (decl RecDecl)
+                  (decl ConDecl)
+                  (decl DataDecl)
+                  (decl ClassDecl)
                   (tellUse (GHC.realSrcSpanStart nodeSpan) (unKey name))
                   (pure ())
                   (throwError $ UnhandledIdentifier name nodeSpan (Set.toList info))
               _ -> pure ()
             mapM_ collect' children
-
-    classifyIdentifier :: Set GHC.ContextInfo -> (DeclType -> GHC.Span -> r) -> r -> r -> r -> r
-    classifyIdentifier ctx decl use ignore unknown = case Set.toAscList ctx of
-      [GHC.Decl GHC.DataDec (Just sp)] -> decl DataDecl sp
-      [GHC.Decl GHC.PatSynDec (Just sp)] -> decl DataDecl sp
-      [GHC.Decl GHC.FamDec (Just sp)] -> decl DataDecl sp
-      [GHC.Decl GHC.SynDec (Just sp)] -> decl DataDecl sp
-      [GHC.ClassTyDecl (Just sp)] -> decl ValueDecl sp
-      [GHC.MatchBind, GHC.ValBind _ _ (Just sp)] -> decl ValueDecl sp
-      [GHC.MatchBind] -> ignore
-      [GHC.Decl GHC.InstDec _] -> ignore
-      [GHC.Decl GHC.ConDec (Just sp)] -> decl ConDecl sp
-      [GHC.Use] -> use
-      [GHC.Use, GHC.RecField GHC.RecFieldOcc _] -> use
-      [GHC.Decl GHC.ClassDec (Just sp)] -> decl ClassDecl sp
-      [GHC.ValBind GHC.RegularBind GHC.ModuleScope (Just sp), GHC.RecField GHC.RecFieldDecl _] -> decl RecDecl sp
-      -- -- Recordfields without valbind occur when a record occurs in multiple constructors
-      [GHC.RecField GHC.RecFieldDecl (Just sp)] -> decl RecDecl sp
-      [GHC.PatternBind _ _ _] -> ignore
-      [GHC.RecField GHC.RecFieldMatch _] -> ignore
-      [GHC.RecField GHC.RecFieldAssign _] -> use
-      [GHC.TyDecl] -> ignore
-      [GHC.IEThing _] -> ignore
-      [GHC.TyVarBind _ _] -> ignore
-      -- -- An empty ValBind is the result of a derived instance, and should be ignored
-      [GHC.ValBind GHC.RegularBind GHC.ModuleScope _] -> ignore
-      _ -> unknown

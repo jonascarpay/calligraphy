@@ -20,6 +20,11 @@ extra-doc-files:
 --   type:     git
 --   location: git://github.com/FIXME/calligraphy
 
+flag debug
+  description: Makes identifier checks more conservative
+  default:     False
+  manual:      True
+
 common common-options
   build-depends:    base >=4.9 && <5
   default-language: Haskell2010
@@ -27,6 +32,9 @@ common common-options
     -Wall -Wcompat -Widentities -Wincomplete-uni-patterns
     -Wincomplete-record-updates -Wredundant-constraints
     -fhide-source-paths -Wpartial-fields -fwrite-ide-info
+
+  if flag(debug)
+    cpp-options: -DDEBUG
 
 library
   import:          common-options
