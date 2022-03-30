@@ -46,12 +46,14 @@
               unstable.stack
               unstable.haskell.compiler.ghc922
             ];
+            STACK_YAML = "stack-nightly.yaml";
           };
           stack-lts19-shell = unstable.mkShell {
             packages = [
               unstable.stack
               unstable.haskell.compiler.ghc902
             ];
+            STACK_YAML = "stack-lts19.yaml";
           };
           haskell-nix-shell = flake.devShell;
         };
