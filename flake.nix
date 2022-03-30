@@ -3,10 +3,11 @@
 
   inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
+  inputs.unstable.url = "github:NixOS/nixpkgs/haskell-updates";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
-  outputs = { self, nixpkgs, flake-utils, haskellNix }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs = inputs:
+    inputs.flake-utils.lib.eachDefaultSystem (system:
       let
         overlay = self: _: {
           hsPkgs =
@@ -28,15 +29,36 @@
               };
             };
         };
-        pkgs = import nixpkgs {
+        pkgs = import inputs.nixpkgs {
           inherit system;
           overlays = [
-            haskellNix.overlay
+            inputs.haskellNix.overlay
             overlay
           ];
         };
         flake = pkgs.hsPkgs.flake { };
+        unstable = import inputs.unstable { inherit system; };
       in
-      flake // { defaultPackage = flake.packages."calligraphy:exe:calligraphy"; }
-    );
+      rec {
+        devShells = {
+          stack-nightly-shell = unstable.mkShell {
+            packages = [
+              unstable.stack
+              unstable.haskell.compiler.ghc922
+            ];
+          };
+          stack-lts19-shell = unstable.mkShell {
+            packages = [
+              unstable.stack
+              unstable.haskell.compiler.ghc902
+            ];
+          };
+          haskell-nix-shell = flake.devShell;
+        };
+
+        devShell = devShells.haskell-nix-shell;
+
+        defaultPackage = flake.packages."calligraphy:exe:calligraphy";
+
+      });
 }
