@@ -1,6 +1,7 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Redundant $" #-}
 
 -- TODO export list
 
@@ -16,7 +17,6 @@ where
 import qualified Compat as GHC
 import Control.Monad.RWS
 import qualified Data.EnumSet as EnumSet
-import Data.Foldable
 import qualified Data.Map as M
 import Data.Tree
 import Filter (FilterError (..))
