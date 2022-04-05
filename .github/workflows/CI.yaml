@@ -67,6 +67,6 @@ jobs:
             dist-newstyle
           key: cabal-cache-${{ matrix.os }}-${{ matrix.ghc }}-${{ hashFiles('**/*.cabal') }}
       - run: cabal new-build --only-dependencies
-      - run: cabal new-build
-      - run: cabal new-test --test-show-details=direct
-      - run: cabal new-exec calligraphy -- -m Test.Reference --output-stdout | diff -u test/Test/Reference.dot -
+      - run: cabal new-build -f debug
+      - run: cabal new-test -f debug --test-show-details=direct
+      - run: cabal new-exec -f debug calligraphy -- -m Test.Reference --output-stdout | diff -u test/Test/Reference.dot -
