@@ -157,7 +157,7 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [RecField RecFieldDecl (Just sp)] -> recdecl sp
   [RecField RecFieldAssign _] -> use
   [RecField RecFieldMatch _] -> ignore
-  [RecField RecFieldOcc _] -> ignore
+  [RecField RecFieldOcc _] -> use
   [PatternBind _ _ _] -> ignore
   [TyDecl] -> ignore
   [IEThing _] -> ignore
