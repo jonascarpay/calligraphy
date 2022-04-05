@@ -17,7 +17,7 @@ data CollapseConfig = CollapseConfig
   }
 
 collapse :: CollapseConfig -> Modules -> Modules
-collapse CollapseConfig {collapseValues, collapseClasses, collapseConstructors, collapseData} Modules {modules, calls, inferences} =
+collapse CollapseConfig {collapseValues, collapseClasses, collapseConstructors, collapseData} (Modules modules calls inferences) =
   let (modules', reps) = flip runState mempty $ (traverse . traverse . traverse) go modules
    in Modules modules' (rekeyCalls reps calls) (rekeyCalls reps inferences)
   where

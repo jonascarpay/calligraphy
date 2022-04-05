@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints -Wno-unused-matches #-}
 
 module Compat
   ( BindType (..),
@@ -65,7 +65,6 @@ import GHC.Types.Avail
 import GHC.Types.Name
 import GHC.Types.Name.Cache
 import GHC.Types.SrcLoc
-import GHC.Types.SrcLoc
 import GHC.Types.Unique
 import GHC.Types.Unique.Supply
 import GHC.Unit.Module.Name
@@ -87,13 +86,14 @@ import Unique
 forNodeInfos_ :: Monad m => HieAST a -> (NodeInfo a -> m ()) -> m ()
 showContextInfo :: ContextInfo -> String
 readHieFileCompat :: IORef NameCache -> FilePath -> IO HieFileResult
+
 #if MIN_VERSION_ghc(9,0,0)
 
-forNodeInfos_ (Node (SourcedNodeInfo sourcedNodeInfos) span children) = forM_ sourcedNodeInfos
+forNodeInfos_ (Node (SourcedNodeInfo sourcedNodeInfos) _ _) = forM_ sourcedNodeInfos
 
 showContextInfo = showSDocUnsafe . ppr
 
-readHieFileCompat ref fp = readHieFile (NCU (atomicModifyIORef ref)) fp
+readHieFileCompat ref = readHieFile (NCU (atomicModifyIORef ref)) 
 
 #else
 

@@ -82,9 +82,9 @@ newtype GHCKey = GHCKey {unGHCKey :: Int}
 type GHCDecl = (DeclType, GHC.Span, GHC.Name, Loc)
 
 data Collect = Collect
-  { collectedDecls :: [GHCDecl],
-    collectedUses :: [(GHC.RealSrcLoc, GHCKey)],
-    collectedInferences :: EnumMap GHCKey (EnumSet GHCKey)
+  { _collectedDecls :: [GHCDecl],
+    _collectedUses :: [(GHC.RealSrcLoc, GHCKey)],
+    _collectedInferences :: EnumMap GHCKey (EnumSet GHCKey)
   }
 
 data ParseError
@@ -111,9 +111,9 @@ instance Show Loc where
   showsPrec _ (Loc line col) = shows line . showChar ':' . shows col
 
 data Modules = Modules
-  { modules :: [(String, Forest Decl)],
-    calls :: Set (Key, Key),
-    inferences :: Set (Key, Key)
+  { _modules :: [(String, Forest Decl)],
+    _calls :: Set (Key, Key),
+    _inferences :: Set (Key, Key)
   }
 
 -- A single symbol can apparently declare a name multiple times in the same place, with multiple distinct keys D:
@@ -151,9 +151,6 @@ parseHieFiles files = do
         pure (term, typ)
   pure (ModulesDebugInfo debugs, Modules mods (rekeyCalls keymap (mconcat calls)) inferPairs)
   where
-    add :: Key -> Key -> EnumMap Key (EnumSet Key) -> EnumMap Key (EnumSet Key)
-    add from to = EnumMap.insertWith (<>) from (EnumSet.singleton to)
-
     parseFile ::
       GHC.HieFile ->
       StateT
@@ -256,11 +253,14 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
     typeMap = resolveTypes typeArr
 
     collect' :: GHC.HieAST GHC.TypeIndex -> StateT Collect (Either ParseError) ()
-    collect' node@(GHC.Node _ nodeSpan children) =
+    collect' node@(GHC.Node _ _ children) =
       GHC.forNodeInfos_ node $ \nodeInfo ->
         if GHC.isInstanceNode nodeInfo
           then pure ()
           else do
+            forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
+              (Right name, GHC.IdentifierDetails ty _) -> mapM_ (tellInfer name) ty
+              _ -> pure ()
             lift (classifyNode node) >>= \case
               EmptyNode -> pure ()
               UseNode gk rsl -> tellUse rsl gk

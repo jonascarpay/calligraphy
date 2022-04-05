@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE LambdaCase #-}
 
 module STree where
 
@@ -27,7 +26,7 @@ lookupInner p = foldSTree Nothing f
 lookupOuter :: Ord p => p -> STree p a -> Maybe a
 lookupOuter p = foldSTree Nothing f
   where
-    f ls l a m r rs
+    f ls l a _ r rs
       | p >= l && p < r = Just a
       | p < l = ls
       | p >= r = rs
@@ -139,14 +138,14 @@ bin' ls l a ms r rs = Bin (max (height ls) (height rs) + 1) ls l a ms r rs
 bin :: STree p a -> p -> a -> STree p a -> p -> STree p a -> STree p a
 bin (Bin lh lls ll la lms lr lrs) l a ms r rs
   | lh > height rs + 1 =
-      case lrs of
-        Bin lrh lrls lrl lra lrms lrr lrrs | lrh > height lls -> bin' (bin' lls ll la lms lr lrls) lrl lra lrms lrr (bin' lrrs l a ms r rs)
-        _ -> bin' lls ll la lms lr (bin' lrs l a ms r rs)
+    case lrs of
+      Bin lrh lrls lrl lra lrms lrr lrrs | lrh > height lls -> bin' (bin' lls ll la lms lr lrls) lrl lra lrms lrr (bin' lrrs l a ms r rs)
+      _ -> bin' lls ll la lms lr (bin' lrs l a ms r rs)
 bin ls l a ms r (Bin rh rls rl ra rms rr rrs)
   | rh > height ls + 1 =
-      case rls of
-        Bin rlh rlls rll rla rlms rlr rlrs | rlh > height rrs -> bin' (bin' ls l a ms r rlls) rll rla rlms rlr (bin' rlrs rl ra rms rr rrs)
-        _ -> bin' (bin' ls l a ms r rls) rl ra rms rr rrs
+    case rls of
+      Bin rlh rlls rll rla rlms rlr rlrs | rlh > height rrs -> bin' (bin' ls l a ms r rlls) rll rla rlms rlr (bin' rlrs rl ra rms rr rrs)
+      _ -> bin' (bin' ls l a ms r rls) rl ra rms rr rrs
 bin ls l a ms r rs = bin' ls l a ms r rs
 
 split :: Ord p => p -> STree p a -> Either (TreeError p a) (STree p a, STree p a)
@@ -155,11 +154,11 @@ split p = go
     go Tip = pure (Tip, Tip)
     go (Bin _ ls l a ms r rs)
       | p <= l = do
-          (ll, lr) <- go ls
-          pure (ll, bin lr l a ms r rs)
+        (ll, lr) <- go ls
+        pure (ll, bin lr l a ms r rs)
       | p >= r = do
-          (rl, rr) <- go rs
-          pure (bin ls l a ms r rl, rr)
+        (rl, rr) <- go rs
+        pure (bin ls l a ms r rl, rr)
       | otherwise = Left MidSplit
 
 insertWith :: Ord p => (a -> a -> Maybe a) -> p -> a -> p -> STree p a -> Either (TreeError p a) (STree p a)
@@ -172,13 +171,13 @@ insertWith f il ia ir t
       | ir <= l = flip fmap (go ls) $ \ls' -> bin ls' l a ms r rs
       | il >= r = flip fmap (go rs) $ \rs' -> bin ls l a ms r rs'
       | il == l && ir == r = case f ia a of
-          Just a' -> pure $ Bin h ls l a' ms r rs
-          Nothing -> Left $ OverlappingBounds ia a il ir
+        Just a' -> pure $ Bin h ls l a' ms r rs
+        Nothing -> Left $ OverlappingBounds ia a il ir
       | il >= l && ir <= r = flip fmap (go ms) $ \ms' -> bin ls l a ms' r rs
       | il <= l && ir >= r = do
-          (ll, lr) <- split il ls
-          (rl, rr) <- split ir rs
-          pure $ bin ll il ia (bin lr l a ms r rl) ir rr
+        (ll, lr) <- split il ls
+        (rl, rr) <- split ir rs
+        pure $ bin ll il ia (bin lr l a ms r rl) ir rr
       | otherwise = Left $ LexicalError il ia ir t
 
 insert :: Ord p => p -> a -> p -> STree p a -> Either (TreeError p a) (STree p a)
@@ -193,7 +192,7 @@ insert il ia ir t
       | il == l && ir == r = Left $ OverlappingBounds ia a il ir
       | il >= l && ir <= r = flip fmap (go ms) $ \ms' -> bin ls l a ms' r rs
       | il <= l && ir >= r = do
-          (ll, lr) <- split il ls
-          (rl, rr) <- split ir rs
-          pure $ bin ll il ia (bin lr l a ms r rl) ir rr
+        (ll, lr) <- split il ls
+        (rl, rr) <- split ir rs
+        pure $ bin ll il ia (bin lr l a ms r rl) ir rr
       | otherwise = Left $ LexicalError il ia ir t

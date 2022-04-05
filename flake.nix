@@ -15,7 +15,7 @@
         };
         calligraphy = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.calligraphy;
         calligraphy-shell = final.haskellPackages.shellFor {
-          withHoogle = false;
+          withHoogle = true;
           packages = hpkgs: [ hpkgs.calligraphy ];
           nativeBuildInputs = [
             final.cabal-install

@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds -Wno-partial-fields -Wno-missing-signatures -Wno-missing-fields -Wno-unused-matches #-}
 
 module Test.Reference
   ( ExportedT (Exported),

@@ -1,6 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
 
 module GraphViz (render, pRenderConfig, RenderConfig) where
 
@@ -52,7 +51,7 @@ render RenderConfig {showCalls, showInfers, splines, reverseDependencyRank, show
       | showLoc = name <> "\n" <> show loc
       | otherwise = name
     renderTreeNode :: Prints (Tree Decl)
-    renderTreeNode (Node decl@(Decl name key exported typ loc) children) = do
+    renderTreeNode (Node decl@(Decl _ key exported typ _) children) = do
       strLn $ show (runKey key) <> " " <> style ["label" .= show (nodeLabel decl), "shape" .= nodeShape typ, "style" .= nodeStyle]
       forM_ children $ \child@(Node (Decl _ childKey _ _ _) _) -> do
         renderTreeNode child

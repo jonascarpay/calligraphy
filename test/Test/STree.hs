@@ -70,11 +70,11 @@ spec =
       case insert l a r t of
         Left _ -> discard
         Right t' -> elem a (lookupStack l t')
-    prop "inserting leaves other elements in the same order" $ \l a r (t :: STree Int Int) ->
+    prop "inserting leaves other elements in the same order" $ \l p r (t :: STree Int Int) ->
       let f (a : as) (b : bs) | a == b = f as bs
           f (_ : as) bs = as == bs
           f _ _ = False
-       in case insert l a r t of
+       in case insert l p r t of
             Left _ -> discard
             Right t' -> f (toList t') (toList t)
     prop "listifying and back succeeds and is valid" $ \(t :: STree Int Int) ->

@@ -27,10 +27,10 @@ import Prelude hiding (filter)
 -- hide-data
 -- etc
 data FilterConfig = FilterConfig
-  { onlyExports :: Bool,
-    depRoot :: Maybe (NonEmpty String),
-    revDepRoot :: Maybe (NonEmpty String),
-    depDepth :: Maybe Int
+  { _onlyExports :: Bool,
+    _depRoot :: Maybe (NonEmpty String),
+    _revDepRoot :: Maybe (NonEmpty String),
+    _depDepth :: Maybe Int
   }
 
 resolveNames :: Forest Decl -> Map String (EnumSet Key)
@@ -47,9 +47,9 @@ transitives maxDepth roots deps = go 0 mempty (EnumSet.fromList roots)
       | EnumSet.null new = old
       | maybe False (< depth) maxDepth = old
       | otherwise =
-          let old' = old <> new
-              new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
-           in go (depth + 1) old' (new' EnumSet.\\ old')
+        let old' = old <> new
+            new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
+         in go (depth + 1) old' (new' EnumSet.\\ old')
     adjacencies :: EnumMap a (EnumSet a)
     adjacencies = foldr (\(from, to) -> EnumMap.insertWith (<>) from (EnumSet.singleton to)) mempty deps
 
