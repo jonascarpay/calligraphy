@@ -121,6 +121,7 @@ data Name = Name
   { nameString :: String,
     nameKeys :: EnumSet GHCKey
   }
+  deriving (Eq, Ord)
 
 mkName :: GHC.Name -> Name
 mkName nm = Name (GHC.getOccString nm) (EnumSet.singleton $ unKey nm)
@@ -212,6 +213,34 @@ structure =
 spanToLoc :: GHC.RealSrcSpan -> Loc
 spanToLoc spn = Loc (GHC.srcSpanStartLine spn) (GHC.srcSpanStartCol spn)
 
+data NodeType
+  = EmptyNode
+  | UseNode GHCKey GHC.RealSrcLoc
+  | DeclNode DeclType GHC.Name GHC.Span
+  deriving (Eq, Ord)
+
+classifyNode :: GHC.HieAST GHC.TypeIndex -> Either ParseError NodeType
+classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
+  where
+    types :: Either ParseError [NodeType]
+    types = flip execStateT [] $
+      GHC.forNodeInfos_ node $ \nodeInfo ->
+        forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
+          (Right name, GHC.IdentifierDetails _ info) ->
+            let decl :: DeclType -> GHC.Span -> StateT [NodeType] (Either ParseError) ()
+                decl ty scope = modify (DeclNode ty name scope :)
+             in GHC.classifyIdentifier
+                  info
+                  (decl ValueDecl)
+                  (decl RecDecl)
+                  (decl ConDecl)
+                  (decl DataDecl)
+                  (decl ClassDecl)
+                  (modify (UseNode (unKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
+                  (pure ())
+                  (throwError $ UnhandledIdentifier name (GHC.nodeSpan node) (Set.toList info))
+          _ -> pure ()
+
 collect :: GHC.HieFile -> Either ParseError Collect
 collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty mempty)
   where
@@ -232,19 +261,8 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
         if GHC.isInstanceNode nodeInfo
           then pure ()
           else do
-            forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
-              (Right name, GHC.IdentifierDetails mtyp info) -> do
-                forM_ mtyp (tellInfer name)
-                let decl ty scope = tellDecl (ty, scope, name, spanToLoc nodeSpan)
-                GHC.classifyIdentifier
-                  info
-                  (decl ValueDecl)
-                  (decl RecDecl)
-                  (decl ConDecl)
-                  (decl DataDecl)
-                  (decl ClassDecl)
-                  (tellUse (GHC.realSrcSpanStart nodeSpan) (unKey name))
-                  (pure ())
-                  (throwError $ UnhandledIdentifier name nodeSpan (Set.toList info))
-              _ -> pure ()
+            lift (classifyNode node) >>= \case
+              EmptyNode -> pure ()
+              UseNode gk rsl -> tellUse rsl gk
+              DeclNode dt na rss -> tellDecl (dt, rss, na, spanToLoc rss)
             mapM_ collect' children
