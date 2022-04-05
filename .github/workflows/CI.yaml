@@ -15,21 +15,17 @@ jobs:
             trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
             substituters = https://hydra.iohk.io https://cache.nixos.org/
       - uses: cachix/cachix-action@v10
-        # This Cachix is specific for `template-haskell`.
-        # It contains nothing that is not also in the `hydra.iohk.io` cache, but it should be significantly faster.
-        # If you are not on the same version locks as `template-haskell`, it should be removed.
         with:
           name: jmc
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - name: Build dependencies
-        run: nix develop --command ghc --version
-      - name: Build calligraphy
+      - name: Nix build
         run: nix build -L
-      - name: Build calligraphy checks
-        # TODO this should use `nix flake check` once that works as expected
-        run: nix build -L '.#checks.x86_64-linux."calligraphy:test:calligraphy-test"'
-      - name: Build calligraphy shell
+      - name: Build cabal shell
         run: nix build -L '.#devShell.x86_64-linux'
+      - name: Build nightly shell
+        run: nix build -L '.#devShells.x86_64-linux.stack-nightly-shell'
+      - name: Build lts-19 shell
+        run: nix build -L '.#devShells.x86_64-linux.stack-lts19-shell'
 
   stack-build:
     name: Stack ${{ matrix.resolver }} on ${{ matrix.os }}

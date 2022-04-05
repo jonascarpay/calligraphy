@@ -1,66 +1,59 @@
 {
   description = "calligraphy";
 
-  inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
-  inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
-  inputs.unstable.url = "github:NixOS/nixpkgs/haskell-updates";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs = inputs:
-    inputs.flake-utils.lib.eachDefaultSystem (system:
-      let
-        overlay = self: _: {
-          hsPkgs =
-            self.haskell-nix.project' rec {
-              src = ./.;
-              compiler-nix-name = "ghc8107";
-              shell = {
-                tools = {
-                  cabal = { };
-                  ghcid = { };
-                  haskell-language-server = { };
-                  hlint = { };
-                  ormolu = {
-                    version = "latest";
-                    modules = [ ({ lib, ... }: { options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; }; }) ];
-                  };
-                };
-                buildInputs = [ pkgs.graphviz ];
-              };
+    let
+      overlay = final: prev: {
+        haskell = prev.haskell // {
+          packageOverrides = hfinal: hprev:
+            prev.haskell.packageOverrides hfinal hprev // {
+              calligraphy = hfinal.callCabal2nix "calligraphy" ./. { };
             };
         };
-        pkgs = import inputs.nixpkgs {
-          inherit system;
-          overlays = [
-            inputs.haskellNix.overlay
-            overlay
+        calligraphy = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.calligraphy;
+        calligraphy-shell = final.haskellPackages.shellFor {
+          withHoogle = false;
+          packages = hpkgs: [ hpkgs.calligraphy ];
+          nativeBuildInputs = [
+            final.cabal-install
+            final.ghcid
+            final.haskellPackages.haskell-language-server
+            final.hlint
+            final.ormolu
+            final.bashInteractive # see: https://discourse.nixos.org/t/interactive-bash-with-nix-develop-flake/15486
           ];
         };
-        flake = pkgs.hsPkgs.flake { };
-        unstable = import inputs.unstable { inherit system; };
-      in
-      rec {
-        devShells = {
-          stack-nightly-shell = unstable.mkShell {
-            packages = [
-              unstable.stack
-              unstable.haskell.compiler.ghc922
-            ];
-            STACK_YAML = "stack-nightly.yaml";
+      };
+
+      perSystem = system:
+        let
+          pkgs = import inputs.nixpkgs { inherit system; overlays = [ overlay ]; };
+        in
+        rec {
+          devShells = {
+            stack-nightly-shell = pkgs.mkShell {
+              packages = [
+                pkgs.stack
+                pkgs.haskell.compiler.ghc922
+              ];
+              STACK_YAML = "stack-nightly.yaml";
+            };
+            stack-lts19-shell = pkgs.mkShell {
+              packages = [
+                pkgs.stack
+                pkgs.haskell.compiler.ghc902
+              ];
+              STACK_YAML = "stack-lts19.yaml";
+            };
+            cabal-shell = pkgs.calligraphy-shell;
           };
-          stack-lts19-shell = unstable.mkShell {
-            packages = [
-              unstable.stack
-              unstable.haskell.compiler.ghc902
-            ];
-            STACK_YAML = "stack-lts19.yaml";
-          };
-          haskell-nix-shell = flake.devShell;
+          devShell = devShells.cabal-shell;
+          packages.calligraphy = pkgs.calligraphy;
+          defaultPackage = pkgs.calligraphy;
         };
-
-        devShell = devShells.haskell-nix-shell;
-
-        defaultPackage = flake.packages."calligraphy:exe:calligraphy";
-
-      });
+    in
+    { inherit overlay; } // inputs.flake-utils.lib.eachDefaultSystem perSystem;
 }
