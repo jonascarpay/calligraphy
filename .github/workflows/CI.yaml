@@ -40,7 +40,10 @@ jobs:
       - uses: haskell/actions/setup@v1
         with:
           enable-stack: true
-      - run: stack init --resolver ${{ matrix.resolver }}
+      - name: Initialize stack project
+        run: stack init --resolver ${{ matrix.resolver }}
+      - name: Generate lock file
+        run: stack build --resolver ${{ matrix.resolver }} --dry-run
       - uses: freckle/stack-cache-action@main
       - run: stack build --resolver ${{ matrix.resolver }} --only-dependencies
       - run: stack build --resolver ${{ matrix.resolver }}
