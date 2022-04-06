@@ -44,7 +44,7 @@ jobs:
         run: stack init --resolver ${{ matrix.resolver }}
       - name: Generate lock file
         run: stack build --resolver ${{ matrix.resolver }} --dry-run
-      - uses: freckle/stack-cache-action@main
+      - run: ls -lah
       - run: stack build --resolver ${{ matrix.resolver }} --only-dependencies
       - run: stack build --resolver ${{ matrix.resolver }}
       - run: stack build --resolver ${{ matrix.resolver }} --haddock --test --bench --no-run-benchmarks
