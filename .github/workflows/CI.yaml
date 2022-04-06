@@ -40,9 +40,8 @@ jobs:
       - uses: haskell/actions/setup@v1
         with:
           enable-stack: true
-      ## For some reason, stack caching seems to be very brittle, and cause a lot of build failures.
-      ## I haven't investigated very thoroughly what to best do about this, but for now, I'm just not caching stack builds.
       - run: stack init --resolver ${{ matrix.resolver }}
+      - uses: freckle/stack-cache-action@main
       - run: stack build --resolver ${{ matrix.resolver }} --only-dependencies
       - run: stack build --resolver ${{ matrix.resolver }}
       - run: stack build --resolver ${{ matrix.resolver }} --haddock --test --bench --no-run-benchmarks
