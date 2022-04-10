@@ -1,10 +1,22 @@
 {-# LANGUAGE DeriveTraversable #-}
 
-module STree where
+module STree
+  ( STree (..),
+    TreeError (..),
+    lookupInner,
+    lookupOuter,
+    insert,
+    emptySTree,
+    foldSTree,
+    insertWith,
+    height,
+    toList,
+    bin,
+    shift,
+  )
+where
 
 import Control.Applicative
-import Control.Monad
-import Data.Maybe (isJust)
 
 data STree p a
   = Tip
@@ -12,7 +24,7 @@ data STree p a
   deriving (Show, Functor, Foldable, Traversable)
 
 instance (Eq p, Eq a) => Eq (STree p a) where
-  ta == tb = sTreeList ta == sTreeList tb
+  ta == tb = toList ta == toList tb
 
 lookupInner :: Ord p => p -> STree p a -> Maybe a
 lookupInner p = foldSTree Nothing f
@@ -32,17 +44,8 @@ lookupOuter p = foldSTree Nothing f
       | p >= r = rs
       | otherwise = error "impossible"
 
-lookupStack :: Ord p => p -> STree p a -> [a]
-lookupStack p = foldSTree [] f
-  where
-    f ls l a m r rs
-      | p >= l && p < r = a : m
-      | p < l = ls
-      | p >= r = rs
-      | otherwise = error "impossible"
-
-sTreeList :: STree p a -> [(p, a, p)]
-sTreeList t = foldSTree id f t []
+toList :: STree p a -> [(p, a, p)]
+toList t = foldSTree id f t []
   where
     f ls l a m r rs = ls . ((l, a, r) :) . m . rs
 
@@ -65,62 +68,6 @@ shift p = go
   where
     go Tip = Tip
     go (Bin h ls l a ms r rs) = Bin h (go ls) (l + p) a (go ms) (r + p) (go rs)
-
-foldSTreeM :: Monad m => m r -> (r -> p -> a -> r -> p -> r -> m r) -> STree p a -> m r
-foldSTreeM fTip fBin = go
-  where
-    go Tip = fTip
-    go (Bin _ mls l a mms r mrs) = do
-      ls <- go mls
-      ms <- go mms
-      rs <- go mrs
-      fBin ls l a ms r rs
-
-range :: STree p a -> Maybe (p, p)
-range = foldSTree Nothing $ \l pl _ _ pr r -> Just (maybe pl fst l, maybe pr snd r)
-
-check :: Ord p => STree p a -> Bool
-check t = checkBounds t && checkHeight t && checkBalance t
-
-checkBounds :: Ord p => STree p a -> Bool
-checkBounds t = isJust $ foldSTreeM (pure Nothing) f t
-  where
-    f ml bl _ msub br mr = do
-      guard (bl < br)
-      forM_ msub $ \(sl, sr) -> guard $ sl >= bl && sr <= br
-      l <- case ml of
-        Nothing -> pure bl
-        Just (ll, lr) -> do
-          guard $ lr <= bl
-          pure ll
-      r <- case mr of
-        Nothing -> pure br
-        Just (rl, rr) -> do
-          guard $ rl >= br
-          pure rr
-      pure (Just (l, r))
-
-checkHeight :: STree p a -> Bool
-checkHeight = isJust . go
-  where
-    go Tip = pure 0
-    go (Bin h ml _ _ m _ mr) = do
-      l <- go ml
-      r <- go mr
-      _ <- go m
-      let h' = max l r + 1
-      guard (h == h')
-      pure h'
-
-checkBalance :: STree p a -> Bool
-checkBalance Tip = True
-checkBalance (Bin _ l _ _ m _ r) =
-  and
-    [ checkBalance l,
-      checkBalance r,
-      checkBalance m,
-      abs (height l - height r) < 2
-    ]
 
 data TreeError p a
   = InvalidBounds p a p

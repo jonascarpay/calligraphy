@@ -6,8 +6,8 @@ module Test.STree where
 
 import Control.Applicative
 import Control.Monad
-import Data.Foldable (toList)
-import Data.Maybe (fromMaybe)
+import qualified Data.Foldable as Foldable
+import Data.Maybe (fromMaybe, isJust)
 import STree
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -76,12 +76,73 @@ spec =
           f _ _ = False
        in case insert l p r t of
             Left _ -> discard
-            Right t' -> f (toList t') (toList t)
+            Right t' -> f (Foldable.toList t') (Foldable.toList t)
     prop "listifying and back succeeds and is valid" $ \(t :: STree Int Int) ->
-      case foldM (\acc (l, a, r) -> insert l a r acc) Tip (sTreeList t) of
+      case foldM (\acc (l, a, r) -> insert l a r acc) Tip (toList t) of
         Left _ -> False
         Right t' -> check t'
     prop "listifying and back succeeds and is the same tree" $ \(t :: STree Int Int) ->
-      case foldM (\acc (l, a, r) -> insert l a r acc) Tip (sTreeList t) of
+      case foldM (\acc (l, a, r) -> insert l a r acc) Tip (toList t) of
         Left _ -> False
         Right t' -> t == t'
+
+checkBounds :: Ord p => STree p a -> Bool
+checkBounds t = isJust $ foldSTreeM (pure Nothing) f t
+  where
+    f ml bl _ msub br mr = do
+      guard (bl < br)
+      forM_ msub $ \(sl, sr) -> guard $ sl >= bl && sr <= br
+      l <- case ml of
+        Nothing -> pure bl
+        Just (ll, lr) -> do
+          guard $ lr <= bl
+          pure ll
+      r <- case mr of
+        Nothing -> pure br
+        Just (rl, rr) -> do
+          guard $ rl >= br
+          pure rr
+      pure (Just (l, r))
+
+foldSTreeM :: Monad m => m r -> (r -> p -> a -> r -> p -> r -> m r) -> STree p a -> m r
+foldSTreeM fTip fBin =
+  foldSTree
+    fTip
+    (\ml l a mm r mr -> do l' <- ml; m' <- mm; r' <- mr; fBin l' l a m' r r')
+
+check :: Ord p => STree p a -> Bool
+check t = checkBounds t && checkHeight t && checkBalance t
+
+checkHeight :: STree p a -> Bool
+checkHeight = isJust . go
+  where
+    go Tip = pure 0
+    go (Bin h ml _ _ m _ mr) = do
+      l <- go ml
+      r <- go mr
+      _ <- go m
+      let h' = max l r + 1
+      guard (h == h')
+      pure h'
+
+checkBalance :: STree p a -> Bool
+checkBalance Tip = True
+checkBalance (Bin _ l _ _ m _ r) =
+  and
+    [ checkBalance l,
+      checkBalance r,
+      checkBalance m,
+      abs (height l - height r) < 2
+    ]
+
+range :: STree p a -> Maybe (p, p)
+range = foldSTree Nothing $ \l pl _ _ pr r -> Just (maybe pl fst l, maybe pr snd r)
+
+lookupStack :: Ord p => p -> STree p a -> [a]
+lookupStack p = foldSTree [] f
+  where
+    f ls l a m r rs
+      | p >= l && p < r = a : m
+      | p < l = ls
+      | p >= r = rs
+      | otherwise = error "impossible"
