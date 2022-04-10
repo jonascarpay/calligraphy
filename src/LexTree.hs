@@ -1,13 +1,13 @@
 {-# LANGUAGE DeriveTraversable #-}
 
-module STree
-  ( STree (..),
+module LexTree
+  ( LexTree (..),
     TreeError (..),
     lookupInner,
     lookupOuter,
     insert,
-    emptySTree,
-    foldSTree,
+    emptyLexTree,
+    foldLexTree,
     insertWith,
     height,
     toList,
@@ -18,16 +18,16 @@ where
 
 import Control.Applicative
 
-data STree p a
+data LexTree p a
   = Tip
-  | Bin {-# UNPACK #-} !Int !(STree p a) !p a !(STree p a) !p !(STree p a)
+  | Bin {-# UNPACK #-} !Int !(LexTree p a) !p a !(LexTree p a) !p !(LexTree p a)
   deriving (Show, Functor, Foldable, Traversable)
 
-instance (Eq p, Eq a) => Eq (STree p a) where
+instance (Eq p, Eq a) => Eq (LexTree p a) where
   ta == tb = toList ta == toList tb
 
-lookupInner :: Ord p => p -> STree p a -> Maybe a
-lookupInner p = foldSTree Nothing f
+lookupInner :: Ord p => p -> LexTree p a -> Maybe a
+lookupInner p = foldLexTree Nothing f
   where
     f ls l a m r rs
       | p >= l && p < r = m <|> Just a
@@ -35,8 +35,8 @@ lookupInner p = foldSTree Nothing f
       | p >= r = rs
       | otherwise = error "impossible"
 
-lookupOuter :: Ord p => p -> STree p a -> Maybe a
-lookupOuter p = foldSTree Nothing f
+lookupOuter :: Ord p => p -> LexTree p a -> Maybe a
+lookupOuter p = foldLexTree Nothing f
   where
     f ls l a _ r rs
       | p >= l && p < r = Just a
@@ -44,26 +44,26 @@ lookupOuter p = foldSTree Nothing f
       | p >= r = rs
       | otherwise = error "impossible"
 
-toList :: STree p a -> [(p, a, p)]
-toList t = foldSTree id f t []
+toList :: LexTree p a -> [(p, a, p)]
+toList t = foldLexTree id f t []
   where
     f ls l a m r rs = ls . ((l, a, r) :) . m . rs
 
-foldSTree :: r -> (r -> p -> a -> r -> p -> r -> r) -> STree p a -> r
-foldSTree fTip fBin = go
+foldLexTree :: r -> (r -> p -> a -> r -> p -> r -> r) -> LexTree p a -> r
+foldLexTree fTip fBin = go
   where
     go Tip = fTip
     go (Bin _ ls l a ms r rs) = fBin (go ls) l a (go ms) r (go rs)
 
-emptySTree :: STree p a
-emptySTree = Tip
+emptyLexTree :: LexTree p a
+emptyLexTree = Tip
 
 {-# INLINE height #-}
-height :: STree p a -> Int
+height :: LexTree p a -> Int
 height Tip = 0
 height (Bin h _ _ _ _ _ _) = h
 
-shift :: Num p => p -> STree p a -> STree p a
+shift :: Num p => p -> LexTree p a -> LexTree p a
 shift p = go
   where
     go Tip = Tip
@@ -73,16 +73,16 @@ data TreeError p a
   = InvalidBounds p a p
   | OverlappingBounds a a p p
   | MidSplit
-  | LexicalError p a p (STree p a)
+  | LexicalError p a p (LexTree p a)
   deriving (Functor, Foldable, Traversable, Eq, Show)
 
 {-# INLINE bin' #-}
-bin' :: STree p a -> p -> a -> STree p a -> p -> STree p a -> STree p a
+bin' :: LexTree p a -> p -> a -> LexTree p a -> p -> LexTree p a -> LexTree p a
 bin' ls l a ms r rs = Bin (max (height ls) (height rs) + 1) ls l a ms r rs
 
 -- | Only works if the height difference of the two trees is at most 2
 {-# INLINE bin #-}
-bin :: STree p a -> p -> a -> STree p a -> p -> STree p a -> STree p a
+bin :: LexTree p a -> p -> a -> LexTree p a -> p -> LexTree p a -> LexTree p a
 bin (Bin lh lls ll la lms lr lrs) l a ms r rs
   | lh > height rs + 1 =
     case lrs of
@@ -95,7 +95,7 @@ bin ls l a ms r (Bin rh rls rl ra rms rr rrs)
       _ -> bin' (bin' ls l a ms r rls) rl ra rms rr rrs
 bin ls l a ms r rs = bin' ls l a ms r rs
 
-split :: Ord p => p -> STree p a -> Either (TreeError p a) (STree p a, STree p a)
+split :: Ord p => p -> LexTree p a -> Either (TreeError p a) (LexTree p a, LexTree p a)
 split p = go
   where
     go Tip = pure (Tip, Tip)
@@ -108,7 +108,7 @@ split p = go
         pure (bin ls l a ms r rl, rr)
       | otherwise = Left MidSplit
 
-insertWith :: Ord p => (a -> a -> Maybe a) -> p -> a -> p -> STree p a -> Either (TreeError p a) (STree p a)
+insertWith :: Ord p => (a -> a -> Maybe a) -> p -> a -> p -> LexTree p a -> Either (TreeError p a) (LexTree p a)
 insertWith f il ia ir t
   | il >= ir = Left $ InvalidBounds il ia ir
   | otherwise = go t
@@ -127,7 +127,7 @@ insertWith f il ia ir t
         pure $ bin ll il ia (bin lr l a ms r rl) ir rr
       | otherwise = Left $ LexicalError il ia ir t
 
-insert :: Ord p => p -> a -> p -> STree p a -> Either (TreeError p a) (STree p a)
+insert :: Ord p => p -> a -> p -> LexTree p a -> Either (TreeError p a) (LexTree p a)
 insert il ia ir t
   | il >= ir = Left $ InvalidBounds il ia ir
   | otherwise = go t

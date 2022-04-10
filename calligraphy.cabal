@@ -49,10 +49,10 @@ library
     EdgeFilter
     Filter
     GraphViz
+    LexTree
     Parse
     Printer
     Search
-    STree
 
   build-depends:
     , array
@@ -82,8 +82,8 @@ test-suite calligraphy-test
   hs-source-dirs: test
   main-is:        Spec.hs
   other-modules:
+    Test.LexTree
     Test.Reference
-    Test.STree
 
   build-depends:
     , calligraphy

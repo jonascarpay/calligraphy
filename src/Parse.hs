@@ -41,8 +41,8 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tree (Forest)
 import qualified Data.Tree as Tree
-import STree (STree, TreeError)
-import qualified STree as ST
+import LexTree (LexTree, TreeError)
+import qualified LexTree as ST
 
 -- TODO This can be faster by storing intermediate restuls, but that has proven tricky to get right.
 resolveTypes :: Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (EnumSet GHCKey)
@@ -137,14 +137,14 @@ rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
 rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
 
 newtype ModulesDebugInfo = ModulesDebugInfo
-  { modulesSTrees :: [(String, STree GHC.RealSrcLoc (DeclType, Name, Loc))]
+  { modulesLexTrees :: [(String, LexTree GHC.RealSrcLoc (DeclType, Name, Loc))]
   }
 
 parseHieFiles ::
   [GHC.HieFile] -> Either ParseError (ModulesDebugInfo, Modules)
 parseHieFiles files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
-  let (mods, debugs, calls, infers) = unzip4 (fmap (\(name, forest, call, infer, stree) -> ((name, forest), (name, stree), call, infer)) parsed)
+  let (mods, debugs, calls, infers) = unzip4 (fmap (\(name, forest, call, infer, ltree) -> ((name, forest), (name, ltree), call, infer)) parsed)
       inferPairs = rekeyCalls keymap . Set.fromList $ do
         (term, types) <- EnumMap.toList (mconcat infers)
         typ <- EnumSet.toList types
@@ -156,7 +156,7 @@ parseHieFiles files = do
       StateT
         (Int, EnumMap GHCKey Key)
         (Either ParseError)
-        (String, Forest Decl, Set (GHCKey, GHCKey), EnumMap GHCKey (EnumSet GHCKey), STree GHC.RealSrcLoc (DeclType, Name, Loc))
+        (String, Forest Decl, Set (GHCKey, GHCKey), EnumMap GHCKey (EnumSet GHCKey), LexTree GHC.RealSrcLoc (DeclType, Name, Loc))
     parseFile file@(GHC.HieFile _ mdl _ _ avails _) = do
       Collect decls uses infers <- lift $ collect file
       tree <- lift $ structure decls
@@ -192,16 +192,16 @@ instance Semigroup NameTree where
 
 instance Monoid NameTree where mempty = NameTree mempty
 
-deduplicate :: STree GHC.RealSrcLoc (DeclType, Name, Loc) -> NameTree
-deduplicate = ST.foldSTree mempty $ \l _ (typ, Name str ks, mloc) sub _ r ->
+deduplicate :: LexTree GHC.RealSrcLoc (DeclType, Name, Loc) -> NameTree
+deduplicate = ST.foldLexTree mempty $ \l _ (typ, Name str ks, mloc) sub _ r ->
   let this = NameTree $ Map.singleton str (ks, typ, sub, mloc)
    in l <> this <> r
 
-structure :: [GHCDecl] -> Either ParseError (STree GHC.RealSrcLoc (DeclType, Name, Loc))
+structure :: [GHCDecl] -> Either ParseError (LexTree GHC.RealSrcLoc (DeclType, Name, Loc))
 structure =
   foldM
     (\t (ty, sp, na, mloc) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, mkName na, mloc) (GHC.realSrcSpanEnd sp) t)
-    ST.emptySTree
+    ST.emptyLexTree
   where
     f (ta, Name na ka, mloc) (tb, Name nb kb, _)
       | ta == tb && na == nb = Just (ta, Name na (ka <> kb), mloc)

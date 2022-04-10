@@ -1,8 +1,5 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-
 import Test.Hspec
-import qualified Test.STree as TS
+import qualified Test.LexTree as TS
 
 main :: IO ()
 main =

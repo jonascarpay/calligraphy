@@ -20,10 +20,10 @@ import qualified Data.EnumSet as EnumSet
 import qualified Data.Map as M
 import Data.Tree
 import Filter (FilterError (..))
+import LexTree (LexTree, TreeError (..))
+import qualified LexTree
 import Parse
 import Printer
-import STree (STree, TreeError (..))
-import qualified STree
 
 ppModules :: Prints Modules
 ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
@@ -31,17 +31,17 @@ ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
   indent $ mapM_ ppTree forest
 
 ppModulesDebugInfo :: Prints ModulesDebugInfo
-ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, stree) -> do
+ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, ltree) -> do
   strLn modName
-  indent $ ppSTree stree
+  indent $ ppLexTree ltree
 
 ppTree :: Prints (Tree Decl)
 ppTree (Node (Decl name _key _exp typ loc) children) = do
   strLn $ name <> " (" <> show typ <> ", " <> show loc <> ")"
   indent $ mapM_ ppTree children
 
-ppSTree :: Prints (STree GHC.RealSrcLoc (DeclType, Name, Loc))
-ppSTree = STree.foldSTree (pure ()) $ \ls l (typ, name, _loc) m r rs -> do
+ppLexTree :: Prints (LexTree GHC.RealSrcLoc (DeclType, Name, Loc))
+ppLexTree = LexTree.foldLexTree (pure ()) $ \ls l (typ, name, _loc) m r rs -> do
   ls
   ppLocNode l r typ name
   indent m
@@ -76,7 +76,7 @@ ppTreeError (LexicalError l (ty, nm, _) r t) = do
   strLn "Lexical error"
   indent $ do
     ppLocNode l r ty nm
-    ppSTree t
+    ppLexTree t
 
 ppHieFile :: Prints GHC.HieFile
 ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do
