@@ -54,6 +54,7 @@ library
     Calligraphy.Util.Debug
     Calligraphy.Util.LexTree
     Calligraphy.Util.Printer
+    Calligraphy.Util.Types
 
   build-depends:
     , array

@@ -6,30 +6,22 @@
 
 module Calligraphy.Phases.Parse
   ( parseHieFiles,
-    Modules (..),
-    ModulesDebugInfo (..),
+    -- Debug stuff
     Name (..),
-    Decl (..),
-    Key (..),
-    Loc (..),
-    DeclType (..),
+    ModulesDebugInfo (..),
     ParseError (..),
-    GHCKey (..),
-    unKey,
-    rekeyCalls,
-    resolveTypes,
   )
 where
 
 import qualified Calligraphy.Util.Compat as GHC
 import Calligraphy.Util.LexTree (LexTree, TreeError)
 import qualified Calligraphy.Util.LexTree as LT
+import Calligraphy.Util.Types
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Array (Array)
 import qualified Data.Array as Array
 import Data.Bifunctor
-import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
@@ -67,16 +59,7 @@ resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <
           let ty = typeArray Array.! current
           mappend (keys ty) . mconcat <$> mapM go (Foldable.toList ty)
 
-data DeclType
-  = ValueDecl
-  | RecDecl
-  | ConDecl
-  | DataDecl
-  | ClassDecl
-  deriving
-    (Eq, Ord, Show)
-
-newtype GHCKey = GHCKey {unGHCKey :: Int}
+newtype GHCKey = GHCKey {_unGHCKey :: Int}
   deriving newtype (Show, Enum, Eq, Ord)
 
 type GHCDecl = (DeclType, GHC.Span, GHC.Name, Loc)
@@ -90,31 +73,6 @@ data Collect = Collect
 data ParseError
   = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
   | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
-
-newtype Key = Key {runKey :: Int}
-  deriving (Enum, Show, Eq, Ord)
-
-data Decl = Decl
-  { declName :: String,
-    declKey :: Key,
-    declExported :: Bool,
-    declType :: DeclType,
-    declLoc :: Loc
-  }
-
-data Loc = Loc
-  { locLine :: Int,
-    locCol :: Int
-  }
-
-instance Show Loc where
-  showsPrec _ (Loc line col) = shows line . showChar ':' . shows col
-
-data Modules = Modules
-  { _modules :: [(String, Forest Decl)],
-    _calls :: Set (Key, Key),
-    _inferences :: Set (Key, Key)
-  }
 
 -- A single symbol can apparently declare a name multiple times in the same place, with multiple distinct keys D:
 data Name = Name
@@ -132,9 +90,6 @@ unKey = GHCKey . GHC.getKey . GHC.nameUnique
 
 getKey :: Name -> GHCKey
 getKey = EnumSet.findMin . nameKeys
-
-rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
-rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
 
 newtype ModulesDebugInfo = ModulesDebugInfo
   { modulesLexTrees :: [(String, LexTree GHC.RealSrcLoc (DeclType, Name, Loc))]

@@ -2,7 +2,7 @@
 
 module Calligraphy.Phases.Collapse (collapse, CollapseConfig, pCollapseConfig) where
 
-import Calligraphy.Phases.Parse
+import Calligraphy.Util.Types
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap

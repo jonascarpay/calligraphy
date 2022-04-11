@@ -19,6 +19,7 @@ import Calligraphy.Phases.Parse
 import qualified Calligraphy.Util.Compat as GHC
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import Calligraphy.Util.Printer
+import Calligraphy.Util.Types
 import Control.Monad.RWS
 import qualified Data.EnumSet as EnumSet
 import qualified Data.Map as M

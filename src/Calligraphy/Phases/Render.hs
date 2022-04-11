@@ -3,8 +3,8 @@
 
 module Calligraphy.Phases.Render (render, pRenderConfig, RenderConfig) where
 
-import Calligraphy.Phases.Parse
 import Calligraphy.Util.Printer
+import Calligraphy.Util.Types
 import Control.Monad
 import Control.Monad.State
 import Data.List (intercalate)

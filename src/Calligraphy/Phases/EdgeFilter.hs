@@ -2,7 +2,7 @@
 
 module Calligraphy.Phases.EdgeFilter (EdgeFilterConfig, filterEdges, pEdgeFilterConfig) where
 
-import Calligraphy.Phases.Parse
+import Calligraphy.Util.Types
 import qualified Data.Set as Set
 import Options.Applicative
 

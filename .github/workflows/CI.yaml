@@ -46,6 +46,7 @@ jobs:
       - run: stack build --resolver ${{ matrix.resolver }} --only-dependencies
       - run: stack build --resolver ${{ matrix.resolver }}
       - run: stack build --resolver ${{ matrix.resolver }} --haddock --test --bench --no-run-benchmarks
+      # TODO test against reference
 
   cabal-build:
     name: Cabal with GHC ${{ matrix.ghc }} on ${{ matrix.os }}

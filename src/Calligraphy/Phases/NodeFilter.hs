@@ -3,7 +3,7 @@
 
 module Calligraphy.Phases.NodeFilter (filterNodes, NodeFilterConfig, pNodeFilterConfig) where
 
-import Calligraphy.Phases.Parse
+import Calligraphy.Util.Types
 import Control.Monad.State
 import Data.EnumSet (EnumSet)
 import qualified Data.EnumSet as EnumSet

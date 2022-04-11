@@ -8,7 +8,7 @@ module Calligraphy.Phases.DependencyFilter
   )
 where
 
-import Calligraphy.Phases.Parse
+import Calligraphy.Util.Types
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
