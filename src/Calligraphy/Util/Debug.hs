@@ -14,7 +14,7 @@ module Calligraphy.Util.Debug
   )
 where
 
-import Calligraphy.Phases.NodeFilter (FilterError (..))
+import Calligraphy.Phases.DependencyFilter (DependencyFilterError (..))
 import Calligraphy.Phases.Parse
 import qualified Calligraphy.Util.Compat as GHC
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
@@ -57,7 +57,7 @@ ppParseError (UnhandledIdentifier nm sp inf) = do
 ppParseError (TreeError err) = ppTreeError err
 
 -- TODO move to Parse
-ppFilterError :: Prints FilterError
+ppFilterError :: Prints DependencyFilterError
 ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 
 ppLocNode :: GHC.RealSrcLoc -> GHC.RealSrcLoc -> DeclType -> Name -> Printer ()

@@ -2,10 +2,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Calligraphy (main, mainWithConfig) where
 
 import Calligraphy.Phases.Collapse
+import Calligraphy.Phases.DependencyFilter
 import Calligraphy.Phases.EdgeFilter
 import Calligraphy.Phases.NodeFilter
 import Calligraphy.Phases.Parse
@@ -47,7 +49,7 @@ printDie :: Printer () -> IO a
 printDie txt = printStderr txt >> exitFailure
 
 mainWithConfig :: AppConfig -> IO ()
-mainWithConfig AppConfig {searchConfig, renderConfig, outputConfig, edgeFilterConfig, debugConfig, collapseConfig, filterConfig} = do
+mainWithConfig AppConfig {..} = do
   let debug :: (DebugConfig -> Bool) -> Printer () -> IO ()
       debug fp printer = when (fp debugConfig) (printStderr printer)
 
@@ -62,19 +64,21 @@ mainWithConfig AppConfig {searchConfig, renderConfig, outputConfig, edgeFilterCo
   let modulesCollapsed = collapse collapseConfig modules
   debug dumpCollapsedModules $ ppModules modulesCollapsed
 
-  let modulesEdgeFiltered = filterEdges edgeFilterConfig modulesCollapsed
-  modulesFiltered <- either (printDie . ppFilterError) pure $ filterNodes filterConfig modulesEdgeFiltered
-  debug dumpFilteredModules $ ppModules modulesFiltered
+  modulesFiltered <- either (printDie . ppFilterError) pure $ dependencyFilter dependencyFilterConfig modulesCollapsed
+  let modulesEdgeFiltered = filterEdges edgeFilterConfig modulesFiltered
+  let modulesNodeFiltered = filterNodes nodeFilterConfig modulesEdgeFiltered
+  debug dumpFilteredModules $ ppModules modulesNodeFiltered
 
-  let txt = runPrinter $ render renderConfig modulesFiltered
+  let txt = runPrinter $ render renderConfig modulesNodeFiltered
 
   output outputConfig txt
 
 data AppConfig = AppConfig
   { searchConfig :: SearchConfig,
     collapseConfig :: CollapseConfig,
+    dependencyFilterConfig :: DependencyFilterConfig,
     edgeFilterConfig :: EdgeFilterConfig,
-    filterConfig :: FilterConfig,
+    nodeFilterConfig :: NodeFilterConfig,
     renderConfig :: RenderConfig,
     outputConfig :: OutputConfig,
     debugConfig :: DebugConfig
@@ -84,8 +88,9 @@ pConfig :: Parser AppConfig
 pConfig =
   AppConfig <$> pSearchConfig
     <*> pCollapseConfig
+    <*> pDependencyFilterConfig
     <*> pEdgeFilterConfig
-    <*> pFilterConfig
+    <*> pNodeFilterConfig
     <*> pRenderConfig
     <*> pOutputConfig
     <*> pDebugConfig
@@ -103,7 +108,7 @@ output cfg@OutputConfig {outputDotPath, outputPngPath, outputStdout} txt = do
     writePng fp = do
       mexe <- findExecutable "dot"
       case mexe of
-        Nothing -> die "no dot"
+        Nothing -> die "no dot" -- TODO proper error here
         Just exe -> do
           (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
           unless (code == ExitSuccess) $ do
@@ -117,7 +122,6 @@ data OutputConfig = OutputConfig
     outputStdout :: Bool
   }
 
--- TODO allow output to multiple places
 pOutputConfig :: Parser OutputConfig
 pOutputConfig =
   OutputConfig
@@ -133,6 +137,7 @@ data DebugConfig = DebugConfig
     dumpFilteredModules :: Bool
   }
 
+-- TODO Move to Debug?
 pDebugConfig :: Parser DebugConfig
 pDebugConfig =
   DebugConfig

@@ -44,6 +44,7 @@ library
   exposed-modules:
     Calligraphy
     Calligraphy.Phases.Collapse
+    Calligraphy.Phases.DependencyFilter
     Calligraphy.Phases.EdgeFilter
     Calligraphy.Phases.NodeFilter
     Calligraphy.Phases.Parse

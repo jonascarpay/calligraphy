@@ -18,6 +18,7 @@
           withHoogle = true;
           packages = hpkgs: [ hpkgs.calligraphy ];
           nativeBuildInputs = [
+            final.graphviz
             final.cabal-install
             final.ghcid
             final.haskellPackages.haskell-language-server
