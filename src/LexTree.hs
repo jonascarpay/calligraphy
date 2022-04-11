@@ -1,5 +1,20 @@
 {-# LANGUAGE DeriveTraversable #-}
 
+-- | A 'LexTree' is a map designed to reconstruct the lexical tree structure of a file given a flat list of scopes.
+-- Values are inserted with a pair of keys, indicating the span of the value's scope.
+-- For a given key, we can then ask what the smallest enclosing scope is.
+--
+-- For example, in the snippet below the smallest scope containing @x@ is @b@.
+-- @
+--      x
+-- |      a      |
+--    |  b  |
+--                   |   c   |
+-- @
+--
+-- Scopes are not allowed to overlap.
+--
+-- The purpose of this data structure is to find out what surrounding definitiion a certain use site belongs to.
 module LexTree
   ( LexTree (..),
     TreeError (..),
@@ -108,6 +123,7 @@ split p = go
         pure (bin ls l a ms r rl, rr)
       | otherwise = Left MidSplit
 
+{-# INLINE insertWith #-}
 insertWith :: Ord p => (a -> a -> Maybe a) -> p -> a -> p -> LexTree p a -> Either (TreeError p a) (LexTree p a)
 insertWith f il ia ir t
   | il >= ir = Left $ InvalidBounds il ia ir
@@ -128,18 +144,4 @@ insertWith f il ia ir t
       | otherwise = Left $ LexicalError il ia ir t
 
 insert :: Ord p => p -> a -> p -> LexTree p a -> Either (TreeError p a) (LexTree p a)
-insert il ia ir t
-  | il >= ir = Left $ InvalidBounds il ia ir
-  | otherwise = go t
-  where
-    go Tip = pure $ bin Tip il ia Tip ir Tip
-    go (Bin _ ls l a ms r rs)
-      | ir <= l = flip fmap (go ls) $ \ls' -> bin ls' l a ms r rs
-      | il >= r = flip fmap (go rs) $ \rs' -> bin ls l a ms r rs'
-      | il == l && ir == r = Left $ OverlappingBounds ia a il ir
-      | il >= l && ir <= r = flip fmap (go ms) $ \ms' -> bin ls l a ms' r rs
-      | il <= l && ir >= r = do
-        (ll, lr) <- split il ls
-        (rl, rr) <- split ir rs
-        pure $ bin ll il ia (bin lr l a ms r rl) ir rr
-      | otherwise = Left $ LexicalError il ia ir t
+insert = insertWith (\_ _ -> Nothing)
