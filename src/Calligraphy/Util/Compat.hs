@@ -3,7 +3,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints -Wno-unused-matches #-}
 
-module Compat
+module Calligraphy.Util.Compat
   ( BindType (..),
     ContextInfo (..),
     DeclType (..),

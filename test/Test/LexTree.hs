@@ -4,11 +4,11 @@
 
 module Test.LexTree where
 
+import Calligraphy.Util.LexTree
 import Control.Applicative
 import Control.Monad
 import qualified Data.Foldable as Foldable
 import Data.Maybe (fromMaybe, isJust)
-import LexTree
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck

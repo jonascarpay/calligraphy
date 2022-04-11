@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Printer where
+module Calligraphy.Util.Printer where
 
 import Control.Monad.RWS
 import Control.Monad.State

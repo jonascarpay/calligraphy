@@ -1,13 +1,13 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Collapse (collapse, CollapseConfig, pCollapseConfig) where
+module Calligraphy.Phases.Collapse (collapse, CollapseConfig, pCollapseConfig) where
 
+import Calligraphy.Phases.Parse
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.Tree
 import Options.Applicative
-import Parse
 
 data CollapseConfig = CollapseConfig
   { collapseValues :: Bool,

@@ -15,10 +15,10 @@
 -- Scopes are not allowed to overlap.
 --
 -- The purpose of this data structure is to find out what surrounding definitiion a certain use site belongs to.
-module LexTree
+module Calligraphy.Util.LexTree
   ( LexTree (..),
     TreeError (..),
-    lookupInner,
+    Calligraphy.Util.LexTree.lookup,
     lookupOuter,
     insert,
     emptyLexTree,
@@ -41,8 +41,8 @@ data LexTree p a
 instance (Eq p, Eq a) => Eq (LexTree p a) where
   ta == tb = toList ta == toList tb
 
-lookupInner :: Ord p => p -> LexTree p a -> Maybe a
-lookupInner p = foldLexTree Nothing f
+lookup :: Ord p => p -> LexTree p a -> Maybe a
+lookup p = foldLexTree Nothing f
   where
     f ls l a m r rs
       | p >= l && p < r = m <|> Just a

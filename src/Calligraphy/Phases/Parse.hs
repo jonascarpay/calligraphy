@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Parse
+module Calligraphy.Phases.Parse
   ( parseHieFiles,
     Modules (..),
     ModulesDebugInfo (..),
@@ -21,7 +21,9 @@ module Parse
   )
 where
 
-import qualified Compat as GHC
+import qualified Calligraphy.Util.Compat as GHC
+import Calligraphy.Util.LexTree (LexTree, TreeError)
+import qualified Calligraphy.Util.LexTree as LT
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Array (Array)
@@ -41,8 +43,6 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tree (Forest)
 import qualified Data.Tree as Tree
-import LexTree (LexTree, TreeError)
-import qualified LexTree as ST
 
 -- TODO This can be faster by storing intermediate restuls, but that has proven tricky to get right.
 resolveTypes :: Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (EnumSet GHCKey)
@@ -161,7 +161,7 @@ parseHieFiles files = do
       Collect decls uses infers <- lift $ collect file
       tree <- lift $ structure decls
       let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
-            case ST.lookupInner loc tree of
+            case LT.lookup loc tree of
               Nothing -> mempty
               Just (_, callerName, _) -> Set.singleton (getKey callerName, callee)
       let exportKeys = EnumSet.fromList $ fmap unKey $ avails >>= GHC.availNames
@@ -193,15 +193,15 @@ instance Semigroup NameTree where
 instance Monoid NameTree where mempty = NameTree mempty
 
 deduplicate :: LexTree GHC.RealSrcLoc (DeclType, Name, Loc) -> NameTree
-deduplicate = ST.foldLexTree mempty $ \l _ (typ, Name str ks, mloc) sub _ r ->
+deduplicate = LT.foldLexTree mempty $ \l _ (typ, Name str ks, mloc) sub _ r ->
   let this = NameTree $ Map.singleton str (ks, typ, sub, mloc)
    in l <> this <> r
 
 structure :: [GHCDecl] -> Either ParseError (LexTree GHC.RealSrcLoc (DeclType, Name, Loc))
 structure =
   foldM
-    (\t (ty, sp, na, mloc) -> first TreeError $ ST.insertWith f (GHC.realSrcSpanStart sp) (ty, mkName na, mloc) (GHC.realSrcSpanEnd sp) t)
-    ST.emptyLexTree
+    (\t (ty, sp, na, mloc) -> first TreeError $ LT.insertWith f (GHC.realSrcSpanStart sp) (ty, mkName na, mloc) (GHC.realSrcSpanEnd sp) t)
+    LT.emptyLexTree
   where
     f (ta, Name na ka, mloc) (tb, Name nb kb, _)
       | ta == tb && na == nb = Just (ta, Name na (ka <> kb), mloc)

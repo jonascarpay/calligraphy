@@ -1,15 +1,15 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module GraphViz (render, pRenderConfig, RenderConfig) where
+module Calligraphy.Phases.Render (render, pRenderConfig, RenderConfig) where
 
+import Calligraphy.Phases.Parse
+import Calligraphy.Util.Printer
 import Control.Monad
 import Control.Monad.State
 import Data.List (intercalate)
 import Data.Tree (Tree (..))
 import Options.Applicative hiding (style)
-import Parse
-import Printer
 import Text.Show (showListWith)
 
 data RenderConfig = RenderConfig

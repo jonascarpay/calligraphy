@@ -1,8 +1,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Search (searchFiles, pSearchConfig, SearchConfig) where
+module Calligraphy.Phases.Search (searchFiles, pSearchConfig, SearchConfig) where
 
-import qualified Compat as GHC
+import qualified Calligraphy.Util.Compat as GHC
 import Control.Applicative
 import Control.Monad.State
 import Data.IORef

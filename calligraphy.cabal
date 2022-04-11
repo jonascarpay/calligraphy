@@ -43,16 +43,16 @@ library
   autogen-modules: Paths_calligraphy
   exposed-modules:
     Calligraphy
-    Collapse
-    Compat
-    Debug
-    EdgeFilter
-    Filter
-    GraphViz
-    LexTree
-    Parse
-    Printer
-    Search
+    Calligraphy.Phases.Collapse
+    Calligraphy.Phases.EdgeFilter
+    Calligraphy.Phases.Filter
+    Calligraphy.Phases.Parse
+    Calligraphy.Phases.Render
+    Calligraphy.Phases.Search
+    Calligraphy.Util.Compat
+    Calligraphy.Util.Debug
+    Calligraphy.Util.LexTree
+    Calligraphy.Util.Printer
 
   build-depends:
     , array

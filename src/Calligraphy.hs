@@ -1,27 +1,26 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Calligraphy (main, mainWithConfig) where
 
-import Collapse
-import qualified Compat as GHC
+import Calligraphy.Phases.Collapse
+import Calligraphy.Phases.EdgeFilter
+import Calligraphy.Phases.Filter
+import Calligraphy.Phases.Parse
+import Calligraphy.Phases.Render
+import Calligraphy.Phases.Search
+import qualified Calligraphy.Util.Compat as GHC
+import Calligraphy.Util.Debug
+import Calligraphy.Util.Printer
 import Control.Monad.RWS
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as Text
 import Data.Version (showVersion)
-import Debug
-import EdgeFilter
-import Filter
-import GraphViz
 import Options.Applicative
-import Parse
 import Paths_calligraphy (version)
-import Printer
-import Search
 import System.Directory (findExecutable)
 import System.Exit
 import System.IO (stderr)

@@ -5,7 +5,7 @@
 
 -- TODO export list
 
-module Debug
+module Calligraphy.Util.Debug
   ( ppModules,
     ppHieFile,
     ppParseError,
@@ -14,16 +14,15 @@ module Debug
   )
 where
 
-import qualified Compat as GHC
+import Calligraphy.Phases.Filter (FilterError (..))
+import Calligraphy.Phases.Parse
+import qualified Calligraphy.Util.Compat as GHC
+import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
+import Calligraphy.Util.Printer
 import Control.Monad.RWS
 import qualified Data.EnumSet as EnumSet
 import qualified Data.Map as M
 import Data.Tree
-import Filter (FilterError (..))
-import LexTree (LexTree, TreeError (..))
-import qualified LexTree
-import Parse
-import Printer
 
 ppModules :: Prints Modules
 ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
@@ -41,7 +40,7 @@ ppTree (Node (Decl name _key _exp typ loc) children) = do
   indent $ mapM_ ppTree children
 
 ppLexTree :: Prints (LexTree GHC.RealSrcLoc (DeclType, Name, Loc))
-ppLexTree = LexTree.foldLexTree (pure ()) $ \ls l (typ, name, _loc) m r rs -> do
+ppLexTree = foldLexTree (pure ()) $ \ls l (typ, name, _loc) m r rs -> do
   ls
   ppLocNode l r typ name
   indent m

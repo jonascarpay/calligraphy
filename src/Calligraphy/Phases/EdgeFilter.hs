@@ -1,10 +1,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module EdgeFilter (EdgeFilterConfig, filterEdges, pEdgeFilterConfig) where
+module Calligraphy.Phases.EdgeFilter (EdgeFilterConfig, filterEdges, pEdgeFilterConfig) where
 
+import Calligraphy.Phases.Parse
 import qualified Data.Set as Set
 import Options.Applicative
-import Parse
 
 data EdgeFilterConfig = EdgeFilterConfig
   { explicit :: Bool,

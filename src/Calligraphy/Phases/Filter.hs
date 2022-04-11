@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Filter (filterModules, FilterConfig, pFilterConfig, FilterError (..)) where
+module Calligraphy.Phases.Filter (filterModules, FilterConfig, pFilterConfig, FilterError (..)) where
 
+import Calligraphy.Phases.Parse
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
@@ -18,7 +19,6 @@ import qualified Data.Set as Set
 import Data.Tree
 import Data.Tuple (swap)
 import Options.Applicative
-import Parse
 import Prelude hiding (filter)
 
 -- TODO
