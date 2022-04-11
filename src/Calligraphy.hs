@@ -7,7 +7,7 @@ module Calligraphy (main, mainWithConfig) where
 
 import Calligraphy.Phases.Collapse
 import Calligraphy.Phases.EdgeFilter
-import Calligraphy.Phases.Filter
+import Calligraphy.Phases.NodeFilter
 import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render
 import Calligraphy.Phases.Search
@@ -63,7 +63,7 @@ mainWithConfig AppConfig {searchConfig, renderConfig, outputConfig, edgeFilterCo
   debug dumpCollapsedModules $ ppModules modulesCollapsed
 
   let modulesEdgeFiltered = filterEdges edgeFilterConfig modulesCollapsed
-  modulesFiltered <- either (printDie . ppFilterError) pure $ filterModules filterConfig modulesEdgeFiltered
+  modulesFiltered <- either (printDie . ppFilterError) pure $ filterNodes filterConfig modulesEdgeFiltered
   debug dumpFilteredModules $ ppModules modulesFiltered
 
   let txt = runPrinter $ render renderConfig modulesFiltered

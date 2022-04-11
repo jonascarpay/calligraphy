@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Calligraphy.Phases.Filter (filterModules, FilterConfig, pFilterConfig, FilterError (..)) where
+module Calligraphy.Phases.NodeFilter (filterNodes, FilterConfig, pFilterConfig, FilterError (..)) where
 
 import Calligraphy.Phases.Parse
 import Control.Monad.State
@@ -33,6 +33,17 @@ data FilterConfig = FilterConfig
     _depDepth :: Maybe Int
   }
 
+filterNodes :: FilterConfig -> Modules -> Either FilterError Modules
+filterNodes fcfg@(FilterConfig exps _ _ _) mods = do
+  depFilter <- dependencyFilter fcfg mods
+  let p decl = exportFilter decl && depFilter decl
+  pure $ filterModules p mods
+  where
+    exportFilter :: Decl -> Bool
+    exportFilter
+      | exps = declExported
+      | otherwise = const True
+
 resolveNames :: Forest Decl -> Map String (EnumSet Key)
 resolveNames forest =
   flip execState mempty $
@@ -55,20 +66,15 @@ transitives maxDepth roots deps = go 0 mempty (EnumSet.fromList roots)
 
 newtype FilterError = UnknownRootName String
 
-filterModules :: FilterConfig -> Modules -> Either FilterError Modules
-filterModules (FilterConfig exps mfw mbw maxDepth) (Modules modules calls infers) = do
+dependencyFilter :: FilterConfig -> Modules -> Either FilterError (Decl -> Bool)
+dependencyFilter (FilterConfig _ mfw mbw maxDepth) (Modules modules calls infers) = do
   fwFilter <- forM mfw $ flip mkDepFilter (calls <> infers)
   bwFilter <- forM mbw $ flip mkDepFilter (Set.map swap (calls <> infers))
-  let depFilter = case (fwFilter, bwFilter) of
-        (Nothing, Nothing) -> const True
-        (Just fa, Nothing) -> fa
-        (Nothing, Just fb) -> fb
-        (Just fa, Just fb) -> \decl -> fa decl || fb decl
-  let p decl = exportFilter decl && depFilter decl
-      (modules', filteredKeys) = runState ((traverse . traverse . traverse) (filterTree p) modules) mempty
-      calls' = Set.filter (\(a, b) -> EnumSet.member a filteredKeys && EnumSet.member b filteredKeys) calls
-      infers' = Set.filter (\(a, b) -> EnumSet.member a filteredKeys && EnumSet.member b filteredKeys) infers
-  pure $ Modules ((fmap . fmap) catMaybes modules') calls' infers'
+  pure $ case (fwFilter, bwFilter) of
+    (Nothing, Nothing) -> const True
+    (Just fa, Nothing) -> fa
+    (Nothing, Just fb) -> fb
+    (Just fa, Just fb) -> \decl -> fa decl || fb decl
   where
     names :: Map String (EnumSet Key)
     names = resolveNames (modules >>= snd)
@@ -77,19 +83,21 @@ filterModules (FilterConfig exps mfw mbw maxDepth) (Modules modules calls infers
       rootKeys <- forM rootNames $ \name -> maybe (Left $ UnknownRootName name) (pure . EnumSet.toList) (Map.lookup name names)
       let ins = transitives maxDepth (mconcat $ toList rootKeys) edges
       pure $ \decl -> EnumSet.member (declKey decl) ins
-    exportFilter :: Decl -> Bool
-    exportFilter
-      | exps = declExported
-      | otherwise = const True
-    filterTree :: (Decl -> Bool) -> Tree Decl -> State (EnumSet Key) (Maybe (Tree Decl))
-    filterTree p = go
-      where
-        go :: Tree Decl -> State (EnumSet Key) (Maybe (Tree Decl))
-        go (Node decl children) = do
-          children' <- catMaybes <$> mapM go children
-          if not (p decl) && null children'
-            then pure Nothing
-            else Just (Node decl children') <$ modify (EnumSet.insert (declKey decl))
+
+filterModules :: (Decl -> Bool) -> Modules -> Modules
+filterModules p (Modules modules calls infers) = Modules modules' calls' infers'
+  where
+    (modules', outputKeys) = runState ((traverse . traverse) filterForest modules) mempty
+    filterForest :: Forest Decl -> State (EnumSet Key) (Forest Decl)
+    filterForest = fmap catMaybes . mapM filterTree
+    filterTree :: Tree Decl -> State (EnumSet Key) (Maybe (Tree Decl))
+    filterTree (Node decl children) = do
+      children' <- filterForest children
+      if not (p decl) && null children'
+        then pure Nothing
+        else Just (Node decl children') <$ modify (EnumSet.insert (declKey decl))
+    calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls
+    infers' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) infers
 
 pFilterConfig :: Parser FilterConfig
 pFilterConfig =

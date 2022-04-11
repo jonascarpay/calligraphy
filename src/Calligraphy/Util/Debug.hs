@@ -14,7 +14,7 @@ module Calligraphy.Util.Debug
   )
 where
 
-import Calligraphy.Phases.Filter (FilterError (..))
+import Calligraphy.Phases.NodeFilter (FilterError (..))
 import Calligraphy.Phases.Parse
 import qualified Calligraphy.Util.Compat as GHC
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)

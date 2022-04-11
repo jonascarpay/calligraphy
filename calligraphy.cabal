@@ -45,7 +45,7 @@ library
     Calligraphy
     Calligraphy.Phases.Collapse
     Calligraphy.Phases.EdgeFilter
-    Calligraphy.Phases.Filter
+    Calligraphy.Phases.NodeFilter
     Calligraphy.Phases.Parse
     Calligraphy.Phases.Render
     Calligraphy.Phases.Search
