@@ -11,7 +11,7 @@ import Calligraphy.Util.Printer
 import Control.Monad
 import qualified Data.Map as Map
 
-#if MIN_VERSION_ghc(9,0,0)
+#if MIN_VERSION_ghc(9,2,0)
 import qualified GHC.Data.FastString as GHC
 import qualified GHC.Iface.Ext.Types as GHC
 import qualified GHC.Types.Name as GHC
@@ -19,6 +19,15 @@ import qualified GHC.Types.SrcLoc as GHC
 import qualified GHC.Types.Unique as GHC
 import qualified GHC.Unit as GHC
 import qualified GHC.Utils.Outputable as GHC
+#elif MIN_VERSION_ghc(9,0,0)
+import qualified GHC.Data.FastString as GHC
+import qualified GHC.Iface.Ext.Types as GHC
+import qualified GHC.Types.Name as GHC
+import qualified GHC.Types.SrcLoc as GHC
+import qualified GHC.Types.Unique as GHC
+import qualified GHC.Unit as GHC
+import qualified GHC.Utils.Outputable as GHC
+import qualified GHC.Driver.Session as GHC
 #else
 import qualified HieTypes as GHC
 import qualified Module as GHC
@@ -28,7 +37,6 @@ import qualified Unique as GHC
 #endif
 
 ppHieFile :: Prints GHC.HieFile
-#if MIN_VERSION_ghc(9,0,0)
 ppHieFile (GHC.HieFile path (GHC.Module _ mdl) _types (GHC.HieASTs asts) _exps _src) = do
   strLn "Hie File"
   indent $ do
@@ -38,41 +46,41 @@ ppHieFile (GHC.HieFile path (GHC.Module _ mdl) _types (GHC.HieASTs asts) _exps _
     indent $ strLn (GHC.moduleNameString mdl)
     strLn "contents:"
     indent $
+#if MIN_VERSION_ghc(9,2,0)
       forM_ (Map.toList asts) $ \(GHC.LexicalFastString hiePath, ast) -> do
-        strLn (GHC.unpackFS hiePath)
-        indent $ ppAst ast
-  where
-    ppAst :: GHC.HieAST a -> Printer ()
-    ppAst (GHC.Node (GHC.SourcedNodeInfo nodeInfo) spn children) = do
-      strLn (showSpan spn)
-      forM_ nodeInfo $ \(GHC.NodeInfo anns _ ids) -> do
-        forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
-          ppIdentifier idn
-          indent $ forM_ idnDetails $ strLn . GHC.showSDocOneLine GHC.defaultSDocContext . GHC.ppr
-        forM_ anns $ \(GHC.NodeAnnotation constr typ) -> strLn (show (constr, typ))
-      indent $ mapM_ ppAst children
 #else
-ppHieFile (GHC.HieFile path (GHC.Module _ mdl) _types (GHC.HieASTs asts) _exps _src) = do
-  strLn "Hie File"
-  indent $ do
-    strLn "path:"
-    indent $ strLn path
-    strLn "module: "
-    indent $ strLn (GHC.moduleNameString mdl)
-    strLn "contents:"
-    indent $
       forM_ (Map.toList asts) $ \(hiePath, ast) -> do
+#endif
         strLn (GHC.unpackFS hiePath)
         indent $ ppAst ast
-  where
-    ppAst :: GHC.HieAST a -> Printer ()
-    ppAst (GHC.Node (GHC.NodeInfo anns _ ids) spn children) = do
-      strLn (showSpan spn)
-      forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
-        ppIdentifier idn
-        indent $ forM_ idnDetails $ strLn . show
-      forM_ anns $ strLn . show
-      indent $ mapM_ ppAst children
+
+ppAst :: GHC.HieAST a -> Printer ()
+#if MIN_VERSION_ghc(9,2,0)
+ppAst (GHC.Node (GHC.SourcedNodeInfo nodeInfo) spn children) = do
+  strLn (showSpan spn)
+  forM_ nodeInfo $ \(GHC.NodeInfo anns _ ids) -> do
+    forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
+      ppIdentifier idn
+      indent $ forM_ idnDetails $ strLn . GHC.showSDocOneLine GHC.defaultSDocContext . GHC.ppr
+    forM_ anns $ \(GHC.NodeAnnotation constr typ) -> strLn (show (constr, typ))
+  indent $ mapM_ ppAst children
+#elif MIN_VERSION_ghc(9,0,0)
+ppAst (GHC.Node (GHC.SourcedNodeInfo nodeInfo) spn children) = do
+  strLn (showSpan spn)
+  forM_ nodeInfo $ \ (GHC.NodeInfo anns _ ids) -> do
+    forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
+      ppIdentifier idn
+      indent $ forM_ idnDetails $ strLn . GHC.showSDocOneLine (GHC.initSDocContext GHC.unsafeGlobalDynFlags GHC.defaultUserStyle) . GHC.ppr
+    forM_ anns $ strLn . show
+  indent $ mapM_ ppAst children
+#else
+ppAst (GHC.Node (GHC.NodeInfo anns _ ids) spn children) = do
+  strLn (showSpan spn)
+  forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
+    ppIdentifier idn
+    indent $ forM_ idnDetails $ strLn . show
+  forM_ anns $ strLn . show
+  indent $ mapM_ ppAst children
 #endif
 
 showSpan :: GHC.RealSrcSpan -> String
