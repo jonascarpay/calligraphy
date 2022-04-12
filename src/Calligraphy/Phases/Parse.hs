@@ -8,9 +8,7 @@ module Calligraphy.Phases.Parse
   ( parseHieFiles,
     ppParseError,
     ppModulesDebugInfo,
-    -- Debug stuff
     ParseError (..),
-    Name (..),
     ModulesDebugInfo (..),
   )
 where
@@ -117,7 +115,7 @@ ppLexTree = foldLexTree (pure ()) $ \ls l (typ, name, _loc) m r rs -> do
 
 -- A single symbol can apparently declare a name multiple times in the same place, with multiple distinct keys D:
 data Name = Name
-  { nameString :: String,
+  { _nameString :: String,
     nameKeys :: EnumSet GHCKey
   }
   deriving (Eq, Ord)
@@ -132,6 +130,7 @@ unKey = GHCKey . GHC.getKey . GHC.nameUnique
 getKey :: Name -> GHCKey
 getKey = EnumSet.findMin . nameKeys
 
+-- TODO rename, clean up
 newtype ModulesDebugInfo = ModulesDebugInfo
   { modulesLexTrees :: [(String, LexTree GHC.RealSrcLoc (DeclType, Name, Loc))]
   }

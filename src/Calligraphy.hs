@@ -54,15 +54,11 @@ mainWithConfig AppConfig {..} = do
 
   (modulesDebug, modules) <- either (printDie . ppParseError) pure (parseHieFiles hieFiles)
   debug dumpLexicalTree $ ppModulesDebugInfo modulesDebug
-  debug dumpParsedModules $ ppModules modules
-
   let modulesCollapsed = collapse collapseConfig modules
-  debug dumpCollapsedModules $ ppModules modulesCollapsed
-
   modulesFiltered <- either (printDie . ppFilterError) pure $ dependencyFilter dependencyFilterConfig modulesCollapsed
   let modulesEdgeFiltered = filterEdges edgeFilterConfig modulesFiltered
   let modulesNodeFiltered = filterNodes nodeFilterConfig modulesEdgeFiltered
-  debug dumpFilteredModules $ ppModules modulesNodeFiltered
+  debug dumpFinal $ ppModules modulesNodeFiltered
 
   let txt = runPrinter $ render renderConfig modulesNodeFiltered
 
@@ -133,17 +129,12 @@ pOutputConfig =
 data DebugConfig = DebugConfig
   { dumpHieFile :: Bool,
     dumpLexicalTree :: Bool,
-    dumpParsedModules :: Bool,
-    dumpCollapsedModules :: Bool,
-    dumpFilteredModules :: Bool
+    dumpFinal :: Bool
   }
 
--- TODO Move to Debug?
 pDebugConfig :: Parser DebugConfig
 pDebugConfig =
   DebugConfig
     <$> switch (long "ddump-hie-file" <> help "Debug dump raw HIE files.")
     <*> switch (long "ddump-lexical-tree" <> help "Debug dump the reconstructed lexical structure of HIE files, the intermediate output in the parsing phase.")
-    <*> switch (long "ddump-parsed" <> help "Debug dump the final parsing phase output, i.e. reconstructed and cleaned up AST.")
-    <*> switch (long "ddump-collapsed" <> help "Debug dump ASTs after the collapsing phase.")
-    <*> switch (long "ddump-filtered" <> help "Debug dump ASTs after the filtering phase.")
+    <*> switch (long "ddump-final" <> help "Debug dump the final tree after processing, i.e. as it will be rendered.")

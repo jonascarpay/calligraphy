@@ -1,6 +1,11 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Calligraphy.Phases.Search (searchFiles, pSearchConfig, SearchConfig) where
+module Calligraphy.Phases.Search
+  ( searchFiles,
+    pSearchConfig,
+    SearchConfig,
+  )
+where
 
 import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Compat.Lib (readHieFileCompat)
