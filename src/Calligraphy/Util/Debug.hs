@@ -14,9 +14,10 @@ module Calligraphy.Util.Debug
   )
 where
 
+import qualified Calligraphy.Compat.GHC as GHC
+import Calligraphy.Compat.Lib (forNodeInfos_, showAnns, showContextInfo)
 import Calligraphy.Phases.DependencyFilter (DependencyFilterError (..))
 import Calligraphy.Phases.Parse
-import qualified Calligraphy.Util.Compat as GHC
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
@@ -54,7 +55,7 @@ ppParseError (UnhandledIdentifier nm sp inf) = do
   indent $ do
     strLn $ "loc: " <> show sp
     strLn $ "info:"
-    indent $ mapM_ (strLn . GHC.showContextInfo) inf
+    indent $ mapM_ (strLn . showContextInfo) inf
 ppParseError (TreeError err) = ppTreeError err
 
 -- TODO move to Parse
@@ -85,13 +86,13 @@ ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do
   where
     ppNameTree :: GHC.HieAST a -> Printer ()
     ppNameTree node@(GHC.Node _ spn children) =
-      GHC.forNodeInfos_ node $ \nodeInfo -> do
-        strLn $ ">> " <> showSpan spn <> " " <> GHC.showAnns nodeInfo
+      forNodeInfos_ node $ \nodeInfo -> do
+        strLn $ ">> " <> showSpan spn <> " " <> showAnns nodeInfo
         indent $ do
           let pids = fmap GHC.identInfo <$> M.toList (GHC.nodeIdentifiers nodeInfo)
           forM_ pids $ \(idn, ctxInfo) -> do
             ppIdentifier idn
-            indent $ mapM_ (strLn . GHC.showContextInfo) ctxInfo
+            indent $ mapM_ (strLn . showContextInfo) ctxInfo
           forM_ children ppNameTree
 
 ppIdentifier :: Prints GHC.Identifier
@@ -117,36 +118,3 @@ showSpan s =
 
 showModuleName :: GHC.ModuleName -> String
 showModuleName = flip mappend " (module)" . show . GHC.moduleNameString
-
-{-
-ppDeclTree :: Prints DeclTree
-ppDeclTree (DeclTree typ (Name key name) _ chil) = do
-  strLn $ name <> ": " <> show typ <> "   " <> show key
-  indent $ mapM_ ppDeclTree (unScope chil)
-
-ppFoldError :: Prints FoldError
-ppFoldError StructuralError = strLn "Structural error"
-ppFoldError (IdentifierError span err) = do
-  strLn $ "Error constructing identifier at " <> showSpan span
-  indent $ ppIdentifierError err
-
-ppIdentifierError :: Prints IdentifierError
-ppIdentifierError (UnhandledIdentifier idn info) = do
-  strLn "Unhandled name"
-  indent $ do
-    strLn "Identifier"
-    indent $ ppIdentifier idn
-    strLn "Context"
-    indent $ mapM_ (strLn . show) info
-
-ppHieAst :: Prints (HieAST a)
-ppHieAst (Node (NodeInfo anns _types ids) srcSpan children) = do
-  strLn $ "Node " <> showSpan srcSpan
-  indent $ do
-    forM_ anns $ strLn . show
-    forM_ (M.toList ids) $ \(idn, IdentifierDetails _type ctxInfo) -> do
-      ppIdentifier idn
-      indent $ mapM_ (strLn . show) ctxInfo
-    mapM_ ppHieAst children
-
-    -}

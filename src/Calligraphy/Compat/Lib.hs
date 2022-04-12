@@ -3,46 +3,8 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints -Wno-unused-matches #-}
 
-module Calligraphy.Util.Compat
-  ( BindType (..),
-    ContextInfo (..),
-    DeclType (..),
-    HieAST (..),
-    HieASTs (..),
-    HieFile (..),
-    HieFileResult (..),
-    HieType (..),
-    HieTypeFlat,
-    Identifier,
-    IdentifierDetails (..),
-    IfaceTyCon (..),
-    ModuleName,
-    Name,
-    NameCache,
-    NodeInfo (..),
-    RealSrcLoc,
-    RealSrcSpan,
-    RecFieldContext (..),
-    Scope (..),
-    Span,
-    TypeIndex,
-    availNames,
-    getKey,
-    getOccString,
-    hieVersion,
-    initNameCache,
-    mkSplitUniqSupply,
-    moduleName,
-    moduleNameString,
-    nameUnique,
-    realSrcSpanEnd,
-    realSrcSpanStart,
-    srcSpanStartCol,
-    srcSpanStartLine,
-    srcSpanEndCol,
-    srcSpanEndLine,
-    --
-    forNodeInfos_,
+module Calligraphy.Compat.Lib
+  ( forNodeInfos_,
     showContextInfo,
     readHieFileCompat,
     isInstanceNode,
@@ -60,15 +22,7 @@ import Prelude
 #if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Ext.Binary
 import GHC.Iface.Ext.Types
-import GHC.Iface.Type
-import GHC.Types.Avail
-import GHC.Types.Name
 import GHC.Types.Name.Cache
-import GHC.Types.SrcLoc
-import GHC.Types.Unique
-import GHC.Types.Unique.Supply
-import GHC.Unit.Module.Name
-import GHC.Unit.Types
 import GHC.Utils.Outputable (ppr, showSDocUnsafe)
 #else
 import Avail 
@@ -170,6 +124,7 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [EvidenceVarBind _ _ _, EvidenceVarUse] -> ignore
   [EvidenceVarUse] -> use
 #endif
+-- TODO don't do this through flags
 #ifdef DEBUG
   _ -> unknown
 #else

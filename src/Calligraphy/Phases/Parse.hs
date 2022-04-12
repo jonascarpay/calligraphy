@@ -13,7 +13,8 @@ module Calligraphy.Phases.Parse
   )
 where
 
-import qualified Calligraphy.Util.Compat as GHC
+import qualified Calligraphy.Compat.GHC as GHC
+import Calligraphy.Compat.Lib (classifyIdentifier, forNodeInfos_, isInstanceNode)
 import Calligraphy.Util.LexTree (LexTree, TreeError)
 import qualified Calligraphy.Util.LexTree as LT
 import Calligraphy.Util.Types
@@ -21,7 +22,7 @@ import Control.Monad.Except
 import Control.Monad.State
 import Data.Array (Array)
 import qualified Data.Array as Array
-import Data.Bifunctor
+import Data.Bifunctor (first)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
@@ -176,12 +177,12 @@ classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
   where
     types :: Either ParseError [NodeType]
     types = flip execStateT [] $
-      GHC.forNodeInfos_ node $ \nodeInfo ->
+      forNodeInfos_ node $ \nodeInfo ->
         forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
           (Right name, GHC.IdentifierDetails _ info) ->
             let decl :: DeclType -> GHC.Span -> StateT [NodeType] (Either ParseError) ()
                 decl ty scope = modify (DeclNode ty name scope :)
-             in GHC.classifyIdentifier
+             in classifyIdentifier
                   info
                   (decl ValueDecl)
                   (decl RecDecl)
@@ -209,8 +210,8 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
 
     collect' :: GHC.HieAST GHC.TypeIndex -> StateT Collect (Either ParseError) ()
     collect' node@(GHC.Node _ _ children) =
-      GHC.forNodeInfos_ node $ \nodeInfo ->
-        if GHC.isInstanceNode nodeInfo
+      forNodeInfos_ node $ \nodeInfo ->
+        if isInstanceNode nodeInfo
           then pure ()
           else do
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case

@@ -6,6 +6,7 @@
 
 module Calligraphy (main, mainWithConfig) where
 
+import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Phases.Collapse
 import Calligraphy.Phases.DependencyFilter
 import Calligraphy.Phases.EdgeFilter
@@ -13,7 +14,6 @@ import Calligraphy.Phases.NodeFilter
 import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render
 import Calligraphy.Phases.Search
-import qualified Calligraphy.Util.Compat as GHC
 import Calligraphy.Util.Debug
 import Calligraphy.Util.Printer
 import Control.Monad.RWS
@@ -41,12 +41,6 @@ main = do
             <> show GHC.hieVersion
         )
         (long "version" <> help "Show version")
-
-printStderr :: Printer () -> IO ()
-printStderr = Text.hPutStrLn stderr . runPrinter
-
-printDie :: Printer () -> IO a
-printDie txt = printStderr txt >> exitFailure
 
 mainWithConfig :: AppConfig -> IO ()
 mainWithConfig AppConfig {..} = do
@@ -83,6 +77,12 @@ data AppConfig = AppConfig
     outputConfig :: OutputConfig,
     debugConfig :: DebugConfig
   }
+
+printStderr :: Printer () -> IO ()
+printStderr = Text.hPutStrLn stderr . runPrinter
+
+printDie :: Printer () -> IO a
+printDie txt = printStderr txt >> exitFailure
 
 pConfig :: Parser AppConfig
 pConfig =

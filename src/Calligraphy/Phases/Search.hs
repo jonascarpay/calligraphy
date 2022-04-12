@@ -2,7 +2,8 @@
 
 module Calligraphy.Phases.Search (searchFiles, pSearchConfig, SearchConfig) where
 
-import qualified Calligraphy.Util.Compat as GHC
+import qualified Calligraphy.Compat.GHC as GHC
+import Calligraphy.Compat.Lib (readHieFileCompat)
 import Control.Applicative
 import Control.Monad.State
 import Data.IORef
@@ -45,7 +46,7 @@ searchFiles SearchConfig {searchDotPaths, searchRoots, includeFilters, excludeFi
 
 readHieFileWithWarning :: IORef GHC.NameCache -> FilePath -> IO GHC.HieFile
 readHieFileWithWarning ref path = do
-  GHC.HieFileResult fileHieVersion fileGHCVersion hie <- GHC.readHieFileCompat ref path
+  GHC.HieFileResult fileHieVersion fileGHCVersion hie <- readHieFileCompat ref path
   when (GHC.hieVersion /= fileHieVersion) $ do
     putStrLn $ "WARNING: version mismatch in " <> path
     putStrLn $ "    The hie files in this project were generated with GHC version: " <> show fileGHCVersion
@@ -56,8 +57,8 @@ readHieFileWithWarning ref path = do
 data SearchConfig = SearchConfig
   { searchDotPaths :: Bool,
     searchRoots :: [FilePath],
-    includeFilters :: Maybe (NonEmpty Filter), -- TODO this should be a Maybe NonEmpty
-    excludeFilters :: Maybe (NonEmpty Filter) -- TODO this should be a Maybe NonEmpty
+    includeFilters :: Maybe (NonEmpty Filter),
+    excludeFilters :: Maybe (NonEmpty Filter)
   }
 
 newtype Filter = Filter String

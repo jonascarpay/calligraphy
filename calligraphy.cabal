@@ -43,6 +43,8 @@ library
   autogen-modules: Paths_calligraphy
   exposed-modules:
     Calligraphy
+    Calligraphy.Compat.GHC
+    Calligraphy.Compat.Lib
     Calligraphy.Phases.Collapse
     Calligraphy.Phases.DependencyFilter
     Calligraphy.Phases.EdgeFilter
@@ -50,7 +52,6 @@ library
     Calligraphy.Phases.Parse
     Calligraphy.Phases.Render
     Calligraphy.Phases.Search
-    Calligraphy.Util.Compat
     Calligraphy.Util.Debug
     Calligraphy.Util.LexTree
     Calligraphy.Util.Printer
