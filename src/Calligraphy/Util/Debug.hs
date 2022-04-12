@@ -7,15 +7,15 @@
 
 module Calligraphy.Util.Debug
   ( ppModules,
-    ppHieFile,
     ppParseError,
     ppFilterError,
     ppModulesDebugInfo,
   )
 where
 
+import Calligraphy.Compat.Debug (showGHCName)
 import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (forNodeInfos_, showAnns, showContextInfo)
+import Calligraphy.Compat.Lib (showContextInfo)
 import Calligraphy.Phases.DependencyFilter (DependencyFilterError (..))
 import Calligraphy.Phases.Parse
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
@@ -23,7 +23,6 @@ import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import Control.Monad.RWS
 import qualified Data.EnumSet as EnumSet
-import qualified Data.Map as M
 import Data.Tree
 
 ppModules :: Prints Modules
@@ -79,42 +78,5 @@ ppTreeError (LexicalError l (ty, nm, _) r t) = do
     ppLocNode l r ty nm
     ppLexTree t
 
-ppHieFile :: Prints GHC.HieFile
-ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do
-  strLn $ showModuleName $ GHC.moduleName mdl
-  indent $ forM_ asts ppNameTree
-  where
-    ppNameTree :: GHC.HieAST a -> Printer ()
-    ppNameTree node@(GHC.Node _ spn children) =
-      forNodeInfos_ node $ \nodeInfo -> do
-        strLn $ ">> " <> showSpan spn <> " " <> showAnns nodeInfo
-        indent $ do
-          let pids = fmap GHC.identInfo <$> M.toList (GHC.nodeIdentifiers nodeInfo)
-          forM_ pids $ \(idn, ctxInfo) -> do
-            ppIdentifier idn
-            indent $ mapM_ (strLn . showContextInfo) ctxInfo
-          forM_ children ppNameTree
-
-ppIdentifier :: Prints GHC.Identifier
-ppIdentifier = strLn . either showModuleName showGHCName
-
-showGHCName :: GHC.Name -> String
-showGHCName name = GHC.getOccString name <> "    " <> show (GHC.getKey $ GHC.nameUnique name)
-
 showName :: Name -> String
 showName (Name name keys) = name <> "    " <> show (EnumSet.toList keys)
-
-showSpan :: GHC.RealSrcSpan -> String
-showSpan s =
-  mconcat
-    [ show $ GHC.srcSpanStartLine s,
-      ":",
-      show $ GHC.srcSpanStartCol s,
-      " - ",
-      show $ GHC.srcSpanEndLine s,
-      ":",
-      show $ GHC.srcSpanEndCol s
-    ]
-
-showModuleName :: GHC.ModuleName -> String
-showModuleName = flip mappend " (module)" . show . GHC.moduleNameString

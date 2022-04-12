@@ -43,6 +43,7 @@ library
   autogen-modules: Paths_calligraphy
   exposed-modules:
     Calligraphy
+    Calligraphy.Compat.Debug
     Calligraphy.Compat.GHC
     Calligraphy.Compat.Lib
     Calligraphy.Phases.Collapse

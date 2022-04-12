@@ -6,6 +6,7 @@
 
 module Calligraphy (main, mainWithConfig) where
 
+import Calligraphy.Compat.Debug (ppHieFile)
 import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Phases.Collapse
 import Calligraphy.Phases.DependencyFilter

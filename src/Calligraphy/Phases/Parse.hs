@@ -7,15 +7,15 @@
 module Calligraphy.Phases.Parse
   ( parseHieFiles,
     -- Debug stuff
+    ParseError (..),
     Name (..),
     ModulesDebugInfo (..),
-    ParseError (..),
   )
 where
 
 import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Compat.Lib (classifyIdentifier, forNodeInfos_, isInstanceNode)
-import Calligraphy.Util.LexTree (LexTree, TreeError)
+import Calligraphy.Util.LexTree (LexTree, TreeError (..))
 import qualified Calligraphy.Util.LexTree as LT
 import Calligraphy.Util.Types
 import Control.Monad.Except
