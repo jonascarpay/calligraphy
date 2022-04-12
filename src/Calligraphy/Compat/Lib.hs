@@ -25,29 +25,21 @@ import GHC.Iface.Ext.Types
 import GHC.Types.Name.Cache
 import GHC.Utils.Outputable (ppr, showSDocUnsafe)
 #else
-import Avail 
-import GHC
 import HieBin
-import HieTypes 
-import IfaceType 
-import Name 
+import HieTypes
 import NameCache
-import SrcLoc 
-import UniqSupply
-import Unique 
 #endif
 
 forNodeInfos_ :: Monad m => HieAST a -> (NodeInfo a -> m ()) -> m ()
 showContextInfo :: ContextInfo -> String
 readHieFileCompat :: IORef NameCache -> FilePath -> IO HieFileResult
-
 #if MIN_VERSION_ghc(9,0,0)
 
 forNodeInfos_ (Node (SourcedNodeInfo sourcedNodeInfos) _ _) = forM_ sourcedNodeInfos
 
 showContextInfo = showSDocUnsafe . ppr
 
-readHieFileCompat ref = readHieFile (NCU (atomicModifyIORef ref)) 
+readHieFileCompat ref = readHieFile (NCU (atomicModifyIORef ref))
 
 #else
 
@@ -65,7 +57,6 @@ readHieFileCompat ref fp = do
 
 isInstanceNode :: NodeInfo a -> Bool
 showAnns :: NodeInfo a -> String
-
 #if MIN_VERSION_ghc(9,2,0)
 
 isInstanceNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "ClsInstD" "InstDecl") anns
@@ -118,6 +109,7 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [TyVarBind _ _] -> ignore
   -- -- An empty ValBind is the result of a derived instance, and should be ignored
   [ValBind RegularBind ModuleScope _] -> ignore
+
 #if MIN_VERSION_ghc(9,0,0)
   [MatchBind, RecField RecFieldMatch _] -> ignore
   [EvidenceVarBind _ _ _] -> ignore
