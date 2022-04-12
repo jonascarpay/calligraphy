@@ -15,8 +15,8 @@ import Calligraphy.Phases.NodeFilter
 import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render
 import Calligraphy.Phases.Search
-import Calligraphy.Util.Debug
 import Calligraphy.Util.Printer
+import Calligraphy.Util.Types (ppModules)
 import Control.Monad.RWS
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -109,7 +109,7 @@ output cfg@OutputConfig {outputDotPath, outputPngPath, outputStdout} txt = do
     writePng fp = do
       mexe <- findExecutable "dot"
       case mexe of
-        Nothing -> die "no dot" -- TODO proper error here
+        Nothing -> die "Unable to find 'dot' executable! Make sure it is installed, or use another output method."
         Just exe -> do
           (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
           unless (code == ExitSuccess) $ do

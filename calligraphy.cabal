@@ -53,7 +53,6 @@ library
     Calligraphy.Phases.Parse
     Calligraphy.Phases.Render
     Calligraphy.Phases.Search
-    Calligraphy.Util.Debug
     Calligraphy.Util.LexTree
     Calligraphy.Util.Printer
     Calligraphy.Util.Types

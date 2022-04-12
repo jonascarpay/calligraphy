@@ -6,6 +6,8 @@
 
 module Calligraphy.Phases.Parse
   ( parseHieFiles,
+    ppParseError,
+    ppModulesDebugInfo,
     -- Debug stuff
     ParseError (..),
     Name (..),
@@ -13,10 +15,12 @@ module Calligraphy.Phases.Parse
   )
 where
 
+import Calligraphy.Compat.Debug (showGHCName)
 import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (classifyIdentifier, forNodeInfos_, isInstanceNode)
-import Calligraphy.Util.LexTree (LexTree, TreeError (..))
+import Calligraphy.Compat.Lib (classifyIdentifier, forNodeInfos_, isInstanceNode, showContextInfo)
+import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import qualified Calligraphy.Util.LexTree as LT
+import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import Control.Monad.Except
 import Control.Monad.State
@@ -75,6 +79,42 @@ data ParseError
   = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
   | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
 
+ppParseError :: Prints ParseError
+ppParseError (UnhandledIdentifier nm sp inf) = do
+  strLn $ "Unrecognized identifier: " <> showGHCName nm
+  indent $ do
+    strLn $ "loc: " <> show sp
+    strLn $ "info:"
+    indent $ mapM_ (strLn . showContextInfo) inf
+ppParseError (TreeError err) = ppTreeError err
+  where
+    ppTreeError :: Prints (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
+    ppTreeError (InvalidBounds l (ty, nm, _) r) = strLn "Invalid bounds:" >> indent (ppLocNode l r ty nm)
+    ppTreeError (OverlappingBounds (ty, nm, _) (ty', nm', _) l r) = do
+      strLn $ "OverlappingBounds bounds: (" <> show (l, r) <> ")"
+      indent $ do
+        strLn $ showName nm <> " (" <> show ty <> ")"
+        strLn $ showName nm' <> " (" <> show ty' <> ")"
+    ppTreeError MidSplit = strLn "MidSplit"
+    ppTreeError (LexicalError l (ty, nm, _) r t) = do
+      strLn "Lexical error"
+      indent $ do
+        ppLocNode l r ty nm
+        ppLexTree t
+
+showName :: Name -> String
+showName (Name name keys) = name <> "    " <> show (EnumSet.toList keys)
+
+ppLocNode :: GHC.RealSrcLoc -> GHC.RealSrcLoc -> DeclType -> Name -> Printer ()
+ppLocNode l r typ name = strLn $ showName name <> " (" <> show typ <> ") " <> show l <> " " <> show r
+
+ppLexTree :: Prints (LexTree GHC.RealSrcLoc (DeclType, Name, Loc))
+ppLexTree = foldLexTree (pure ()) $ \ls l (typ, name, _loc) m r rs -> do
+  ls
+  ppLocNode l r typ name
+  indent m
+  rs
+
 -- A single symbol can apparently declare a name multiple times in the same place, with multiple distinct keys D:
 data Name = Name
   { nameString :: String,
@@ -95,6 +135,11 @@ getKey = EnumSet.findMin . nameKeys
 newtype ModulesDebugInfo = ModulesDebugInfo
   { modulesLexTrees :: [(String, LexTree GHC.RealSrcLoc (DeclType, Name, Loc))]
   }
+
+ppModulesDebugInfo :: Prints ModulesDebugInfo
+ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, ltree) -> do
+  strLn modName
+  indent $ ppLexTree ltree
 
 parseHieFiles ::
   [GHC.HieFile] -> Either ParseError (ModulesDebugInfo, Modules)

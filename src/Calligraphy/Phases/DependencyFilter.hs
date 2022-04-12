@@ -3,11 +3,13 @@
 module Calligraphy.Phases.DependencyFilter
   ( DependencyFilterConfig,
     DependencyFilterError (..),
+    ppFilterError,
     dependencyFilter,
     pDependencyFilterConfig,
   )
 where
 
+import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
@@ -56,6 +58,9 @@ pDependencyFilterConfig =
     <*> optional (option auto (long "max-depth" <> help "Maximum search depth for transitive dependencies."))
 
 newtype DependencyFilterError = UnknownRootName String
+
+ppFilterError :: Prints DependencyFilterError
+ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 
 -- TODO explain difference with filtering
 pruneModules :: (Decl -> Bool) -> Modules -> Modules
@@ -107,8 +112,8 @@ transitives maxDepth roots deps = go 0 mempty (EnumSet.fromList roots)
       | EnumSet.null new = old
       | maybe False (< depth) maxDepth = old
       | otherwise =
-        let old' = old <> new
-            new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
-         in go (depth + 1) old' (new' EnumSet.\\ old')
+          let old' = old <> new
+              new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
+           in go (depth + 1) old' (new' EnumSet.\\ old')
     adjacencies :: EnumMap a (EnumSet a)
     adjacencies = foldr (\(from, to) -> EnumMap.insertWith (<>) from (EnumSet.singleton to)) mempty deps

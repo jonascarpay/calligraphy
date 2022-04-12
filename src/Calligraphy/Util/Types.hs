@@ -2,12 +2,14 @@
 
 module Calligraphy.Util.Types where
 
+import Calligraphy.Util.Printer
+import Control.Monad
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
+import Data.Graph
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Tree (Forest)
 
 -- | This is the main type that phases will operate on.
 data Modules = Modules
@@ -43,8 +45,18 @@ data Loc = Loc
   }
 
 instance Show Loc where
-  showsPrec _ (Loc line col) = shows line . showChar ':' . shows col
+  showsPrec _ (Loc ln col) = shows ln . showChar ':' . shows col
 
 -- TODO this is not a type
 rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
 rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
+
+ppModules :: Prints Modules
+ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
+  strLn modName
+  indent $ mapM_ ppTree forest
+
+ppTree :: Prints (Tree Decl)
+ppTree (Node (Decl name _key _exp typ loc) children) = do
+  strLn $ name <> " (" <> show typ <> ", " <> show loc <> ")"
+  indent $ mapM_ ppTree children
