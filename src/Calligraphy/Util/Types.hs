@@ -26,8 +26,7 @@ data Decl = Decl
     declLoc :: Loc
   }
 
--- TODO rename runKey
-newtype Key = Key {runKey :: Int}
+newtype Key = Key {unKey :: Int}
   deriving (Enum, Show, Eq, Ord)
 
 data DeclType

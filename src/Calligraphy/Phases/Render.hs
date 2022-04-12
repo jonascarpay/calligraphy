@@ -52,7 +52,7 @@ render RenderConfig {showCalls, showInfers, splines, reverseDependencyRank, show
       | otherwise = name
     renderTreeNode :: Prints (Tree Decl)
     renderTreeNode (Node decl@(Decl _ key exported typ _) children) = do
-      strLn $ show (runKey key) <> " " <> style ["label" .= show (nodeLabel decl), "shape" .= nodeShape typ, "style" .= nodeStyle]
+      strLn $ show (unKey key) <> " " <> style ["label" .= show (nodeLabel decl), "shape" .= nodeShape typ, "style" .= nodeStyle]
       forM_ children $ \child@(Node (Decl _ childKey _ _ _) _) -> do
         renderTreeNode child
         edge key childKey ["style" .= "dashed", "arrowhead" .= "none"]

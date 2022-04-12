@@ -44,10 +44,10 @@ resolveTypes :: Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (En
 resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <- Array.indices typeArray]
   where
     keys :: GHC.HieType a -> EnumSet GHCKey
-    keys (GHC.HTyConApp (GHC.IfaceTyCon name _) _) = EnumSet.singleton (unKey name)
-    keys (GHC.HForAllTy ((name, _), _) _) = EnumSet.singleton (unKey name)
+    keys (GHC.HTyConApp (GHC.IfaceTyCon name _) _) = EnumSet.singleton (ghcNameKey name)
+    keys (GHC.HForAllTy ((name, _), _) _) = EnumSet.singleton (ghcNameKey name)
     -- These are variables, which we ignore, but it can't hurt
-    keys (GHC.HTyVarTy name) = EnumSet.singleton (unKey name)
+    keys (GHC.HTyVarTy name) = EnumSet.singleton (ghcNameKey name)
     keys _ = mempty
     go ::
       GHC.TypeIndex ->
@@ -62,6 +62,8 @@ resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <
           let ty = typeArray Array.! current
           mappend (keys ty) . mconcat <$> mapM go (Foldable.toList ty)
 
+-- | A key that was produced by GHC, c.f. Key that we produced ourselves.
+-- We wrap it in a newtype because GHC itself uses a type synonym, but we want conversions to be as explicit as possible.
 newtype GHCKey = GHCKey {_unGHCKey :: Int}
   deriving newtype (Show, Enum, Eq, Ord)
 
@@ -121,14 +123,10 @@ data Name = Name
   deriving (Eq, Ord)
 
 mkName :: GHC.Name -> Name
-mkName nm = Name (GHC.getOccString nm) (EnumSet.singleton $ unKey nm)
+mkName nm = Name (GHC.getOccString nm) (EnumSet.singleton $ ghcNameKey nm)
 
--- TODO rename unkey and getkey
-unKey :: GHC.Name -> GHCKey
-unKey = GHCKey . GHC.getKey . GHC.nameUnique
-
-getKey :: Name -> GHCKey
-getKey = EnumSet.findMin . nameKeys
+ghcNameKey :: GHC.Name -> GHCKey
+ghcNameKey = GHCKey . GHC.getKey . GHC.nameUnique
 
 -- TODO rename, clean up
 newtype ModulesDebugInfo = ModulesDebugInfo
@@ -163,10 +161,12 @@ parseHieFiles files = do
       let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
             case LT.lookup loc tree of
               Nothing -> mempty
-              Just (_, callerName, _) -> Set.singleton (getKey callerName, callee)
-      let exportKeys = EnumSet.fromList $ fmap unKey $ avails >>= GHC.availNames
+              Just (_, callerName, _) -> Set.singleton (nameKey callerName, callee)
+      let exportKeys = EnumSet.fromList $ fmap ghcNameKey $ avails >>= GHC.availNames
       forest <- rekey exportKeys (deduplicate tree)
       pure (GHC.moduleNameString (GHC.moduleName mdl), forest, calls, infers, tree)
+    nameKey :: Name -> GHCKey
+    nameKey = EnumSet.findMin . nameKeys
 
 rekey :: forall m. Monad m => EnumSet GHCKey -> NameTree -> StateT (Int, EnumMap GHCKey Key) m (Forest Decl)
 rekey exports = go
@@ -233,7 +233,7 @@ classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
                   (decl ConDecl)
                   (decl DataDecl)
                   (decl ClassDecl)
-                  (modify (UseNode (unKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
+                  (modify (UseNode (ghcNameKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
                   (pure ())
                   (throwError $ UnhandledIdentifier name (GHC.nodeSpan node) (Set.toList info))
           _ -> pure ()
@@ -248,7 +248,7 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
     tellUse loc key = modify $ \(Collect decls uses infers) -> Collect decls ((loc, key) : uses) infers
 
     tellInfer :: GHC.Name -> GHC.TypeIndex -> StateT Collect (Either ParseError) ()
-    tellInfer name ix = modify $ \(Collect decls uses infers) -> Collect decls uses (EnumMap.insertWith (<>) (unKey name) (typeMap EnumMap.! ix) infers)
+    tellInfer name ix = modify $ \(Collect decls uses infers) -> Collect decls uses (EnumMap.insertWith (<>) (ghcNameKey name) (typeMap EnumMap.! ix) infers)
 
     typeMap = resolveTypes typeArr
 
