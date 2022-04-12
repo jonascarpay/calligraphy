@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Calligraphy.Compat.Debug
   ( ppHieFile,
     ppIdentifier,
@@ -5,31 +7,73 @@ module Calligraphy.Compat.Debug
   )
 where
 
-import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib
 import Calligraphy.Util.Printer
 import Control.Monad
 import qualified Data.Map as Map
 
--- TODO Better specialize to different HIE versions, that's the point of splitting this
-ppHieFile :: Prints GHC.HieFile
-ppHieFile (GHC.HieFile _ mdl _types (GHC.HieASTs asts) _exps _src) = do
-  strLn $ showModuleName $ GHC.moduleName mdl
-  indent $ forM_ asts ppNameTree
-  where
-    ppNameTree :: GHC.HieAST a -> Printer ()
-    ppNameTree node@(GHC.Node _ spn children) =
-      forNodeInfos_ node $ \nodeInfo -> do
-        strLn $ ">> " <> showSpan spn <> " " <> showAnns nodeInfo
-        indent $ do
-          let pids = fmap GHC.identInfo <$> Map.toList (GHC.nodeIdentifiers nodeInfo)
-          forM_ pids $ \(idn, ctxInfo) -> do
-            ppIdentifier idn
-            indent $ mapM_ (strLn . showContextInfo) ctxInfo
-          forM_ children ppNameTree
+#if MIN_VERSION_ghc(9,0,0)
+import qualified GHC.Data.FastString as GHC
+import qualified GHC.Iface.Ext.Types as GHC
+import qualified GHC.Types.Name as GHC
+import qualified GHC.Types.SrcLoc as GHC
+import qualified GHC.Types.Unique as GHC
+import qualified GHC.Unit as GHC
+import qualified GHC.Utils.Outputable as GHC
+#else
+import qualified HieTypes as GHC
+import qualified Module as GHC
+import qualified FastString as GHC
+import qualified GhcPlugins as GHC
+import qualified Unique as GHC
+#endif
 
-showModuleName :: GHC.ModuleName -> String
-showModuleName = flip mappend " (module)" . show . GHC.moduleNameString
+ppHieFile :: Prints GHC.HieFile
+#if MIN_VERSION_ghc(9,0,0)
+ppHieFile (GHC.HieFile path (GHC.Module _ mdl) _types (GHC.HieASTs asts) _exps _src) = do
+  strLn "Hie File"
+  indent $ do
+    strLn "path:"
+    indent $ strLn path
+    strLn "module: "
+    indent $ strLn (GHC.moduleNameString mdl)
+    strLn "contents:"
+    indent $
+      forM_ (Map.toList asts) $ \(GHC.LexicalFastString hiePath, ast) -> do
+        strLn (GHC.unpackFS hiePath)
+        indent $ ppAst ast
+  where
+    ppAst :: GHC.HieAST a -> Printer ()
+    ppAst (GHC.Node (GHC.SourcedNodeInfo nodeInfo) spn children) = do
+      strLn (showSpan spn)
+      forM_ nodeInfo $ \(GHC.NodeInfo anns _ ids) -> do
+        forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
+          ppIdentifier idn
+          indent $ forM_ idnDetails $ strLn . GHC.showSDocOneLine GHC.defaultSDocContext . GHC.ppr
+        forM_ anns $ \(GHC.NodeAnnotation constr typ) -> strLn (show (constr, typ))
+      indent $ mapM_ ppAst children
+#else
+ppHieFile (GHC.HieFile path (GHC.Module _ mdl) _types (GHC.HieASTs asts) _exps _src) = do
+  strLn "Hie File"
+  indent $ do
+    strLn "path:"
+    indent $ strLn path
+    strLn "module: "
+    indent $ strLn (GHC.moduleNameString mdl)
+    strLn "contents:"
+    indent $
+      forM_ (Map.toList asts) $ \(hiePath, ast) -> do
+        strLn (GHC.unpackFS hiePath)
+        indent $ ppAst ast
+  where
+    ppAst :: GHC.HieAST a -> Printer ()
+    ppAst (GHC.Node (GHC.NodeInfo anns _ ids) spn children) = do
+      strLn (showSpan spn)
+      forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
+        ppIdentifier idn
+        indent $ forM_ idnDetails $ strLn . show
+      forM_ anns $ strLn . show
+      indent $ mapM_ ppAst children
+#endif
 
 showSpan :: GHC.RealSrcSpan -> String
 showSpan s =
@@ -45,6 +89,9 @@ showSpan s =
 
 ppIdentifier :: Prints GHC.Identifier
 ppIdentifier = strLn . either showModuleName showGHCName
+
+showModuleName :: GHC.ModuleName -> String
+showModuleName = flip mappend " (module)" . show . GHC.moduleNameString
 
 showGHCName :: GHC.Name -> String
 showGHCName name = GHC.getOccString name <> "    " <> show (GHC.getKey $ GHC.nameUnique name)
