@@ -14,44 +14,34 @@
             };
         };
         calligraphy = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.calligraphy;
-        calligraphy-shell = final.haskellPackages.shellFor {
-          withHoogle = true;
-          packages = hpkgs: [ hpkgs.calligraphy ];
-          nativeBuildInputs = [
-            final.graphviz
-            final.cabal-install
-            final.ghcid
-            final.haskellPackages.haskell-language-server
-            final.hlint
-            final.ormolu
-            final.bashInteractive # see: https://discourse.nixos.org/t/interactive-bash-with-nix-develop-flake/15486
-          ];
-        };
       };
 
       perSystem = system:
         let
           pkgs = import inputs.nixpkgs { inherit system; overlays = [ overlay ]; };
+          mkShell = compiler:
+            let hspkgs = pkgs.haskell.packages.${compiler}; in
+            hspkgs.shellFor {
+              withHoogle = true;
+              packages = hpkgs: [ hpkgs.calligraphy ];
+              nativeBuildInputs = [
+                hspkgs.cabal-install
+                hspkgs.haskell-language-server
+                hspkgs.hlint
+                hspkgs.ormolu
+                pkgs.bashInteractive # see: https://discourse.nixos.org/t/interactive-bash-with-nix-develop-flake/15486
+                pkgs.graphviz
+              ];
+            };
         in
         rec {
           devShells = {
-            stack-nightly-shell = pkgs.mkShell {
-              packages = [
-                pkgs.stack
-                pkgs.haskell.compiler.ghc922
-              ];
-              STACK_YAML = "stack-nightly.yaml";
-            };
-            stack-lts19-shell = pkgs.mkShell {
-              packages = [
-                pkgs.stack
-                pkgs.haskell.compiler.ghc902
-              ];
-              STACK_YAML = "stack-lts19.yaml";
-            };
-            cabal-shell = pkgs.calligraphy-shell;
+            ghc922-shell = mkShell "ghc922";
+            ghc902-shell = mkShell "ghc902";
+            ghc8107-shell = mkShell "ghc8107";
+            ghc884-shell = mkShell "ghc884";
           };
-          devShell = devShells.cabal-shell;
+          devShell = devShells.ghc922-shell;
           packages.calligraphy = pkgs.calligraphy;
           defaultPackage = pkgs.calligraphy;
         };
