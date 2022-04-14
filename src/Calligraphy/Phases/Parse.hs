@@ -8,6 +8,8 @@ module Calligraphy.Phases.Parse
   ( parseHieFiles,
     ppParseError,
     ppModulesDebugInfo,
+    ParseConfig,
+    pParseConfig,
     ParseError (..),
     ModulesDebugInfo (..),
   )
@@ -38,6 +40,8 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tree (Forest)
 import qualified Data.Tree as Tree
+import Options.Applicative (Parser)
+import qualified Options.Applicative as Opt
 
 -- TODO This can be faster by storing intermediate restuls, but that has proven tricky to get right.
 resolveTypes :: Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (EnumSet GHCKey)
@@ -78,6 +82,16 @@ data Collect = Collect
 data ParseError
   = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
   | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
+
+newtype ParseConfig = ParseConfig {strict :: Bool}
+
+pParseConfig :: Parser ParseConfig
+pParseConfig =
+  ParseConfig
+    <$> Opt.switch
+      ( Opt.long "parse-strict"
+          <> Opt.help "Strict HIE parsing mode. Throws an error if an identifier's annotations are unrecognized, instead of silently ignoring."
+      )
 
 ppParseError :: Prints ParseError
 ppParseError (UnhandledIdentifier nm sp inf) = do
@@ -139,8 +153,10 @@ ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, ltree) -> d
   indent $ ppLexTree ltree
 
 parseHieFiles ::
-  [GHC.HieFile] -> Either ParseError (ModulesDebugInfo, Modules)
-parseHieFiles files = do
+  ParseConfig ->
+  [GHC.HieFile] ->
+  Either ParseError (ModulesDebugInfo, Modules)
+parseHieFiles parseConfig files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
   let (mods, debugs, calls, infers) = unzip4 (fmap (\(name, forest, call, infer, ltree) -> ((name, forest), (name, ltree), call, infer)) parsed)
       inferPairs = rekeyCalls keymap . Set.fromList $ do
@@ -156,7 +172,7 @@ parseHieFiles files = do
         (Either ParseError)
         (String, Forest Decl, Set (GHCKey, GHCKey), EnumMap GHCKey (EnumSet GHCKey), LexTree GHC.RealSrcLoc (DeclType, Name, Loc))
     parseFile file@(GHC.HieFile _ mdl _ _ avails _) = do
-      Collect decls uses infers <- lift $ collect file
+      Collect decls uses infers <- lift $ collect parseConfig file
       tree <- lift $ structure decls
       let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
             case LT.lookup loc tree of
@@ -216,8 +232,8 @@ data NodeType
   | DeclNode DeclType GHC.Name GHC.Span
   deriving (Eq, Ord)
 
-classifyNode :: GHC.HieAST GHC.TypeIndex -> Either ParseError NodeType
-classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
+classifyNode :: ParseConfig -> GHC.HieAST GHC.TypeIndex -> Either ParseError NodeType
+classifyNode parseConfig node = (\l -> if null l then EmptyNode else maximum l) <$> types
   where
     types :: Either ParseError [NodeType]
     types = flip execStateT [] $
@@ -235,11 +251,14 @@ classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
                   (decl ClassDecl)
                   (modify (UseNode (ghcNameKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
                   (pure ())
-                  (throwError $ UnhandledIdentifier name (GHC.nodeSpan node) (Set.toList info))
+                  ( if strict parseConfig
+                      then throwError $ UnhandledIdentifier name (GHC.nodeSpan node) (Set.toList info)
+                      else pure ()
+                  )
           _ -> pure ()
 
-collect :: GHC.HieFile -> Either ParseError Collect
-collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty mempty)
+collect :: ParseConfig -> GHC.HieFile -> Either ParseError Collect
+collect parseConfig (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty mempty)
   where
     tellDecl :: GHCDecl -> StateT Collect (Either ParseError) ()
     tellDecl decl = modify $ \(Collect decls uses infers) -> Collect (decl : decls) uses infers
@@ -261,7 +280,7 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ col
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
               (Right name, GHC.IdentifierDetails ty _) -> mapM_ (tellInfer name) ty
               _ -> pure ()
-            lift (classifyNode node) >>= \case
+            lift (classifyNode parseConfig node) >>= \case
               EmptyNode -> pure ()
               UseNode gk rsl -> tellUse rsl gk
               DeclNode dt na rss -> tellDecl (dt, rss, na, spanToLoc rss)

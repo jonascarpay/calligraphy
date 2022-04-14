@@ -52,7 +52,7 @@ mainWithConfig AppConfig {..} = do
   when (null hieFiles) $ die "No files matched your search criteria.."
   debug dumpHieFile $ mapM_ ppHieFile hieFiles
 
-  (modulesDebug, modules) <- either (printDie . ppParseError) pure (parseHieFiles hieFiles)
+  (modulesDebug, modules) <- either (printDie . ppParseError) pure (parseHieFiles parseConfig hieFiles)
   debug dumpLexicalTree $ ppModulesDebugInfo modulesDebug
   let modulesCollapsed = collapse collapseConfig modules
   modulesFiltered <- either (printDie . ppFilterError) pure $ dependencyFilter dependencyFilterConfig modulesCollapsed
@@ -66,6 +66,7 @@ mainWithConfig AppConfig {..} = do
 
 data AppConfig = AppConfig
   { searchConfig :: SearchConfig,
+    parseConfig :: ParseConfig,
     collapseConfig :: CollapseConfig,
     dependencyFilterConfig :: DependencyFilterConfig,
     edgeFilterConfig :: EdgeFilterConfig,
@@ -84,6 +85,7 @@ printDie txt = printStderr txt >> exitFailure
 pConfig :: Parser AppConfig
 pConfig =
   AppConfig <$> pSearchConfig
+    <*> pParseConfig
     <*> pCollapseConfig
     <*> pDependencyFilterConfig
     <*> pEdgeFilterConfig

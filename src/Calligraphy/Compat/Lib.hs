@@ -116,9 +116,4 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [EvidenceVarBind _ _ _, EvidenceVarUse] -> ignore
   [EvidenceVarUse] -> use
 #endif
--- TODO don't do this through flags
-#ifdef DEBUG
   _ -> unknown
-#else
-  _ -> ignore
-#endif
