@@ -35,7 +35,6 @@ data DependencyFilterConfig = DependencyFilterConfig
     _depDepth :: Maybe Int
   }
 
--- TODO qualified names
 pDependencyFilterConfig :: Parser DependencyFilterConfig
 pDependencyFilterConfig =
   DependencyFilterConfig
@@ -44,7 +43,7 @@ pDependencyFilterConfig =
           ( long "forward-root"
               <> short 'f'
               <> metavar "NAME"
-              <> help "Dependency filter root. Will hide everything that's not a (transitive) dependency of this root. Can be repeated."
+              <> help "Name of a dependency filter root. Specifying a dependecy filter root hides everything that's not a (transitive) dependency of a root. The name can be qualified. This argument can be repeated."
           )
       )
     <*> (fmap nonEmpty . many)
@@ -52,7 +51,7 @@ pDependencyFilterConfig =
           ( long "reverse-root"
               <> short 'r'
               <> metavar "NAME"
-              <> help "Reverse dependency filter root. Will hide everything that's not a (transitive) reverse dependency of this root. Can be repeated."
+              <> help "Name of a reverse dependency filter root. Specifying a dependecy filter root hides everything that's not a (transitive) reverse dependency of a root. The name can be qualified. This argument can be repeated."
           )
       )
     <*> optional (option auto (long "max-depth" <> help "Maximum search depth for transitive dependencies."))
@@ -90,18 +89,23 @@ dependencyFilter (DependencyFilterConfig mfw mbw maxDepth) mods@(Modules modules
      in pruneModules p mods
   where
     names :: Map String (EnumSet Key)
-    names = resolveNames (modules >>= snd)
+    names = Map.unionsWith mappend (fmap (uncurry resolveNames) modules)
     mkDepFilter :: NonEmpty String -> Set (Key, Key) -> Either DependencyFilterError (Decl -> Bool)
     mkDepFilter rootNames edges = do
       rootKeys <- forM rootNames $ \name -> maybe (Left $ UnknownRootName name) (pure . EnumSet.toList) (Map.lookup name names)
       let ins = transitives maxDepth (mconcat $ toList rootKeys) edges
       pure $ \decl -> EnumSet.member (declKey decl) ins
 
-resolveNames :: Forest Decl -> Map String (EnumSet Key)
-resolveNames forest =
+-- | Create a map of all names, and the keys they correspond to.
+-- For every name in the source, this introduces two entries; one naked, and one qualified with the module name.
+resolveNames :: String -> Forest Decl -> Map String (EnumSet Key)
+resolveNames modName forest =
   flip execState mempty $
     flip (traverse . traverse) forest $
-      \(Decl name key _ _ _) -> modify (Map.insertWith (<>) name (EnumSet.singleton key))
+      \(Decl name key _ _ _) ->
+        modify $
+          Map.insertWith (<>) (modName <> "." <> name) (EnumSet.singleton key)
+            . Map.insertWith (<>) name (EnumSet.singleton key)
 
 transitives :: forall a. Enum a => Maybe Int -> [a] -> Set (a, a) -> EnumSet a
 transitives maxDepth roots deps = go 0 mempty (EnumSet.fromList roots)
