@@ -90,7 +90,7 @@ pParseConfig =
   ParseConfig
     <$> Opt.switch
       ( Opt.long "parse-strict"
-          <> Opt.help "Strict HIE parsing mode. Throws an error if an identifier's annotations are unrecognized, instead of silently ignoring."
+          <> Opt.help "Strict HIE parsing mode. Throws an error if an identifier's annotations are unrecognized, instead of silently ignoring. Used primarily for debugging calligraphy itself."
       )
 
 ppParseError :: Prints ParseError
