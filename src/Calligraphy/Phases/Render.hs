@@ -15,13 +15,13 @@ import Text.Show (showListWith)
 data RenderConfig = RenderConfig
   { showCalls :: Bool,
     showInfers :: Bool,
-    showLoc :: Bool,
+    locMode :: LocMode,
     splines :: Bool,
     reverseDependencyRank :: Bool
   }
 
 render :: RenderConfig -> Prints Modules
-render RenderConfig {showCalls, showInfers, splines, reverseDependencyRank, showLoc} (Modules modules calls infers) = do
+render RenderConfig {showCalls, showInfers, splines, reverseDependencyRank, locMode} (Modules modules calls infers) = do
   brack "digraph calligraphy {" "}" $ do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
@@ -47,9 +47,10 @@ render RenderConfig {showCalls, showInfers, splines, reverseDependencyRank, show
           else edge callee caller ["style" .= "dotted", "dir" .= "back"]
   where
     nodeLabel :: Decl -> String
-    nodeLabel (Decl name _ _ _ loc)
-      | showLoc = name <> "\n" <> show loc
-      | otherwise = name
+    nodeLabel (Decl name _ _ _ loc) = case locMode of
+      Hide -> name
+      Line -> name <> "\nL" <> show (locLine loc)
+      LineCol -> name <> "\n" <> show loc
     renderTreeNode :: Prints (Tree Decl)
     renderTreeNode (Node decl@(Decl _ key exported typ _) children) = do
       strLn $ show (unKey key) <> " " <> style ["label" .= show (nodeLabel decl), "shape" .= nodeShape typ, "style" .= nodeStyle]
@@ -82,11 +83,19 @@ style sty = showListWith (\(key, val) -> showString key . showChar '=' . showStr
 
 type Style = [(String, String)]
 
+data LocMode = Hide | Line | LineCol
+
+pLocMode :: Parser LocMode
+pLocMode =
+  flag' Line (long "show-line" <> help "Show line numbers")
+    <|> flag' LineCol (long "show-line-col" <> help "Show line and column numbers")
+    <|> pure Hide
+
 pRenderConfig :: Parser RenderConfig
 pRenderConfig =
   RenderConfig
     <$> flag True False (long "hide-calls" <> help "Don't show function call arrows")
     <*> flag True False (long "hide-inferences" <> help "Don't show inferred type arrows")
-    <*> flag False True (long "show-loc" <> help "Show definition locations as line:col")
+    <*> pLocMode
     <*> flag True False (long "no-splines" <> help "Render arrows as straight lines instead of splines")
     <*> flag False True (long "reverse-dependency-rank" <> short 'r' <> help "Make dependencies have lower rank than the dependee, i.e. show dependencies above their parent.")
