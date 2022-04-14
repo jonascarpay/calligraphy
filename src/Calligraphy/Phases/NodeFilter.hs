@@ -5,11 +5,8 @@ module Calligraphy.Phases.NodeFilter (filterNodes, NodeFilterConfig, pNodeFilter
 
 import Calligraphy.Util.Types
 import Control.Monad.State
-import Data.EnumSet (EnumSet)
-import qualified Data.EnumSet as EnumSet
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import Data.Monoid
-import qualified Data.Set as Set
 import Data.Tree
 import Options.Applicative
 import Prelude hiding (filter)
@@ -26,20 +23,15 @@ data NodeFilterConfig = NodeFilterConfig
 -- | If p does not hold, neither that node nor its children are included.
 -- Compare this to 'pruneModules', where a node is included if p holds for it or any of its children.
 filterModules :: (Decl -> Bool) -> Modules -> Modules
-filterModules p (Modules modules calls infers) = Modules modules' calls' infers'
+filterModules p (Modules modules calls infers) = removeDeadCalls $ Modules modules' calls infers
   where
-    (modules', outputKeys) = runState ((traverse . traverse) filterForest modules) mempty
-    filterForest :: Forest Decl -> State (EnumSet Key) (Forest Decl)
-    filterForest = fmap catMaybes . mapM filterTree
-    filterTree :: Tree Decl -> State (EnumSet Key) (Maybe (Tree Decl))
+    modules' = (fmap . fmap) filterForest modules
+    filterForest :: Forest Decl -> Forest Decl
+    filterForest = mapMaybe filterTree
+    filterTree :: Tree Decl -> Maybe (Tree Decl)
     filterTree (Node decl children)
-      | p decl = do
-          children' <- filterForest children
-          Just (Node decl children') <$ modify (EnumSet.insert (declKey decl))
-      | otherwise = pure Nothing
-    -- TODO combine with pruneModules
-    calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls
-    infers' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) infers
+      | p decl = Just (Node decl (filterForest children))
+      | otherwise = Nothing
 
 nodeFilter :: NodeFilterConfig -> Decl -> Bool
 nodeFilter NodeFilterConfig {..} (Decl _ _ isExp typ _) = expOk && typOk

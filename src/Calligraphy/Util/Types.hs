@@ -4,9 +4,11 @@ module Calligraphy.Util.Types where
 
 import Calligraphy.Util.Printer
 import Control.Monad
+import Control.Monad.State
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
+import qualified Data.EnumSet as EnumSet
 import Data.Graph
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -54,6 +56,15 @@ ppModules :: Prints Modules
 ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
   strLn modName
   indent $ mapM_ ppTree forest
+
+-- | Remove all calls and inferences (i.e. edges) where one end is not present in the graph.
+-- This is intended to be used after an operation that may have removed nodes from the graph.
+removeDeadCalls :: Modules -> Modules
+removeDeadCalls (Modules mods calls infers) = Modules mods calls' infers'
+  where
+    outputKeys = execState ((traverse . traverse . traverse . traverse) (modify . EnumSet.insert . declKey) mods) mempty
+    calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls
+    infers' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) infers
 
 ppTree :: Prints (Tree Decl)
 ppTree (Node (Decl name _key _exp typ loc) children) = do

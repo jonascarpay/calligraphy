@@ -20,7 +20,7 @@ import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -65,19 +65,17 @@ ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 -- | If p holds, that node, and all its incestors are included in the result.
 -- Compare this to 'filterModules', where a node is included only if p holds for it and all ancestors.
 pruneModules :: (Decl -> Bool) -> Modules -> Modules
-pruneModules p (Modules modules calls infers) = Modules modules' calls' infers'
+pruneModules p (Modules modules calls infers) = removeDeadCalls $ Modules modules' calls infers
   where
-    (modules', outputKeys) = runState ((traverse . traverse) pruneForest modules) mempty
-    pruneForest :: Forest Decl -> State (EnumSet Key) (Forest Decl)
-    pruneForest = fmap catMaybes . mapM pruneTree
-    pruneTree :: Tree Decl -> State (EnumSet Key) (Maybe (Tree Decl))
+    modules' = (fmap . fmap) pruneForest modules
+    pruneForest :: Forest Decl -> Forest Decl
+    pruneForest = mapMaybe pruneTree
+    pruneTree :: Tree Decl -> Maybe (Tree Decl)
     pruneTree (Node decl children) = do
-      children' <- pruneForest children
-      if not (p decl) && null children'
-        then pure Nothing
-        else Just (Node decl children') <$ modify (EnumSet.insert (declKey decl))
-    calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls
-    infers' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) infers
+      let children' = pruneForest children
+       in if not (p decl) && null children'
+            then Nothing
+            else Just (Node decl children')
 
 dependencyFilter :: DependencyFilterConfig -> Modules -> Either DependencyFilterError Modules
 dependencyFilter (DependencyFilterConfig mfw mbw maxDepth) mods@(Modules modules calls infers) = do
