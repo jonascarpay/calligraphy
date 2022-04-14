@@ -23,6 +23,8 @@ data NodeFilterConfig = NodeFilterConfig
     hideClasses :: Bool
   }
 
+-- | If p does not hold, neither that node nor its children are included.
+-- Compare this to 'pruneModules', where a node is included if p holds for it or any of its children.
 filterModules :: (Decl -> Bool) -> Modules -> Modules
 filterModules p (Modules modules calls infers) = Modules modules' calls' infers'
   where
@@ -32,8 +34,8 @@ filterModules p (Modules modules calls infers) = Modules modules' calls' infers'
     filterTree :: Tree Decl -> State (EnumSet Key) (Maybe (Tree Decl))
     filterTree (Node decl children)
       | p decl = do
-        children' <- filterForest children
-        Just (Node decl children') <$ modify (EnumSet.insert (declKey decl))
+          children' <- filterForest children
+          Just (Node decl children') <$ modify (EnumSet.insert (declKey decl))
       | otherwise = pure Nothing
     -- TODO combine with pruneModules
     calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls

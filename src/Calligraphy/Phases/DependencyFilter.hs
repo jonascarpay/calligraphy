@@ -62,7 +62,8 @@ newtype DependencyFilterError = UnknownRootName String
 ppFilterError :: Prints DependencyFilterError
 ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 
--- TODO explain difference with filtering
+-- | If p holds, that node, and all its incestors are included in the result.
+-- Compare this to 'filterModules', where a node is included only if p holds for it and all ancestors.
 pruneModules :: (Decl -> Bool) -> Modules -> Modules
 pruneModules p (Modules modules calls infers) = Modules modules' calls' infers'
   where
