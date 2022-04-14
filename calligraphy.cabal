@@ -56,14 +56,10 @@ library
     , enummapset
     , filepath
     , ghc
-    , hashable
-    , microlens-platform
     , mtl
     , optparse-applicative
     , process
-    , regex-tdfa
     , text
-    , transformers
 
 executable calligraphy
   import:         common-options
