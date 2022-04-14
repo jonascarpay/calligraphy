@@ -1,4 +1,4 @@
-import qualified Calligraphy as C
+import qualified Calligraphy
 
 main :: IO ()
-main = C.main
+main = Calligraphy.main

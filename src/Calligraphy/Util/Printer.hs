@@ -1,5 +1,4 @@
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Calligraphy.Util.Printer where
@@ -13,7 +12,7 @@ import Data.Text.Lazy.Builder (Builder)
 import qualified Data.Text.Lazy.Builder as TB
 
 newtype Printer a = Printer {unPrinter :: RWS Int () Builder a}
-  deriving (Functor, Applicative, Monad)
+  deriving newtype (Functor, Applicative, Monad)
   deriving (Semigroup, Monoid) via (Ap Printer a)
 
 type Prints a = a -> Printer ()

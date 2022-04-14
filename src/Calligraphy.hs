@@ -1,6 +1,3 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -95,7 +92,7 @@ pConfig =
     <*> pDebugConfig
 
 output :: OutputConfig -> Text -> IO ()
-output cfg@OutputConfig {outputDotPath, outputPngPath, outputStdout} txt = do
+output cfg@OutputConfig {..} txt = do
   unless (hasOutput cfg) $ Text.hPutStrLn stderr "Warning: no output options specified, run with --help to see options"
   forM_ outputDotPath $ \fp -> Text.writeFile fp txt
   forM_ outputPngPath writePng

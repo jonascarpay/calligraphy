@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints -Wno-unused-matches #-}
 
 module Calligraphy.Compat.Lib
@@ -17,7 +16,6 @@ import Control.Monad
 import Data.IORef
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Prelude
 
 #if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Ext.Binary
