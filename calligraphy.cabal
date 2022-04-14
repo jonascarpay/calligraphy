@@ -1,24 +1,26 @@
 cabal-version:   2.4
 name:            calligraphy
-version:         0
+version:         0.1.0
 license:         BSD-3-Clause
 build-type:      Simple
 license-file:    LICENSE
 author:          Jonas Carpay
 maintainer:      Jonas Carpay <jonascarpay@gmail.com>
-copyright:       2021 Jonas Carpay
-tested-with:     GHC ==8.6.3 || ==8.8.3 || ==8.10.5
+copyright:       2022 Jonas Carpay
+tested-with:     GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.2
 extra-doc-files:
   CHANGELOG.md
   README.md
 
--- category:
+synopsis:        HIE-based Haskell call graph and source code visualizer
+homepage:        https://github.com/jonascarpay/calligraphy#readme
+category:        Development, Haskell, Language
+
 -- description:     description
--- synopsis:        one-line synopsis
--- homepage:        https://github.com/FIXME/calligraphy#readme
--- source-repository head
---   type:     git
---   location: git://github.com/FIXME/calligraphy
+
+source-repository head
+  type:     git
+  location: git://github.com/jonascarpay/calligraphy
 
 common common-options
   build-depends:    base >=4.9 && <5
