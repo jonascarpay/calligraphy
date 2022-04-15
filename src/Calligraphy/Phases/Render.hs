@@ -106,4 +106,4 @@ pRenderConfig =
     <*> flag False True (long "show-keys" <> help "Show keys with identifiers. Mostly useful for debugging purposes.")
     <*> pLocMode
     <*> flag True False (long "no-splines" <> help "Render arrows as straight lines instead of splines")
-    <*> flag False True (long "reverse-dependency-rank" <> short 'r' <> help "Make dependencies have lower rank than the dependee, i.e. show dependencies above their parent.")
+    <*> flag False True (long "reverse-dependency-rank" <> help "Make dependencies have lower rank than the dependee, i.e. show dependencies above their parent.")
