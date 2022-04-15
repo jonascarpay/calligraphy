@@ -15,13 +15,14 @@ import Text.Show (showListWith)
 data RenderConfig = RenderConfig
   { showCalls :: Bool,
     showInfers :: Bool,
+    showKey :: Bool,
     locMode :: LocMode,
     splines :: Bool,
     reverseDependencyRank :: Bool
   }
 
 render :: RenderConfig -> Prints Modules
-render RenderConfig {showCalls, showInfers, splines, reverseDependencyRank, locMode} (Modules modules calls infers) = do
+render RenderConfig {showCalls, showKey, showInfers, splines, reverseDependencyRank, locMode} (Modules modules calls infers) = do
   brack "digraph calligraphy {" "}" $ do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
@@ -47,10 +48,16 @@ render RenderConfig {showCalls, showInfers, splines, reverseDependencyRank, locM
           else edge callee caller ["style" .= "dotted", "dir" .= "back"]
   where
     nodeLabel :: Decl -> String
-    nodeLabel (Decl name _ _ _ loc) = case locMode of
-      Hide -> name
-      Line -> name <> "\nL" <> show (locLine loc)
-      LineCol -> name <> "\n" <> show loc
+    nodeLabel (Decl name key _ _ loc) =
+      intercalate "\n" $
+        flip execState [] $ do
+          modify (name :)
+          when showKey $ modify (show (unKey key) :)
+          case locMode of
+            Hide -> pure ()
+            Line -> modify (("L" <> show (locLine loc)) :)
+            LineCol -> modify (show loc :)
+
     renderTreeNode :: Prints (Tree Decl)
     renderTreeNode (Node decl@(Decl _ key exported typ _) children) = do
       strLn $ show (unKey key) <> " " <> style ["label" .= show (nodeLabel decl), "shape" .= nodeShape typ, "style" .= nodeStyle]
@@ -96,6 +103,7 @@ pRenderConfig =
   RenderConfig
     <$> flag True False (long "hide-calls" <> help "Don't show function call arrows")
     <*> flag True False (long "hide-inferences" <> help "Don't show inferred type arrows")
+    <*> flag False True (long "show-keys" <> help "Show keys with identifiers. Mostly useful for debugging purposes.")
     <*> pLocMode
     <*> flag True False (long "no-splines" <> help "Render arrows as straight lines instead of splines")
     <*> flag False True (long "reverse-dependency-rank" <> short 'r' <> help "Make dependencies have lower rank than the dependee, i.e. show dependencies above their parent.")
