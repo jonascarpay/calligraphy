@@ -22,11 +22,13 @@ import qualified Data.Set as Set
 import GHC.Iface.Ext.Binary
 import GHC.Iface.Ext.Types
 import GHC.Types.Name.Cache
+import GHC.Types.SrcLoc
 import GHC.Utils.Outputable (ppr, showSDocUnsafe)
 #else
 import HieBin
 import HieTypes
 import NameCache
+import SrcLoc
 #endif
 
 forNodeInfos_ :: Monad m => HieAST a -> (NodeInfo a -> m ()) -> m ()
@@ -101,7 +103,7 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [Use] -> use
   [Use, RecField RecFieldOcc _] -> use
   [Decl ClassDec (Just sp)] -> classdecl sp
-  [ValBind RegularBind ModuleScope (Just sp), RecField RecFieldDecl _] -> recdecl sp
+  [ValBind RegularBind ModuleScope (Just sp1), RecField RecFieldDecl (Just sp2)] -> recdecl (spanSpans sp1 sp2)
   -- -- Recordfields without valbind occur when a record occurs in multiple constructors
   [RecField RecFieldDecl (Just sp)] -> recdecl sp
   [RecField RecFieldAssign _] -> use
@@ -113,7 +115,6 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [TyVarBind _ _] -> ignore
   -- -- An empty ValBind is the result of a derived instance, and should be ignored
   [ValBind RegularBind ModuleScope _] -> ignore
-
 #if MIN_VERSION_ghc(9,0,0)
   [MatchBind, RecField RecFieldMatch _] -> ignore
   [EvidenceVarBind _ _ _] -> ignore
@@ -121,3 +122,15 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [EvidenceVarUse] -> use
 #endif
   _ -> unknown
+
+spanSpans :: Span -> Span -> Span
+spanSpans sp1 sp2 =
+  mkRealSrcSpan
+    ( min
+        (realSrcSpanStart sp1)
+        (realSrcSpanStart sp2)
+    )
+    ( max
+        (realSrcSpanEnd sp1)
+        (realSrcSpanEnd sp2)
+    )
