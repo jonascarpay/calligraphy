@@ -64,7 +64,7 @@ ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 -- | If p holds, that node, and all its incestors are included in the result.
 -- Compare this to 'filterModules', where a node is included only if p holds for it and all ancestors.
 pruneModules :: (Decl -> Bool) -> Modules -> Modules
-pruneModules p (Modules modules calls infers) = removeDeadCalls $ Modules modules' calls infers
+pruneModules p (Modules modules calls types) = removeDeadCalls $ Modules modules' calls types
   where
     modules' = (fmap . fmap) pruneForest modules
     pruneForest :: Forest Decl -> Forest Decl
@@ -77,9 +77,9 @@ pruneModules p (Modules modules calls infers) = removeDeadCalls $ Modules module
             else Just (Node decl children')
 
 dependencyFilter :: DependencyFilterConfig -> Modules -> Either DependencyFilterError Modules
-dependencyFilter (DependencyFilterConfig mfw mbw maxDepth) mods@(Modules modules calls infers) = do
-  fwFilter <- forM mfw $ flip mkDepFilter (calls <> infers)
-  bwFilter <- forM mbw $ flip mkDepFilter (Set.map swap (calls <> infers))
+dependencyFilter (DependencyFilterConfig mfw mbw maxDepth) mods@(Modules modules calls types) = do
+  fwFilter <- forM mfw $ flip mkDepFilter (calls <> types)
+  bwFilter <- forM mbw $ flip mkDepFilter (Set.map swap (calls <> types))
   pure $
     let p = case (fwFilter, bwFilter) of
           (Nothing, Nothing) -> const True

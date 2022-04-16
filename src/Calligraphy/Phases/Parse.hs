@@ -73,9 +73,9 @@ newtype GHCKey = GHCKey {_unGHCKey :: Int}
 type GHCDecl = (DeclType, GHC.Span, GHC.Name, Loc)
 
 data Collect = Collect
-  { _collectedDecls :: [GHCDecl],
-    _collectedUses :: [(GHC.RealSrcLoc, GHCKey)],
-    _collectedInferences :: EnumMap GHCKey (EnumSet GHCKey)
+  { _decls :: [GHCDecl],
+    _uses :: [(GHC.RealSrcLoc, GHCKey)],
+    _types :: EnumMap GHCKey (EnumSet GHCKey)
   }
 
 data ParseError
@@ -151,27 +151,35 @@ ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, ltree) -> d
   strLn modName
   indent $ ppLexTree ltree
 
+data ParsedFile = ParsedFile
+  { _pfModuleName :: String,
+    _pfDecls :: Forest Decl,
+    _pfCalls :: Set (GHCKey, GHCKey),
+    _pfTypings :: EnumMap GHCKey (EnumSet GHCKey),
+    _pfDebugTree :: LexTree GHC.RealSrcLoc (DeclType, Name, Loc)
+  }
+
 parseHieFiles ::
   ParseConfig ->
   [GHC.HieFile] ->
   Either ParseError (ModulesDebugInfo, Modules)
 parseHieFiles parseConfig files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
-  let (mods, debugs, calls, infers) = unzip4 (fmap (\(name, forest, call, infer, ltree) -> ((name, forest), (name, ltree), call, infer)) parsed)
-      inferPairs = rekeyCalls keymap . Set.fromList $ do
-        (term, types) <- EnumMap.toList (mconcat infers)
+  let (mods, debugs, calls, typings) = unzip4 (fmap (\(ParsedFile name forest call typing ltree) -> ((name, forest), (name, ltree), call, typing)) parsed)
+      typeEdges = rekeyCalls keymap . Set.fromList $ do
+        (term, types) <- EnumMap.toList (mconcat typings)
         typ <- EnumSet.toList types
         pure (term, typ)
-  pure (ModulesDebugInfo debugs, Modules mods (rekeyCalls keymap (mconcat calls)) inferPairs)
+  pure (ModulesDebugInfo debugs, Modules mods (rekeyCalls keymap (mconcat calls)) typeEdges)
   where
     parseFile ::
       GHC.HieFile ->
       StateT
         (Int, EnumMap GHCKey Key)
         (Either ParseError)
-        (String, Forest Decl, Set (GHCKey, GHCKey), EnumMap GHCKey (EnumSet GHCKey), LexTree GHC.RealSrcLoc (DeclType, Name, Loc))
+        ParsedFile
     parseFile file@(GHC.HieFile _ mdl _ _ avails _) = do
-      Collect decls uses infers <- lift $ collect parseConfig file
+      Collect decls uses types <- lift $ collect parseConfig file
       tree <- lift $ structure decls
       let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
             case LT.lookup loc tree of
@@ -179,7 +187,7 @@ parseHieFiles parseConfig files = do
               Just (_, callerName, _) -> Set.singleton (nameKey callerName, callee)
       let exportKeys = EnumSet.fromList $ fmap ghcNameKey $ avails >>= GHC.availNames
       forest <- rekey exportKeys (deduplicate tree)
-      pure (GHC.moduleNameString (GHC.moduleName mdl), forest, calls, infers, tree)
+      pure $ ParsedFile (GHC.moduleNameString (GHC.moduleName mdl)) forest calls types tree
     nameKey :: Name -> GHCKey
     nameKey = EnumSet.findMin . nameKeys
 
@@ -260,13 +268,13 @@ collect :: ParseConfig -> GHC.HieFile -> Either ParseError Collect
 collect parseConfig (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty mempty)
   where
     tellDecl :: GHCDecl -> StateT Collect (Either ParseError) ()
-    tellDecl decl = modify $ \(Collect decls uses infers) -> Collect (decl : decls) uses infers
+    tellDecl decl = modify $ \(Collect decls uses types) -> Collect (decl : decls) uses types
 
     tellUse :: GHC.RealSrcLoc -> GHCKey -> StateT Collect (Either ParseError) ()
-    tellUse loc key = modify $ \(Collect decls uses infers) -> Collect decls ((loc, key) : uses) infers
+    tellUse loc key = modify $ \(Collect decls uses types) -> Collect decls ((loc, key) : uses) types
 
-    tellInfer :: GHC.Name -> GHC.TypeIndex -> StateT Collect (Either ParseError) ()
-    tellInfer name ix = modify $ \(Collect decls uses infers) -> Collect decls uses (EnumMap.insertWith (<>) (ghcNameKey name) (typeMap EnumMap.! ix) infers)
+    tellType :: GHC.Name -> GHC.TypeIndex -> StateT Collect (Either ParseError) ()
+    tellType name ix = modify $ \(Collect decls uses types) -> Collect decls uses (EnumMap.insertWith (<>) (ghcNameKey name) (typeMap EnumMap.! ix) types)
 
     typeMap = resolveTypes typeArr
 
@@ -277,7 +285,7 @@ collect parseConfig (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execState
           then pure ()
           else do
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
-              (Right name, GHC.IdentifierDetails ty _) -> mapM_ (tellInfer name) ty
+              (Right name, GHC.IdentifierDetails ty _) -> mapM_ (tellType name) ty
               _ -> pure ()
             lift (classifyNode parseConfig node) >>= \case
               EmptyNode -> pure ()

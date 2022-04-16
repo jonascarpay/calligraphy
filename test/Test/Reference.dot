@@ -132,7 +132,7 @@ digraph calligraphy {
     10 -> 11 [dir=back];
     13 -> 11 [dir=back];
     10 -> 12 [dir=back];
-    19 -> 21 [dir=back];
+    19 -> 23 [dir=back];
     0 -> 27 [dir=back];
     15 -> 35 [dir=back];
     36 -> 35 [dir=back];

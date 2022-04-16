@@ -14,7 +14,7 @@ import Text.Show (showListWith)
 
 data RenderConfig = RenderConfig
   { showCalls :: Bool,
-    showInfers :: Bool,
+    showTypes :: Bool,
     showKey :: Bool,
     locMode :: LocMode,
     clusterModules :: Bool,
@@ -24,7 +24,7 @@ data RenderConfig = RenderConfig
   }
 
 render :: RenderConfig -> Prints Modules
-render RenderConfig {..} (Modules modules calls infers) = do
+render RenderConfig {..} (Modules modules calls types) = do
   brack "digraph calligraphy {" "}" $ do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
@@ -41,8 +41,8 @@ render RenderConfig {..} (Modules modules calls infers) = do
         if reverseDependencyRank
           then edge caller callee []
           else edge callee caller ["dir" .= "back"]
-    when showInfers $
-      forM_ infers $ \(caller, callee) ->
+    when showTypes $
+      forM_ types $ \(caller, callee) ->
         if reverseDependencyRank
           then edge caller callee ["style" .= "dotted"]
           else edge callee caller ["style" .= "dotted", "dir" .= "back"]
@@ -115,8 +115,8 @@ pLocMode =
 pRenderConfig :: Parser RenderConfig
 pRenderConfig =
   RenderConfig
-    <$> flag True False (long "hide-calls" <> help "Don't show function call arrows")
-    <*> flag True False (long "hide-inferences" <> help "Don't show inferred type arrows")
+    <$> flag True False (long "hide-calls" <> help "Don't show call arrows")
+    <*> flag True False (long "hide-types" <> help "Don't show type arrows")
     <*> flag False True (long "show-keys" <> help "Show keys with identifiers. Mostly useful for debugging purposes.")
     <*> pLocMode
     <*> flag True False (long "no-cluster-modules" <> help "Don't draw modules as a cluster.")

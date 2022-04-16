@@ -22,7 +22,7 @@ data NodeFilterConfig = NodeFilterConfig
 -- | If p does not hold, neither that node nor its children are included.
 -- Compare this to 'pruneModules', where a node is included if p holds for it or any of its children.
 filterModules :: (Decl -> Bool) -> Modules -> Modules
-filterModules p (Modules modules calls infers) = removeDeadCalls $ Modules modules' calls infers
+filterModules p (Modules modules calls types) = removeDeadCalls $ Modules modules' calls types
   where
     modules' = (fmap . fmap) filterForest modules
     filterForest :: Forest Decl -> Forest Decl

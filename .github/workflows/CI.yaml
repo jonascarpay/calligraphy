@@ -65,4 +65,7 @@ jobs:
       - run: cabal new-build --only-dependencies
       - run: cabal new-build --ghc-options=-fwrite-ide-info
       - run: cabal new-test --test-show-details=direct
-      - run: cabal new-exec calligraphy -- -m Test.Reference --parse-strict --output-stdout | diff -u test/Test/Reference.dot -
+      - name: Test against reference
+        run: |
+          cabal new-exec calligraphy -- -m Test.Reference --parse-strict -d out.dot --no-type-deps
+          diff -u test/Test/Reference.dot out.dot
