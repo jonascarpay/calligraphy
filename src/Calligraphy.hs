@@ -101,20 +101,20 @@ output cfg@OutputConfig {..} txt = do
     hasOutput (OutputConfig Nothing Nothing False) = False
     hasOutput _ = True
 
-    writePng fp = do
-      mexe <- findExecutable "dot"
+    writePng (fp, cmd) = do
+      mexe <- findExecutable cmd
       case mexe of
-        Nothing -> die "Unable to find 'dot' executable! Make sure it is installed, or use another output method."
+        Nothing -> die $ "Unable to find '" <> cmd <> "' executable! Make sure it is installed, or use another output method/engine."
         Just exe -> do
           (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
           unless (code == ExitSuccess) $ do
-            putStrLn "dot crashed"
+            putStrLn $ cmd <> " crashed:"
             putStrLn out
             putStrLn err
 
 data OutputConfig = OutputConfig
   { outputDotPath :: Maybe FilePath,
-    outputPngPath :: Maybe FilePath,
+    outputPngPath :: Maybe (FilePath, String),
     outputStdout :: Bool
   }
 
@@ -122,7 +122,12 @@ pOutputConfig :: Parser OutputConfig
 pOutputConfig =
   OutputConfig
     <$> optional (strOption (short 'd' <> long "output-dot" <> metavar "FILE" <> help ".dot output path"))
-    <*> optional (strOption (short 'p' <> long "output-png" <> metavar "FILE" <> help ".png output path (requires 'dot' executable in PATH)"))
+    <*> optional
+      ( liftA2
+          (,)
+          (strOption (short 'p' <> long "output-png" <> metavar "FILE" <> help ".png output path (requires 'dot' executable in PATH)"))
+          (strOption (long "render-engine" <> metavar "CMD" <> help "Render engine to use with --output-png" <> value "dot" <> showDefault))
+      )
     <*> switch (long "output-stdout" <> help "Output to stdout")
 
 data DebugConfig = DebugConfig
