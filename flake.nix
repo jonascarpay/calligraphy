@@ -24,6 +24,7 @@
             hspkgs.shellFor {
               withHoogle = true;
               packages = hpkgs: [ hpkgs.calligraphy ];
+              GHC_VERSION = compiler;
               nativeBuildInputs = [
                 hspkgs.cabal-install
                 hspkgs.haskell-language-server
