@@ -1,5 +1,5 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Calligraphy.Phases.Render (render, pRenderConfig, RenderConfig) where
 
@@ -17,24 +17,24 @@ data RenderConfig = RenderConfig
     showInfers :: Bool,
     showKey :: Bool,
     locMode :: LocMode,
+    clusterModules :: Bool,
+    clusterGroups :: Bool,
     splines :: Bool,
     reverseDependencyRank :: Bool
   }
 
 render :: RenderConfig -> Prints Modules
-render RenderConfig {showCalls, showKey, showInfers, splines, reverseDependencyRank, locMode} (Modules modules calls infers) = do
+render RenderConfig {..} (Modules modules calls infers) = do
   brack "digraph calligraphy {" "}" $ do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
     textLn "graph [outputorder=edgesfirst];"
     let nonEmptyModules = filter (not . null . snd) modules
     forM_ (zip nonEmptyModules [0 :: Int ..]) $
-      \((modName, forest), ix) ->
-        brack ("subgraph cluster_module_" <> show ix <> " {") "}" $ do
-          strLn $ "label=" <> show modName <> ";"
-          forM_ (zip forest [0 :: Int ..]) $ \(root, ix') -> do
-            brack ("subgraph cluster_" <> show ix <> "_" <> show ix' <> " {") "}" $ do
-              textLn "style=invis;"
+      \((modName, forest), moduleIx) ->
+        moduleCluster moduleIx modName $
+          forM_ (zip forest [0 :: Int ..]) $ \(root, forestIx) -> do
+            treeCluster moduleIx forestIx $
               renderTreeNode root
     when showCalls $
       forM_ calls $ \(caller, callee) ->
@@ -47,6 +47,20 @@ render RenderConfig {showCalls, showKey, showInfers, splines, reverseDependencyR
           then edge caller callee ["style" .= "dotted"]
           else edge callee caller ["style" .= "dotted", "dir" .= "back"]
   where
+    moduleCluster :: Int -> String -> Printer a -> Printer a
+    moduleCluster modIx modName inner
+      | clusterModules =
+          brack ("subgraph cluster_module_" <> show modIx <> " {") "}" $ do
+            strLn $ "label=" <> show modName <> ";"
+            inner
+      | otherwise = inner
+    treeCluster :: Int -> Int -> Printer a -> Printer a
+    treeCluster modIx groupIx inner
+      | clusterGroups =
+          brack ("subgraph cluster_" <> show modIx <> "_" <> show groupIx <> " {") "}" $ do
+            textLn "style=invis;"
+            inner
+      | otherwise = inner
     nodeLabel :: Decl -> String
     nodeLabel (Decl name key _ _ loc) =
       intercalate "\n" $
@@ -105,5 +119,7 @@ pRenderConfig =
     <*> flag True False (long "hide-inferences" <> help "Don't show inferred type arrows")
     <*> flag False True (long "show-keys" <> help "Show keys with identifiers. Mostly useful for debugging purposes.")
     <*> pLocMode
+    <*> flag True False (long "no-cluster-modules" <> help "Don't draw modules as a cluster.")
+    <*> flag True False (long "no-cluster-trees" <> help "Don't draw definition trees as a cluster.")
     <*> flag True False (long "no-splines" <> help "Render arrows as straight lines instead of splines")
     <*> flag False True (long "reverse-dependency-rank" <> help "Make dependencies have lower rank than the dependee, i.e. show dependencies above their parent.")
