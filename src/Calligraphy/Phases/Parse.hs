@@ -52,11 +52,7 @@ resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <
     -- These are variables, which we ignore, but it can't hurt
     keys (GHC.HTyVarTy name) = EnumSet.singleton (ghcNameKey name)
     keys _ = mempty
-    go ::
-      GHC.TypeIndex ->
-      State
-        (EnumSet GHC.TypeIndex)
-        (EnumSet GHCKey)
+    go :: GHC.TypeIndex -> State (EnumSet GHC.TypeIndex) (EnumSet GHCKey)
     go current =
       gets (EnumSet.member current) >>= \case
         True -> pure mempty
