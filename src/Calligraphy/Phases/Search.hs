@@ -15,7 +15,7 @@ import Data.IORef
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Options.Applicative hiding (str)
-import Options.Applicative.NonEmpty (some1)
+import Options.Applicative.Types (fromM, manyM, oneM)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
 import System.FilePath (isExtensionOf, (</>))
 
@@ -78,6 +78,10 @@ matchPattern (Pattern matcher) = go False matcher
     go True ms (_ : cs) = go True ms cs
     go _ [] [] = True
     go _ _ _ = False
+
+-- Copied from Options.Applicative.NonEmpty, which isn't available in LTS < 18
+some1 :: Parser a -> Parser (NonEmpty a)
+some1 p = fromM $ (:|) <$> oneM p <*> manyM p
 
 pSearchConfig :: Parser SearchConfig
 pSearchConfig =
