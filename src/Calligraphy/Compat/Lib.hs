@@ -14,12 +14,12 @@ module Calligraphy.Compat.Lib
   )
 where
 
-import Control.Monad
 import Data.IORef
 import Data.Set (Set)
 import qualified Data.Set as Set
 
 #if MIN_VERSION_ghc(9,0,0)
+import Control.Monad
 import GHC.Iface.Ext.Binary
 import GHC.Iface.Ext.Types
 import GHC.Types.Name.Cache
