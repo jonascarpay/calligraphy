@@ -4,6 +4,27 @@
 
 ![Calligraphy](./calligraphy.svg)
 
+`calligraphy` is a Haskell call graph/source code visualizer.
+By working on GHC-generated HIE files we get advanced features, like type inference, for free.
+
+See [the accompanying blog post] for more examples, and an extended tutorial.
+
+## Usage
+
+1. Install `calligraphy` through your Haskell package manager.
+Since it uses HIE files, it usually needs to be compiled with the same version of GHC as your project.
+
+2. Generate HIE files for your project by passing the `-fwrite-ide-info` to GHC.
+If you're using Cabal, for example, you'd invoke `cabal new-build --ghc-options=-fwrite-ide-info`
+
+3. Run `calligraphy`.
+You probably want to start by running `calligraphy --help` to see what options it supports, but as an example, the above graph was produced using
+```
+calligraphy Calligraphy --output-png out.png --collapse-data --collapse-values --hide-loops
+```
+where `Calligraphy` in this case is the name of the module.
+
+
 ## Philosophy, a warning, and a roadmap
 
 Writing, and especially maintaining, Haskell tooling really hard.
