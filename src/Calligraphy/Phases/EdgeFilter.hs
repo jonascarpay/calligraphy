@@ -27,7 +27,7 @@ filterEdges
 pEdgeFilterConfig :: Parser EdgeFilterConfig
 pEdgeFilterConfig =
   EdgeFilterConfig
-    <$> flag True False (long "no-value-deps" <> help "Ignore value dependencies.")
-    <*> flag True False (long "no-type-deps" <> help "Ignore type dependencies.")
-    <*> flag False True (long "hide-double-edges" <> help "Remove type edges if value edges already exist.")
-    <*> flag False True (long "no-loops" <> help "Hide loops, i.e. edges that start and end at the same node.")
+    <$> flag True False (long "no-value-deps" <> help "Ignore value dependencies. This means they won't be drawn or included in dependency calculations.")
+    <*> flag True False (long "no-type-deps" <> help "Ignore type dependencies. This means they won't be drawn or included in dependency calculations.")
+    <*> flag False True (long "hide-double-edges" <> help "Hide type edges if value edges already exist.")
+    <*> flag False True (long "hide-loops" <> help "Hide loops, i.e. edges that start and end at the same node.")
