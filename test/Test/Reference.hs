@@ -55,7 +55,7 @@ class Class a where
   method _ = impl
     where
       impl = Loc2 True
-
+  {-# INLINE method #-}
   hiddenMethod :: a -> a
 
 class Class a => SubClass a where
