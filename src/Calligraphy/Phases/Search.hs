@@ -13,13 +13,14 @@ import Control.Applicative
 import Control.Monad.State
 import Data.IORef
 import Data.List (isPrefixOf)
-import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Options.Applicative hiding (str)
+import Options.Applicative.NonEmpty (some1)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
 import System.FilePath (isExtensionOf, (</>))
 
 searchFiles :: SearchConfig -> IO [GHC.HieFile]
-searchFiles SearchConfig {searchDotPaths, searchRoots, includeFilters, excludeFilters} = do
+searchFiles SearchConfig {searchDotPaths, searchRoots, includePatterns, excludePatterns} = do
   hieFilePaths <- searchHieFilePaths
 
   hieFiles <- do
@@ -30,7 +31,8 @@ searchFiles SearchConfig {searchDotPaths, searchRoots, includeFilters, excludeFi
   pure $
     flip filter hieFiles $ \file ->
       let modName = GHC.moduleNameString . GHC.moduleName . GHC.hie_module $ file
-       in maybe True (not . any (flip matchFilter modName)) excludeFilters && maybe True (any (flip matchFilter modName)) includeFilters
+       in any (flip matchPattern modName) includePatterns
+            && maybe True (not . any (flip matchPattern modName)) excludePatterns
   where
     searchHieFilePaths = do
       roots <- mapM makeAbsolute (if null searchRoots then ["./."] else searchRoots)
@@ -60,16 +62,16 @@ readHieFileWithWarning ref path = do
   pure hie
 
 data SearchConfig = SearchConfig
-  { searchDotPaths :: Bool,
-    searchRoots :: [FilePath],
-    includeFilters :: Maybe (NonEmpty Filter),
-    excludeFilters :: Maybe (NonEmpty Filter)
+  { includePatterns :: NonEmpty Pattern,
+    excludePatterns :: Maybe (NonEmpty Pattern),
+    searchDotPaths :: Bool,
+    searchRoots :: [FilePath]
   }
 
-newtype Filter = Filter String
+newtype Pattern = Pattern String
 
-matchFilter :: Filter -> String -> Bool
-matchFilter (Filter matcher) = go False matcher
+matchPattern :: Pattern -> String -> Bool
+matchPattern (Pattern matcher) = go False matcher
   where
     go _ ('*' : ms) cs = go True ms cs
     go _ (m : ms) (c : cs) | m == c = go False ms cs || go True (m : ms) cs
@@ -80,7 +82,23 @@ matchFilter (Filter matcher) = go False matcher
 pSearchConfig :: Parser SearchConfig
 pSearchConfig =
   SearchConfig
-    <$> switch
+    <$> some1
+      ( Pattern
+          <$> strArgument
+            ( metavar "PATTERN"
+                <> help "Name of the module to include. Can contain '*' wildcards. Can be repeated."
+            )
+      )
+    <*> (fmap nonEmpty . many)
+      ( Pattern
+          <$> strOption
+            ( long "exclude"
+                <> short 'e'
+                <> metavar "PATTERN"
+                <> help "Exclude modules that match the specified pattern. Can contain '*' wildcards. Can be repeated."
+            )
+      )
+    <*> switch
       ( long "hidden"
           <> help "Search paths with a leading period. Disabled by default."
       )
@@ -91,22 +109,4 @@ pSearchConfig =
               <> metavar "PATH"
               <> help "Filepaths to search. If passed a file, it will be processed as is. If passed a directory, the directory will be searched recursively. Can be repeated. Defaults to ./."
           )
-      )
-    <*> (fmap nonEmpty . many)
-      ( Filter
-          <$> strOption
-            ( long "module"
-                <> short 'm'
-                <> metavar "PATTERN"
-                <> help "Only include modules that match the specified pattern. Can contain '*' wildcards. Can be repeated."
-            )
-      )
-    <*> (fmap nonEmpty . many)
-      ( Filter
-          <$> strOption
-            ( long "exclude"
-                <> short 'e'
-                <> metavar "PATTERN"
-                <> help "Exclude modules that match the specified pattern. Can contain '*' wildcards. Can be repeated."
-            )
       )
