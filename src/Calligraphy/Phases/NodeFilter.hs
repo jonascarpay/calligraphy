@@ -49,7 +49,7 @@ filterNodes cfg = filterModules (nodeFilter cfg)
 pNodeFilterConfig :: Parser NodeFilterConfig
 pNodeFilterConfig =
   NodeFilterConfig
-    <$> switch (long "hide-local-bindings" <> long "exports-only" <> help "Don't draw non-exported bindings.")
+    <$> switch (long "exports-only" <> long "hide-local-bindings" <> help "Don't draw non-exported bindings.")
     <*> switch (long "hide-values" <> help "Hide nodes for values")
     <*> switch (long "hide-records" <> help "Hide nodes for record fields")
     <*> switch (long "hide-constructors" <> help "Hide nodes for data constructors")
