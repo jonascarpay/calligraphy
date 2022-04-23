@@ -57,6 +57,7 @@ class Class a where
       impl = Loc2 True
   {-# INLINE method #-}
   hiddenMethod :: a -> a
+  {-# MINIMAL hiddenMethod #-}
 
 class Class a => SubClass a where
   soup :: a -> Int

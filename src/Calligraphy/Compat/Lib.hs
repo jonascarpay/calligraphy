@@ -9,6 +9,7 @@ module Calligraphy.Compat.Lib
     isInstanceNode,
     isTypeSignatureNode,
     isInlineNode,
+    isMinimalNode,
     showAnns,
     classifyIdentifier,
   )
@@ -60,6 +61,7 @@ readHieFileCompat ref fp = do
 isInstanceNode :: NodeInfo a -> Bool
 isTypeSignatureNode :: NodeInfo a -> Bool
 isInlineNode :: NodeInfo a -> Bool
+isMinimalNode :: NodeInfo a -> Bool
 showAnns :: NodeInfo a -> String
 #if MIN_VERSION_ghc(9,2,0)
 
@@ -68,6 +70,8 @@ isInstanceNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "ClsInstD" "Inst
 isTypeSignatureNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "TypeSig" "Sig") anns
 
 isInlineNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "InlineSig" "Sig") anns
+
+isMinimalNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "MinimalSig" "Sig") anns
 
 showAnns (NodeInfo anns _ _) = unwords (show . unNodeAnnotation <$> Set.toList anns)
   where
@@ -80,6 +84,8 @@ isInstanceNode (NodeInfo anns _ _) = Set.member ("ClsInstD", "InstDecl") anns
 isTypeSignatureNode (NodeInfo anns _ _) = Set.member ("TypeSig", "Sig") anns
 
 isInlineNode (NodeInfo anns _ _) = Set.member ("InlineSig", "Sig") anns
+
+isMinimalNode (NodeInfo anns _ _) = Set.member ("MinimalSig", "Sig") anns
 
 showAnns (NodeInfo anns _ _) = unwords (show <$> Set.toList anns)
 
