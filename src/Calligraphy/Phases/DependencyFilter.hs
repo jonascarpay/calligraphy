@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Calligraphy.Phases.DependencyFilter
   ( DependencyFilterConfig,
