@@ -48,6 +48,7 @@ library
     Calligraphy.Phases.Render
     Calligraphy.Phases.Search
     Calligraphy.Util.LexTree
+    Calligraphy.Util.Optparse
     Calligraphy.Util.Printer
     Calligraphy.Util.Types
 

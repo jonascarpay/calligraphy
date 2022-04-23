@@ -52,12 +52,12 @@ mainWithConfig AppConfig {..} = do
   (modulesDebug, modules) <- either (printDie . ppParseError) pure (parseHieFiles parseConfig hieFiles)
   debug dumpLexicalTree $ ppModulesDebugInfo modulesDebug
   let modulesCollapsed = collapse collapseConfig modules
-  let modulesEdgeFiltered = filterEdges edgeFilterConfig modulesCollapsed
-  let modulesNodeFiltered = filterNodes nodeFilterConfig modulesEdgeFiltered
+  let modulesNodeFiltered = filterNodes nodeFilterConfig modulesCollapsed
   modulesDependencyFiltered <- either (printDie . ppFilterError) pure $ dependencyFilter dependencyFilterConfig modulesNodeFiltered
-  debug dumpFinal $ ppModules modulesDependencyFiltered
+  let modulesFinal = filterEdges edgeFilterConfig modulesDependencyFiltered
+  debug dumpFinal $ ppModules modulesFinal
 
-  let txt = runPrinter $ render renderConfig modulesDependencyFiltered
+  let txt = runPrinter $ render renderConfig modulesFinal
 
   output outputConfig txt
 
