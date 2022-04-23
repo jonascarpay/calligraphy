@@ -78,8 +78,3 @@ enableDisableFlagsNoDefault enabledValue disabledValue name helpText mods =
                 <> mods
             )
       )
-  where
-    last xs =
-      case reverse xs of
-        [] -> error "enableDisableFlagsNoDefault.last"
-        x : _ -> x
