@@ -42,7 +42,7 @@ library
     Calligraphy.Compat.Lib
     Calligraphy.Phases.Collapse
     Calligraphy.Phases.DependencyFilter
-    Calligraphy.Phases.EdgeFilter
+    Calligraphy.Phases.EdgeCleanup
     Calligraphy.Phases.NodeFilter
     Calligraphy.Phases.Parse
     Calligraphy.Phases.Render

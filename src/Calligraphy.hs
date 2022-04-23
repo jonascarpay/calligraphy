@@ -7,7 +7,7 @@ import Calligraphy.Compat.Debug (ppHieFile)
 import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Phases.Collapse
 import Calligraphy.Phases.DependencyFilter
-import Calligraphy.Phases.EdgeFilter
+import Calligraphy.Phases.EdgeCleanup
 import Calligraphy.Phases.NodeFilter
 import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render
@@ -54,10 +54,10 @@ mainWithConfig AppConfig {..} = do
   let modulesCollapsed = collapse collapseConfig modules
   let modulesNodeFiltered = filterNodes nodeFilterConfig modulesCollapsed
   modulesDependencyFiltered <- either (printDie . ppFilterError) pure $ dependencyFilter dependencyFilterConfig modulesNodeFiltered
-  let modulesFinal = filterEdges edgeFilterConfig modulesDependencyFiltered
-  debug dumpFinal $ ppModules modulesFinal
+  let modulesCleaned = cleanupEdges edgeFilterConfig modulesDependencyFiltered
+  debug dumpFinal $ ppModules modulesCleaned
 
-  let txt = runPrinter $ render renderConfig modulesFinal
+  let txt = runPrinter $ render renderConfig modulesCleaned
 
   output outputConfig txt
 
@@ -66,7 +66,7 @@ data AppConfig = AppConfig
     parseConfig :: ParseConfig,
     collapseConfig :: CollapseConfig,
     dependencyFilterConfig :: DependencyFilterConfig,
-    edgeFilterConfig :: EdgeFilterConfig,
+    edgeFilterConfig :: EdgeCleanupConfig,
     nodeFilterConfig :: NodeFilterConfig,
     renderConfig :: RenderConfig,
     outputConfig :: OutputConfig,
@@ -85,7 +85,7 @@ pConfig =
     <*> pParseConfig
     <*> pCollapseConfig
     <*> pDependencyFilterConfig
-    <*> pEdgeFilterConfig
+    <*> pEdgeCleanupConfig
     <*> pNodeFilterConfig
     <*> pRenderConfig
     <*> pOutputConfig
