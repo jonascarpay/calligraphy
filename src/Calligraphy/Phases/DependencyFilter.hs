@@ -77,7 +77,7 @@ ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 pruneModules :: (Decl -> Bool) -> Modules -> Modules
 pruneModules p (Modules modules calls types) = removeDeadCalls $ Modules modules' calls types
   where
-    modules' = (fmap . fmap) pruneForest modules
+    modules' = over (traverse . modForest) pruneForest modules
     pruneForest :: Forest Decl -> Forest Decl
     pruneForest = mapMaybe pruneTree
     pruneTree :: Tree Decl -> Maybe (Tree Decl)
@@ -100,7 +100,7 @@ dependencyFilter (DependencyFilterConfig mfw mbw maxDepth useParent useChild use
      in pruneModules p mods
   where
     names :: Map String (EnumSet Key)
-    names = Map.unionsWith mappend (fmap (uncurry resolveNames) modules)
+    names = Map.unionsWith mappend (fmap resolveNames modules)
     mkDepFilter :: NonEmpty String -> Set (Key, Key) -> Either DependencyFilterError (Decl -> Bool)
     mkDepFilter rootNames edges = do
       rootKeys <- forM rootNames $ \name -> maybe (Left $ UnknownRootName name) (pure . EnumSet.toList) (Map.lookup name names)
@@ -116,7 +116,7 @@ dependencyFilter (DependencyFilterConfig mfw mbw maxDepth useParent useChild use
         ]
 
     parentEdges, childEdges :: Set (Key, Key)
-    (parentEdges, childEdges) = execState ((traverse . traverse . traverse) go modules) mempty
+    (parentEdges, childEdges) = execState (forT_ (traverse . modForest . traverse) modules go) mempty
       where
         go :: Tree Decl -> State (Set (Key, Key), Set (Key, Key)) ()
         go (Node parent children) =
@@ -128,8 +128,8 @@ dependencyFilter (DependencyFilterConfig mfw mbw maxDepth useParent useChild use
 
 -- | Create a map of all names, and the keys they correspond to.
 -- For every name in the source, this introduces two entries; one naked, and one qualified with the module name.
-resolveNames :: String -> Forest Decl -> Map String (EnumSet Key)
-resolveNames modName forest =
+resolveNames :: Module -> Map String (EnumSet Key)
+resolveNames (Module modName _ forest) =
   flip execState mempty $
     flip (traverse . traverse) forest $
       \(Decl name key _ _ _) ->

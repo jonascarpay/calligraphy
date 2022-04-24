@@ -149,6 +149,7 @@ ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, ltree) -> d
 
 data ParsedFile = ParsedFile
   { _pfModuleName :: String,
+    _pfFilePath :: FilePath,
     _pfDecls :: Forest Decl,
     _pfCalls :: Set (GHCKey, GHCKey),
     _pfTypings :: EnumMap GHCKey (EnumSet GHCKey),
@@ -161,7 +162,7 @@ parseHieFiles ::
   Either ParseError (ModulesDebugInfo, Modules)
 parseHieFiles parseConfig files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
-  let (mods, debugs, calls, typings) = unzip4 (fmap (\(ParsedFile name forest call typing ltree) -> ((name, forest), (name, ltree), call, typing)) parsed)
+  let (mods, debugs, calls, typings) = unzip4 (fmap (\(ParsedFile name path forest call typing ltree) -> ((Module name path forest), (name, ltree), call, typing)) parsed)
       typeEdges = rekeyCalls keymap . Set.fromList $ do
         (term, types) <- EnumMap.toList (mconcat typings)
         typ <- EnumSet.toList types
@@ -174,7 +175,7 @@ parseHieFiles parseConfig files = do
         (Int, EnumMap GHCKey Key)
         (Either ParseError)
         ParsedFile
-    parseFile file@(GHC.HieFile _ mdl _ _ avails _) = do
+    parseFile file@(GHC.HieFile filepath mdl _ _ avails _) = do
       Collect decls uses types <- lift $ collect parseConfig file
       tree <- lift $ structure decls
       let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
@@ -183,7 +184,7 @@ parseHieFiles parseConfig files = do
               Just (_, callerName, _) -> Set.singleton (nameKey callerName, callee)
       let exportKeys = EnumSet.fromList $ fmap ghcNameKey $ avails >>= GHC.availNames
       forest <- rekey exportKeys (deduplicate tree)
-      pure $ ParsedFile (GHC.moduleNameString (GHC.moduleName mdl)) forest calls types tree
+      pure $ ParsedFile (GHC.moduleNameString (GHC.moduleName mdl)) filepath forest calls types tree
     nameKey :: Name -> GHCKey
     nameKey = EnumSet.findMin . nameKeys
 

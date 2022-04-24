@@ -29,9 +29,9 @@ render RenderConfig {..} (Modules modules calls types) = do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
     textLn "graph [outputorder=edgesfirst];"
-    let nonEmptyModules = filter (not . null . snd) modules
+    let nonEmptyModules = filter (not . null . moduleForest) modules
     forM_ (zip nonEmptyModules [0 :: Int ..]) $
-      \((modName, forest), moduleIx) ->
+      \(Module modName _ forest, moduleIx) ->
         moduleCluster moduleIx modName $
           forM_ (zip forest [0 :: Int ..]) $ \(root, forestIx) -> do
             treeCluster moduleIx forestIx $

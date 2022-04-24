@@ -26,12 +26,12 @@ cleanupEdges
       cleanDoublesFn = if cleanDoubles then (Set.\\ calls) else id
       cleanDataFn = if cleanData then (Set.\\ dataEdges) else id
       cleanClassFn = if cleanClass then (Set.\\ classEdges) else id
-      dataEdges = execState ((traverse . traverse . traverse) go mods) mempty
+      dataEdges = execState (forT_ (traverse . modForest . traverse) mods go) mempty
         where
           go :: Tree Decl -> State (Set (Key, Key)) ()
           go (Node (Decl _ k _ DataDecl _) children) = void $ (traverse . traverse) (\d -> modify (Set.insert (declKey d, k))) children
           go (Node _ children) = mapM_ go children
-      classEdges = execState ((traverse . traverse . traverse) go mods) mempty
+      classEdges = execState (forT_ (traverse . modForest . traverse) mods go) mempty
         where
           go :: Tree Decl -> State (Set (Key, Key)) ()
           go (Node (Decl _ k _ ClassDecl _) children) = void $ (traverse . traverse) (\d -> modify (Set.insert (declKey d, k))) children

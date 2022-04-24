@@ -3,7 +3,6 @@
 module Calligraphy.Phases.NodeFilter (filterNodes, NodeFilterConfig, pNodeFilterConfig) where
 
 import Calligraphy.Util.Types
-import Control.Monad.State
 import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Data.Tree
@@ -24,7 +23,7 @@ data NodeFilterConfig = NodeFilterConfig
 filterModules :: (Decl -> Bool) -> Modules -> Modules
 filterModules p (Modules modules calls types) = removeDeadCalls $ Modules modules' calls types
   where
-    modules' = (fmap . fmap) filterForest modules
+    modules' = over (traverse . modForest) filterForest modules
     filterForest :: Forest Decl -> Forest Decl
     filterForest = mapMaybe filterTree
     filterTree :: Tree Decl -> Maybe (Tree Decl)

@@ -1,9 +1,12 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Calligraphy.Util.Types where
 
 import Calligraphy.Util.Printer
 import Control.Monad
+import Control.Monad.Identity
 import Control.Monad.State
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
@@ -15,9 +18,15 @@ import qualified Data.Set as Set
 
 -- | This is the main type that phases will operate on.
 data Modules = Modules
-  { _modules :: [(String, Forest Decl)],
+  { _modules :: [Module],
     _calls :: Set (Key, Key),
     _types :: Set (Key, Key)
+  }
+
+data Module = Module
+  { moduleName :: String,
+    modulePath :: FilePath,
+    moduleForest :: Forest Decl
   }
 
 data Decl = Decl
@@ -45,6 +54,38 @@ data Loc = Loc
     locCol :: Int
   }
 
+type Traversal s t a b = forall m. Applicative m => (a -> m b) -> (s -> m t)
+
+type Traversal' s a = Traversal s s a a
+
+{-# INLINE modDecls #-}
+modDecls :: Traversal' Module Decl
+modDecls = modForest . traverse . traverse
+
+{-# INLINE modForest #-}
+modForest :: Traversal' Module (Forest Decl)
+modForest f (Module nm fp ds) = Module nm fp <$> f ds
+
+{-# INLINE modsDecls #-}
+modsDecls :: Traversal' Modules Decl
+modsDecls f (Modules ms cs ts) = (\ms' -> Modules ms' cs ts) <$> (traverse . modDecls) f ms
+
+newtype ConstT m a = ConstT {unConstT :: m ()}
+  deriving (Functor)
+
+instance Applicative m => Applicative (ConstT m) where
+  {-# INLINE pure #-}
+  pure _ = ConstT (pure ())
+  {-# INLINE (<*>) #-}
+  ConstT mf <*> ConstT ma = ConstT (mf *> ma)
+
+{-# INLINE forT_ #-}
+forT_ :: Applicative m => Traversal s t a b -> s -> (a -> m ()) -> m ()
+forT_ t s f = unConstT $ t (ConstT . f) s
+
+over :: Traversal s t a b -> (a -> b) -> (s -> t)
+over t f = runIdentity . t (Identity . f)
+
 instance Show Loc where
   showsPrec _ (Loc ln col) = shows ln . showChar ':' . shows col
 
@@ -53,8 +94,8 @@ rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
 rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
 
 ppModules :: Prints Modules
-ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
-  strLn modName
+ppModules (Modules modules _ _) = forM_ modules $ \(Module modName modPath forest) -> do
+  strLn $ modName <> " (" <> modPath <> ")"
   indent $ mapM_ ppTree forest
 
 -- | Remove all calls and typings (i.e. edges) where one end is not present in the graph.
@@ -62,7 +103,7 @@ ppModules (Modules modules _ _) = forM_ modules $ \(modName, forest) -> do
 removeDeadCalls :: Modules -> Modules
 removeDeadCalls (Modules mods calls types) = Modules mods calls' types'
   where
-    outputKeys = execState ((traverse . traverse . traverse . traverse) (modify . EnumSet.insert . declKey) mods) mempty
+    outputKeys = execState (forT_ (traverse . modDecls) mods (modify . EnumSet.insert . declKey)) mempty
     calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls
     types' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) types
 
