@@ -30,9 +30,10 @@ searchFiles SearchConfig {searchDotPaths, searchRoots, includePatterns, excludeP
 
   pure $
     flip filter hieFiles $ \file ->
-      let modName = GHC.moduleNameString . GHC.moduleName . GHC.hie_module $ file
-       in any (flip matchPattern modName) includePatterns
-            && maybe True (not . any (flip matchPattern modName)) excludePatterns
+      let matches pat =
+            matchPattern pat (GHC.moduleNameString . GHC.moduleName . GHC.hie_module $ file)
+              || matchPattern pat (GHC.hie_hs_file file)
+       in maybe True (any matches) includePatterns && maybe True (not . any matches) excludePatterns
   where
     searchHieFilePaths = do
       roots <- mapM makeAbsolute (if null searchRoots then ["./."] else searchRoots)
@@ -62,7 +63,7 @@ readHieFileWithWarning ref path = do
   pure hie
 
 data SearchConfig = SearchConfig
-  { includePatterns :: NonEmpty Pattern,
+  { includePatterns :: Maybe (NonEmpty Pattern),
     excludePatterns :: Maybe (NonEmpty Pattern),
     searchDotPaths :: Bool,
     searchRoots :: [FilePath]
@@ -86,11 +87,11 @@ some1 p = fromM $ (:|) <$> oneM p <*> manyM p
 pSearchConfig :: Parser SearchConfig
 pSearchConfig =
   SearchConfig
-    <$> some1
+    <$> (fmap nonEmpty . many)
       ( Pattern
           <$> strArgument
             ( metavar "MODULE"
-                <> help "Name of the module to include. Can contain '*' wildcards. Can be repeated."
+                <> help "Name or filepath of a module to include in the call graph. Can contain '*' wildcards. Defaults to '*'."
             )
       )
     <*> (fmap nonEmpty . many)
@@ -99,18 +100,15 @@ pSearchConfig =
             ( long "exclude"
                 <> short 'e'
                 <> metavar "MODULE"
-                <> help "Exclude modules that match the specified pattern. Can contain '*' wildcards. Can be repeated."
+                <> help "Name or filepath of a module to exclude in the call graph. Can contain '*' wildcards."
             )
       )
-    <*> switch
-      ( long "hidden"
-          <> help "Search paths with a leading period. Disabled by default."
-      )
+    <*> switch (long "hidden" <> help "Search paths with a leading period. Disabled by default.")
     <*> many
       ( strOption
           ( long "input"
               <> short 'i'
               <> metavar "PATH"
-              <> help "Filepaths to search. If passed a file, it will be processed as is. If passed a directory, the directory will be searched recursively. Can be repeated. Defaults to ./."
+              <> help "Filepaths to search for HIE files. If passed a file, it will be processed as is. If passed a directory, the directory will be searched recursively. Can be repeated. Defaults to './.'"
           )
       )
