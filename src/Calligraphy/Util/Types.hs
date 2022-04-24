@@ -2,7 +2,26 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Calligraphy.Util.Types where
+module Calligraphy.Util.Types
+  ( -- * Data types
+    CallGraph (..),
+    Module (..),
+    Decl (..),
+    DeclType (..),
+    Key (..),
+    Loc (..),
+
+    -- * Utility functions
+    rekeyCalls,
+    removeDeadCalls,
+    ppCallGraph,
+
+    -- * Lensy stuff
+    over,
+    forT_,
+    modForest,
+  )
+where
 
 import Calligraphy.Util.Printer
 import Control.Monad
@@ -17,7 +36,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 -- | This is the main type that phases will operate on.
-data Modules = Modules
+data CallGraph = CallGraph
   { _modules :: [Module],
     _calls :: Set (Key, Key),
     _types :: Set (Key, Key)
@@ -66,10 +85,6 @@ modDecls = modForest . traverse . traverse
 modForest :: Traversal' Module (Forest Decl)
 modForest f (Module nm fp ds) = Module nm fp <$> f ds
 
-{-# INLINE modsDecls #-}
-modsDecls :: Traversal' Modules Decl
-modsDecls f (Modules ms cs ts) = (\ms' -> Modules ms' cs ts) <$> (traverse . modDecls) f ms
-
 newtype ConstT m a = ConstT {unConstT :: m ()}
   deriving (Functor)
 
@@ -89,19 +104,18 @@ over t f = runIdentity . t (Identity . f)
 instance Show Loc where
   showsPrec _ (Loc ln col) = shows ln . showChar ':' . shows col
 
--- TODO this is not a type
 rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
 rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
 
-ppModules :: Prints Modules
-ppModules (Modules modules _ _) = forM_ modules $ \(Module modName modPath forest) -> do
+ppCallGraph :: Prints CallGraph
+ppCallGraph (CallGraph modules _ _) = forM_ modules $ \(Module modName modPath forest) -> do
   strLn $ modName <> " (" <> modPath <> ")"
   indent $ mapM_ ppTree forest
 
 -- | Remove all calls and typings (i.e. edges) where one end is not present in the graph.
 -- This is intended to be used after an operation that may have removed nodes from the graph.
-removeDeadCalls :: Modules -> Modules
-removeDeadCalls (Modules mods calls types) = Modules mods calls' types'
+removeDeadCalls :: CallGraph -> CallGraph
+removeDeadCalls (CallGraph mods calls types) = CallGraph mods calls' types'
   where
     outputKeys = execState (forT_ (traverse . modDecls) mods (modify . EnumSet.insert . declKey)) mempty
     calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls

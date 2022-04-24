@@ -74,8 +74,8 @@ ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 
 -- | If p holds, that node, and all its incestors are included in the result.
 -- Compare this to 'filterModules', where a node is included only if p holds for it and all ancestors.
-pruneModules :: (Decl -> Bool) -> Modules -> Modules
-pruneModules p (Modules modules calls types) = removeDeadCalls $ Modules modules' calls types
+pruneModules :: (Decl -> Bool) -> CallGraph -> CallGraph
+pruneModules p (CallGraph modules calls types) = removeDeadCalls $ CallGraph modules' calls types
   where
     modules' = over (traverse . modForest) pruneForest modules
     pruneForest :: Forest Decl -> Forest Decl
@@ -87,8 +87,8 @@ pruneModules p (Modules modules calls types) = removeDeadCalls $ Modules modules
             then Nothing
             else Just (Node decl children')
 
-dependencyFilter :: DependencyFilterConfig -> Modules -> Either DependencyFilterError Modules
-dependencyFilter (DependencyFilterConfig mfw mbw maxDepth useParent useChild useCalls useTypes) mods@(Modules modules calls types) = do
+dependencyFilter :: DependencyFilterConfig -> CallGraph -> Either DependencyFilterError CallGraph
+dependencyFilter (DependencyFilterConfig mfw mbw maxDepth useParent useChild useCalls useTypes) mods@(CallGraph modules calls types) = do
   fwFilter <- forM mfw $ flip mkDepFilter edges
   bwFilter <- forM mbw $ flip mkDepFilter (Set.map swap edges)
   pure $

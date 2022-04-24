@@ -16,11 +16,11 @@ data EdgeCleanupConfig = EdgeCleanupConfig
     cleanClass :: Bool
   }
 
-cleanupEdges :: EdgeCleanupConfig -> Modules -> Modules
+cleanupEdges :: EdgeCleanupConfig -> CallGraph -> CallGraph
 cleanupEdges
   EdgeCleanupConfig {cleanDoubles, cleanLoops, cleanData, cleanClass}
-  (Modules mods calls types) =
-    Modules mods (cleanLoopsFn calls) (cleanLoopsFn . cleanDoublesFn . cleanDataFn . cleanClassFn $ types)
+  (CallGraph mods calls types) =
+    CallGraph mods (cleanLoopsFn calls) (cleanLoopsFn . cleanDoublesFn . cleanDataFn . cleanClassFn $ types)
     where
       cleanLoopsFn = if cleanLoops then Set.filter (uncurry (/=)) else id
       cleanDoublesFn = if cleanDoubles then (Set.\\ calls) else id

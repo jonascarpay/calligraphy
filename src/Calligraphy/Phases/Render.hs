@@ -23,8 +23,8 @@ data RenderConfig = RenderConfig
     reverseDependencyRank :: Bool
   }
 
-render :: RenderConfig -> Prints Modules
-render RenderConfig {..} (Modules modules calls types) = do
+render :: RenderConfig -> Prints CallGraph
+render RenderConfig {..} (CallGraph modules calls types) = do
   brack "digraph calligraphy {" "}" $ do
     unless splines $ textLn "splines=false;"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"

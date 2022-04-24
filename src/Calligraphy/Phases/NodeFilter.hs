@@ -20,8 +20,8 @@ data NodeFilterConfig = NodeFilterConfig
 
 -- | If p does not hold, neither that node nor its children are included.
 -- Compare this to 'pruneModules', where a node is included if p holds for it or any of its children.
-filterModules :: (Decl -> Bool) -> Modules -> Modules
-filterModules p (Modules modules calls types) = removeDeadCalls $ Modules modules' calls types
+filterModules :: (Decl -> Bool) -> CallGraph -> CallGraph
+filterModules p (CallGraph modules calls types) = removeDeadCalls $ CallGraph modules' calls types
   where
     modules' = over (traverse . modForest) filterForest modules
     filterForest :: Forest Decl -> Forest Decl
@@ -42,7 +42,7 @@ nodeFilter NodeFilterConfig {..} (Decl _ _ isExp typ _) = expOk && typOk
       DataDecl -> hideData
       ClassDecl -> hideClasses
 
-filterNodes :: NodeFilterConfig -> Modules -> Modules
+filterNodes :: NodeFilterConfig -> CallGraph -> CallGraph
 filterNodes cfg = filterModules (nodeFilter cfg)
 
 pNodeFilterConfig :: Parser NodeFilterConfig

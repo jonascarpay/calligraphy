@@ -6,11 +6,11 @@
 module Calligraphy.Phases.Parse
   ( parseHieFiles,
     ppParseError,
-    ppModulesDebugInfo,
+    ppParsePhaseDebugInfo,
     ParseConfig,
     pParseConfig,
     ParseError (..),
-    ModulesDebugInfo (..),
+    ParsePhaseDebugInfo (..),
   )
 where
 
@@ -138,12 +138,12 @@ ghcNameKey :: GHC.Name -> GHCKey
 ghcNameKey = GHCKey . GHC.getKey . GHC.nameUnique
 
 -- TODO rename, clean up
-newtype ModulesDebugInfo = ModulesDebugInfo
+newtype ParsePhaseDebugInfo = ParsePhaseDebugInfo
   { modulesLexTrees :: [(String, LexTree GHC.RealSrcLoc (DeclType, Name, Loc))]
   }
 
-ppModulesDebugInfo :: Prints ModulesDebugInfo
-ppModulesDebugInfo (ModulesDebugInfo mods) = forM_ mods $ \(modName, ltree) -> do
+ppParsePhaseDebugInfo :: Prints ParsePhaseDebugInfo
+ppParsePhaseDebugInfo (ParsePhaseDebugInfo mods) = forM_ mods $ \(modName, ltree) -> do
   strLn modName
   indent $ ppLexTree ltree
 
@@ -159,7 +159,7 @@ data ParsedFile = ParsedFile
 parseHieFiles ::
   ParseConfig ->
   [GHC.HieFile] ->
-  Either ParseError (ModulesDebugInfo, Modules)
+  Either ParseError (ParsePhaseDebugInfo, CallGraph)
 parseHieFiles parseConfig files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
   let (mods, debugs, calls, typings) = unzip4 (fmap (\(ParsedFile name path forest call typing ltree) -> ((Module name path forest), (name, ltree), call, typing)) parsed)
@@ -167,7 +167,7 @@ parseHieFiles parseConfig files = do
         (term, types) <- EnumMap.toList (mconcat typings)
         typ <- EnumSet.toList types
         pure (term, typ)
-  pure (ModulesDebugInfo debugs, Modules mods (rekeyCalls keymap (mconcat calls)) typeEdges)
+  pure (ParsePhaseDebugInfo debugs, CallGraph mods (rekeyCalls keymap (mconcat calls)) typeEdges)
   where
     parseFile ::
       GHC.HieFile ->

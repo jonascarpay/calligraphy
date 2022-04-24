@@ -16,10 +16,10 @@ data CollapseConfig = CollapseConfig
     collapseData :: Bool
   }
 
-collapse :: CollapseConfig -> Modules -> Modules
-collapse CollapseConfig {collapseValues, collapseClasses, collapseConstructors, collapseData} (Modules modules calls types) =
+collapse :: CollapseConfig -> CallGraph -> CallGraph
+collapse CollapseConfig {collapseValues, collapseClasses, collapseConstructors, collapseData} (CallGraph modules calls types) =
   let (modules', reps) = flip runState mempty $ (traverse . modForest . traverse) go modules
-   in Modules modules' (rekeyCalls reps calls) (rekeyCalls reps types)
+   in CallGraph modules' (rekeyCalls reps calls) (rekeyCalls reps types)
   where
     shouldCollapse :: DeclType -> Bool
     shouldCollapse ValueDecl | collapseValues = True

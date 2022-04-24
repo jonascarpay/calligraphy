@@ -13,7 +13,7 @@ import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render
 import Calligraphy.Phases.Search
 import Calligraphy.Util.Printer
-import Calligraphy.Util.Types (ppModules)
+import Calligraphy.Util.Types (ppCallGraph)
 import Control.Monad.RWS
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -49,15 +49,15 @@ mainWithConfig AppConfig {..} = do
   when (null hieFiles) $ die "No files matched your search criteria.."
   debug dumpHieFile $ mapM_ ppHieFile hieFiles
 
-  (modulesDebug, modules) <- either (printDie . ppParseError) pure (parseHieFiles parseConfig hieFiles)
-  debug dumpLexicalTree $ ppModulesDebugInfo modulesDebug
-  let modulesCollapsed = collapse collapseConfig modules
-  let modulesNodeFiltered = filterNodes nodeFilterConfig modulesCollapsed
-  modulesDependencyFiltered <- either (printDie . ppFilterError) pure $ dependencyFilter dependencyFilterConfig modulesNodeFiltered
-  let modulesCleaned = cleanupEdges edgeFilterConfig modulesDependencyFiltered
-  debug dumpFinal $ ppModules modulesCleaned
+  (parsePhaseDebug, cgParsed) <- either (printDie . ppParseError) pure (parseHieFiles parseConfig hieFiles)
+  debug dumpLexicalTree $ ppParsePhaseDebugInfo parsePhaseDebug
+  let cgCollapsed = collapse collapseConfig cgParsed
+  let cgNodeFiltered = filterNodes nodeFilterConfig cgCollapsed
+  cgDependencyFiltered <- either (printDie . ppFilterError) pure $ dependencyFilter dependencyFilterConfig cgNodeFiltered
+  let cgCleaned = cleanupEdges edgeFilterConfig cgDependencyFiltered
+  debug dumpFinal $ ppCallGraph cgCleaned
 
-  let txt = runPrinter $ render renderConfig modulesCleaned
+  let txt = runPrinter $ render renderConfig cgCleaned
 
   output outputConfig txt
 
