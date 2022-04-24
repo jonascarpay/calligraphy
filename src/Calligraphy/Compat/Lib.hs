@@ -108,6 +108,7 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [Decl FamDec (Just sp)] -> datadecl sp
   [Decl SynDec (Just sp)] -> datadecl sp
   [ClassTyDecl (Just sp)] -> valdecl sp
+  [Use, MatchBind, ValBind RegularBind ModuleScope (Just sp)] -> valdecl sp
   [MatchBind, ValBind _ _ (Just sp)] -> valdecl sp
   [MatchBind] -> ignore
   [Decl InstDec _] -> ignore
