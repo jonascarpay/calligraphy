@@ -138,7 +138,7 @@ classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unk
   [MatchBind, RecField RecFieldMatch _] -> ignore
   [EvidenceVarBind _ _ _] -> ignore
   [EvidenceVarBind _ _ _, EvidenceVarUse] -> ignore
-  [EvidenceVarUse] -> use
+  [EvidenceVarUse] -> ignore
 #endif
   _ -> unknown
 
