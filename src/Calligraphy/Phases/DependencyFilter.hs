@@ -63,7 +63,7 @@ pDependencyFilterConfig =
       )
     <*> optional (option auto (long "max-depth" <> help "Maximum search depth for transitive dependencies."))
     <*> boolFlags True "parent-deps" "When calculating transitive dependencies, follow edges to a parents." mempty
-    <*> boolFlags True "children-deps" "When calculating transitive dependencies, follow edges to children." mempty
+    <*> boolFlags True "child-deps" "When calculating transitive dependencies, follow edges to children." mempty
     <*> boolFlags True "value-deps" "When calculating transitive dependencies, follow value edges." mempty
     <*> boolFlags False "type-deps" "When calculating transitive dependencies, follow type edges." mempty
 
