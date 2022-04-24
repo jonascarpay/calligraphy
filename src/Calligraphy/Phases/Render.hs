@@ -7,6 +7,7 @@ import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import Control.Monad
 import Control.Monad.State
+import qualified Data.EnumSet as EnumSet
 import Data.List (intercalate)
 import Data.Tree (Tree (..))
 import Options.Applicative hiding (style)
@@ -16,6 +17,7 @@ data RenderConfig = RenderConfig
   { showCalls :: Bool,
     showTypes :: Bool,
     showKey :: Bool,
+    showGHCKeys :: Bool,
     showModulePath :: Bool,
     locMode :: LocMode,
     clusterModules :: Bool,
@@ -63,15 +65,17 @@ render RenderConfig {..} (CallGraph modules calls types) = do
             inner
       | otherwise = inner
     nodeLabel :: Decl -> String
-    nodeLabel (Decl name key _ _ _ loc) =
+    nodeLabel (Decl name key ghcKeys _ _ loc) =
       intercalate "\n" $
-        flip execState [] $ do
-          modify (name :)
-          when showKey $ modify (show (unKey key) :)
-          case locMode of
-            Hide -> pure ()
-            Line -> modify (("L" <> show (locLine loc)) :)
-            LineCol -> modify (show loc :)
+        cons name
+          . consIf showKey (show (unKey key))
+          . consManyIf showGHCKeys (fmap (show . unGHCKey) (EnumSet.toList ghcKeys))
+          . ( case locMode of
+                Hide -> id
+                Line -> cons ('L' : show (locLine loc))
+                LineCol -> cons (show loc)
+            )
+          $ []
 
     renderTreeNode :: Prints (Tree Decl)
     renderTreeNode (Node decl@(Decl _ key _ exported typ _) children) = do
@@ -86,6 +90,17 @@ render RenderConfig {..} (CallGraph modules calls types) = do
             modify ("filled" :)
             unless exported $ modify ("dashed" :)
             when (typ == RecDecl) $ modify ("rounded" :)
+
+cons :: a -> [a] -> [a]
+cons = (:)
+
+consIf :: Bool -> a -> [a] -> [a]
+consIf True = (:)
+consIf False = flip const
+
+consManyIf :: Foldable f => Bool -> f a -> [a] -> [a]
+consManyIf True fs as = foldr (:) as fs
+consManyIf False _ as = as
 
 nodeShape :: DeclType -> String
 nodeShape DataDecl = "octagon"
@@ -118,7 +133,8 @@ pRenderConfig =
   RenderConfig
     <$> flag True False (long "hide-calls" <> help "Don't show call arrows")
     <*> flag True False (long "hide-types" <> help "Don't show type arrows")
-    <*> flag False True (long "show-keys" <> help "Show keys with identifiers. Mostly useful for debugging purposes.")
+    <*> flag False True (long "show-key" <> help "Show internal keys with identifiers. Useful for debugging.")
+    <*> flag False True (long "show-ghc-key" <> help "Show GHC keys with identifiers. Useful for debugging.")
     <*> flag False True (long "show-module-path" <> help "Show a module's filepath instead of its name")
     <*> pLocMode
     <*> flag True False (long "no-cluster-modules" <> help "Don't draw modules as a cluster.")
