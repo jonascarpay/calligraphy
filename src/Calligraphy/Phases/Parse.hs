@@ -16,7 +16,7 @@ where
 
 import Calligraphy.Compat.Debug (showGHCName)
 import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (classifyIdentifier, forNodeInfos_, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, showContextInfo)
+import Calligraphy.Compat.Lib (classifyIdentifier, forNodeInfos_, isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, showContextInfo)
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import qualified Calligraphy.Util.LexTree as LT
 import Calligraphy.Util.Printer
@@ -277,7 +277,7 @@ collect parseConfig (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execState
     collect' :: GHC.HieAST GHC.TypeIndex -> StateT Collect (Either ParseError) ()
     collect' node@(GHC.Node _ _ children) =
       forNodeInfos_ node $ \nodeInfo ->
-        if isInstanceNode nodeInfo || isTypeSignatureNode nodeInfo || isInlineNode nodeInfo || isMinimalNode nodeInfo
+        if any ($ nodeInfo) [isInstanceNode, isTypeSignatureNode, isInlineNode, isMinimalNode, isDerivingNode]
           then pure ()
           else do
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case

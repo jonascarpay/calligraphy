@@ -10,6 +10,7 @@ module Calligraphy.Compat.Lib
     isTypeSignatureNode,
     isInlineNode,
     isMinimalNode,
+    isDerivingNode,
     showAnns,
     classifyIdentifier,
   )
@@ -62,6 +63,7 @@ isInstanceNode :: NodeInfo a -> Bool
 isTypeSignatureNode :: NodeInfo a -> Bool
 isInlineNode :: NodeInfo a -> Bool
 isMinimalNode :: NodeInfo a -> Bool
+isDerivingNode :: NodeInfo a -> Bool
 showAnns :: NodeInfo a -> String
 #if MIN_VERSION_ghc(9,2,0)
 
@@ -72,6 +74,8 @@ isTypeSignatureNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "TypeSig" "
 isInlineNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "InlineSig" "Sig") anns
 
 isMinimalNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "MinimalSig" "Sig") anns
+
+isDerivingNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "HsDerivingClause" "HsDerivingClause") anns
 
 showAnns (NodeInfo anns _ _) = unwords (show . unNodeAnnotation <$> Set.toList anns)
   where
@@ -86,6 +90,8 @@ isTypeSignatureNode (NodeInfo anns _ _) = Set.member ("TypeSig", "Sig") anns
 isInlineNode (NodeInfo anns _ _) = Set.member ("InlineSig", "Sig") anns
 
 isMinimalNode (NodeInfo anns _ _) = Set.member ("MinimalSig", "Sig") anns
+
+isDerivingNode (NodeInfo anns _ _) = Set.member ("HsDerivingClause", "HsDerivingClause") anns
 
 showAnns (NodeInfo anns _ _) = unwords (show <$> Set.toList anns)
 
