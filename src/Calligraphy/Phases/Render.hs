@@ -6,7 +6,6 @@ module Calligraphy.Phases.Render (render, pRenderConfig, RenderConfig) where
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import Control.Monad
-import Control.Monad.State
 import qualified Data.EnumSet as EnumSet
 import Data.List (intercalate)
 import Data.Tree (Tree (..))
@@ -66,16 +65,16 @@ render RenderConfig {..} (CallGraph modules calls types) = do
       | otherwise = inner
     nodeLabel :: Decl -> String
     nodeLabel (Decl name key ghcKeys _ _ loc) =
-      intercalate "\n" $
-        cons name
-          . consIf showKey (show (unKey key))
-          . consManyIf showGHCKeys (fmap (show . unGHCKey) (EnumSet.toList ghcKeys))
-          . ( case locMode of
-                Hide -> id
-                Line -> cons ('L' : show (locLine loc))
-                LineCol -> cons (show loc)
-            )
-          $ []
+      intercalate "\n"
+        . cons name
+        . consIf showKey (show (unKey key))
+        . consManyIf showGHCKeys (fmap (show . unGHCKey) (EnumSet.toList ghcKeys))
+        . ( case locMode of
+              Hide -> id
+              Line -> cons ('L' : show (locLine loc))
+              LineCol -> cons (show loc)
+          )
+        $ []
 
     renderTreeNode :: Prints (Tree Decl)
     renderTreeNode (Node decl@(Decl _ key _ exported typ _) children) = do
@@ -85,11 +84,12 @@ render RenderConfig {..} (CallGraph modules calls types) = do
         edge key (declKey childDecl) ["style" .= "dashed", "arrowhead" .= "none"]
       where
         nodeStyle :: String
-        nodeStyle = show . intercalate ", " $
-          flip execState [] $ do
-            modify ("filled" :)
-            unless exported $ modify ("dashed" :)
-            when (typ == RecDecl) $ modify ("rounded" :)
+        nodeStyle =
+          show . intercalate ", "
+            . cons "filled"
+            . consIf (not exported) "dashed"
+            . consIf (typ == RecDecl) "rounded"
+            $ []
 
 cons :: a -> [a] -> [a]
 cons = (:)
