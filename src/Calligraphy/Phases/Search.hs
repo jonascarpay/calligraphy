@@ -74,8 +74,8 @@ matchPattern :: Pattern -> String -> Bool
 matchPattern (Pattern matcher) = go False matcher
   where
     go _ ('*' : ms) cs = go True ms cs
-    go _ (m : ms) (c : cs) | m == c = go False ms cs || go True (m : ms) cs
-    go True ms (_ : cs) = go True ms cs
+    go False (m : ms) (c : cs) = m == c && go False ms cs
+    go True ms (c : cs) = go True ms cs || go False ms (c : cs)
     go _ [] [] = True
     go _ _ _ = False
 
