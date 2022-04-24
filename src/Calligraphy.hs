@@ -95,39 +95,39 @@ output :: OutputConfig -> Text -> IO ()
 output cfg@OutputConfig {..} txt = do
   unless (hasOutput cfg) $ Text.hPutStrLn stderr "Warning: no output options specified, run with --help to see options"
   forM_ outputDotPath $ \fp -> Text.writeFile fp txt
-  forM_ outputPngPath writePng
+  forM_ outputPngPath $ \fp -> runDot ["-Tpng", "-o", fp]
+  forM_ outputSvgPath $ \fp -> runDot ["-Tsvg", "-o", fp]
   when outputStdout $ Text.putStrLn txt
   where
-    hasOutput (OutputConfig Nothing Nothing False) = False
+    hasOutput (OutputConfig Nothing Nothing Nothing _ False) = False
     hasOutput _ = True
 
-    writePng (fp, cmd) = do
-      mexe <- findExecutable cmd
+    runDot flags = do
+      mexe <- findExecutable outputEngine
       case mexe of
-        Nothing -> die $ "Unable to find '" <> cmd <> "' executable! Make sure it is installed, or use another output method/engine."
+        Nothing -> die $ "Unable to find '" <> outputEngine <> "' executable! Make sure it is installed, or use another output method/engine."
         Just exe -> do
-          (code, out, err) <- readProcessWithExitCode exe ["-Tpng", "-o", fp] (T.unpack txt)
+          (code, out, err) <- readProcessWithExitCode exe flags (T.unpack txt)
           unless (code == ExitSuccess) $ do
-            putStrLn $ cmd <> " crashed:"
+            putStrLn $ outputEngine <> " crashed:"
             putStrLn out
             putStrLn err
 
 data OutputConfig = OutputConfig
   { outputDotPath :: Maybe FilePath,
-    outputPngPath :: Maybe (FilePath, String),
+    outputPngPath :: Maybe FilePath,
+    outputSvgPath :: Maybe FilePath,
+    outputEngine :: String,
     outputStdout :: Bool
   }
 
 pOutputConfig :: Parser OutputConfig
 pOutputConfig =
   OutputConfig
-    <$> optional (strOption (short 'd' <> long "output-dot" <> metavar "FILE" <> help ".dot output path"))
-    <*> optional
-      ( liftA2
-          (,)
-          (strOption (short 'p' <> long "output-png" <> metavar "FILE" <> help ".png output path (requires 'dot' executable in PATH)"))
-          (strOption (long "render-engine" <> metavar "CMD" <> help "Render engine to use with --output-png" <> value "dot" <> showDefault))
-      )
+    <$> optional (strOption (long "output-dot" <> short 'd' <> metavar "FILE" <> help ".dot output path"))
+    <*> optional (strOption (long "output-png" <> short 'p' <> metavar "FILE" <> help ".png output path (requires `dot` or other engine in PATH)"))
+    <*> optional (strOption (long "output-svg" <> short 's' <> metavar "FILE" <> help ".svg output path (requires `dot` or other engine in PATH)"))
+    <*> strOption (long "render-engine" <> metavar "CMD" <> help "Render engine to use with --output-png and --output-svg" <> value "dot" <> showDefault)
     <*> switch (long "output-stdout" <> help "Output to stdout")
 
 data DebugConfig = DebugConfig
