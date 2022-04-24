@@ -16,6 +16,7 @@ data RenderConfig = RenderConfig
   { showCalls :: Bool,
     showTypes :: Bool,
     showKey :: Bool,
+    showModulePath :: Bool,
     locMode :: LocMode,
     clusterModules :: Bool,
     clusterGroups :: Bool,
@@ -31,8 +32,8 @@ render RenderConfig {..} (CallGraph modules calls types) = do
     textLn "graph [outputorder=edgesfirst];"
     let nonEmptyModules = filter (not . null . moduleForest) modules
     forM_ (zip nonEmptyModules [0 :: Int ..]) $
-      \(Module modName _ forest, moduleIx) ->
-        moduleCluster moduleIx modName $
+      \(Module modName modPath forest, moduleIx) ->
+        moduleCluster moduleIx (if showModulePath then modPath else modName) $
           forM_ (zip forest [0 :: Int ..]) $ \(root, forestIx) -> do
             treeCluster moduleIx forestIx $
               renderTreeNode root
@@ -48,10 +49,10 @@ render RenderConfig {..} (CallGraph modules calls types) = do
           else edge callee caller ["style" .= "dotted", "dir" .= "back"]
   where
     moduleCluster :: Int -> String -> Printer a -> Printer a
-    moduleCluster modIx modName inner
+    moduleCluster modIx title inner
       | clusterModules =
           brack ("subgraph cluster_module_" <> show modIx <> " {") "}" $ do
-            strLn $ "label=" <> show modName <> ";"
+            strLn $ "label=" <> show title <> ";"
             inner
       | otherwise = inner
     treeCluster :: Int -> Int -> Printer a -> Printer a
@@ -118,6 +119,7 @@ pRenderConfig =
     <$> flag True False (long "hide-calls" <> help "Don't show call arrows")
     <*> flag True False (long "hide-types" <> help "Don't show type arrows")
     <*> flag False True (long "show-keys" <> help "Show keys with identifiers. Mostly useful for debugging purposes.")
+    <*> flag False True (long "show-module-path" <> help "Show a module's filepath instead of its name")
     <*> pLocMode
     <*> flag True False (long "no-cluster-modules" <> help "Don't draw modules as a cluster.")
     <*> flag True False (long "no-cluster-trees" <> help "Don't draw definition trees as a cluster.")
