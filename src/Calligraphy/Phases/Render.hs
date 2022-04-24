@@ -86,9 +86,9 @@ render RenderConfig {..} (CallGraph modules calls types) = do
         nodeStyle :: String
         nodeStyle =
           show . intercalate ", "
-            . cons "filled"
-            . consIf (not exported) "dashed"
             . consIf (typ == RecDecl) "rounded"
+            . consIf (not exported) "dashed"
+            . cons "filled"
             $ []
 
 cons :: a -> [a] -> [a]
