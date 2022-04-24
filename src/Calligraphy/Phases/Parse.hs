@@ -61,11 +61,6 @@ resolveTypes typeArray = EnumMap.fromList [(ix, evalState (go ix) mempty) | ix <
           let ty = typeArray Array.! current
           mappend (keys ty) . mconcat <$> mapM go (Foldable.toList ty)
 
--- | A key that was produced by GHC, c.f. Key that we produced ourselves.
--- We wrap it in a newtype because GHC itself uses a type synonym, but we want conversions to be as explicit as possible.
-newtype GHCKey = GHCKey {_unGHCKey :: Int}
-  deriving newtype (Show, Enum, Eq, Ord)
-
 type GHCDecl = (DeclType, GHC.Span, GHC.Name, Loc)
 
 data Collect = Collect
@@ -201,7 +196,7 @@ rekey exports = go
       forM_ (EnumSet.toList ghckeys) (assoc key)
       sub' <- go sub
       let exported = any (flip EnumSet.member exports) (EnumSet.toList ghckeys)
-      pure $ Tree.Node (Decl name key exported typ mloc) sub'
+      pure $ Tree.Node (Decl name key ghckeys exported typ mloc) sub'
 
 newtype NameTree = NameTree (Map String (EnumSet GHCKey, DeclType, NameTree, Loc))
 

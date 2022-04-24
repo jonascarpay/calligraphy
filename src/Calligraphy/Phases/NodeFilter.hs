@@ -32,10 +32,10 @@ filterModules p (CallGraph modules calls types) = removeDeadCalls $ CallGraph mo
       | otherwise = Nothing
 
 nodeFilter :: NodeFilterConfig -> Decl -> Bool
-nodeFilter NodeFilterConfig {..} (Decl _ _ isExp typ _) = expOk && typOk
+nodeFilter NodeFilterConfig {..} decl = expOk && typOk
   where
-    expOk = isExp || not hideLocals
-    typOk = not $ case typ of
+    expOk = declExported decl || not hideLocals
+    typOk = not $ case declType decl of
       ValueDecl -> hideValues
       RecDecl -> hideRecords
       ConDecl -> hideConstructors

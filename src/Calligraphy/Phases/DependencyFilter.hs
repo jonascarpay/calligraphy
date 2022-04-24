@@ -132,7 +132,7 @@ resolveNames :: Module -> Map String (EnumSet Key)
 resolveNames (Module modName _ forest) =
   flip execState mempty $
     flip (traverse . traverse) forest $
-      \(Decl name key _ _ _) ->
+      \(Decl name key _ _ _ _) ->
         modify $
           Map.insertWith (<>) (modName <> "." <> name) (EnumSet.singleton key)
             . Map.insertWith (<>) name (EnumSet.singleton key)

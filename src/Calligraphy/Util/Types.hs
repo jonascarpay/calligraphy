@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -9,6 +10,7 @@ module Calligraphy.Util.Types
     Decl (..),
     DeclType (..),
     Key (..),
+    GHCKey (..),
     Loc (..),
 
     -- * Utility functions
@@ -30,6 +32,7 @@ import Control.Monad.State
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
+import Data.EnumSet (EnumSet)
 import qualified Data.EnumSet as EnumSet
 import Data.Graph
 import Data.Set (Set)
@@ -51,6 +54,7 @@ data Module = Module
 data Decl = Decl
   { declName :: String,
     declKey :: Key,
+    declGHCKeys :: EnumSet GHCKey,
     declExported :: Bool,
     declType :: DeclType,
     declLoc :: Loc
@@ -58,6 +62,11 @@ data Decl = Decl
 
 newtype Key = Key {unKey :: Int}
   deriving (Enum, Show, Eq, Ord)
+
+-- | A key that was produced by GHC, c.f. Key that we produced ourselves.
+-- We wrap it in a newtype because GHC itself uses a type synonym, but we want conversions to be as explicit as possible.
+newtype GHCKey = GHCKey {unGHCKey :: Int}
+  deriving newtype (Show, Enum, Eq, Ord)
 
 data DeclType
   = ValueDecl
@@ -122,6 +131,6 @@ removeDeadCalls (CallGraph mods calls types) = CallGraph mods calls' types'
     types' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) types
 
 ppTree :: Prints (Tree Decl)
-ppTree (Node (Decl name _key _exp typ loc) children) = do
+ppTree (Node (Decl name _key _ghckey _exp typ loc) children) = do
   strLn $ name <> " (" <> show typ <> ", " <> show loc <> ")"
   indent $ mapM_ ppTree children

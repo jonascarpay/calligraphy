@@ -63,7 +63,7 @@ render RenderConfig {..} (CallGraph modules calls types) = do
             inner
       | otherwise = inner
     nodeLabel :: Decl -> String
-    nodeLabel (Decl name key _ _ loc) =
+    nodeLabel (Decl name key _ _ _ loc) =
       intercalate "\n" $
         flip execState [] $ do
           modify (name :)
@@ -74,11 +74,11 @@ render RenderConfig {..} (CallGraph modules calls types) = do
             LineCol -> modify (show loc :)
 
     renderTreeNode :: Prints (Tree Decl)
-    renderTreeNode (Node decl@(Decl _ key exported typ _) children) = do
+    renderTreeNode (Node decl@(Decl _ key _ exported typ _) children) = do
       strLn $ show (unKey key) <> " " <> style ["label" .= show (nodeLabel decl), "shape" .= nodeShape typ, "style" .= nodeStyle]
-      forM_ children $ \child@(Node (Decl _ childKey _ _ _) _) -> do
+      forM_ children $ \child@(Node childDecl _) -> do
         renderTreeNode child
-        edge key childKey ["style" .= "dashed", "arrowhead" .= "none"]
+        edge key (declKey childDecl) ["style" .= "dashed", "arrowhead" .= "none"]
       where
         nodeStyle :: String
         nodeStyle = show . intercalate ", " $
