@@ -69,3 +69,5 @@ jobs:
         run: |
           cabal new-exec calligraphy -- Test.Reference --parse-strict -d out.dot --hide-types
           diff -u test/Test/Reference.dot out.dot
+      - name: Strict parse entire package
+        run: cabal new-exec calligraphy -- '*' --parse-strict
