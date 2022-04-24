@@ -13,9 +13,8 @@ import Control.Applicative
 import Control.Monad.State
 import Data.IORef
 import Data.List (isPrefixOf)
-import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty, toList)
 import Options.Applicative hiding (str)
-import Options.Applicative.Types (fromM, manyM, oneM)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
 import System.FilePath (isExtensionOf, (</>))
 
@@ -36,7 +35,7 @@ searchFiles SearchConfig {searchDotPaths, searchRoots, includePatterns, excludeP
        in maybe True (any matches) includePatterns && maybe True (not . any matches) excludePatterns
   where
     searchHieFilePaths = do
-      roots <- mapM makeAbsolute (if null searchRoots then ["./."] else searchRoots)
+      roots <- mapM makeAbsolute (maybe ["./."] toList searchRoots)
       foldMap go roots
       where
         go :: FilePath -> IO [FilePath]
@@ -66,7 +65,7 @@ data SearchConfig = SearchConfig
   { includePatterns :: Maybe (NonEmpty Pattern),
     excludePatterns :: Maybe (NonEmpty Pattern),
     searchDotPaths :: Bool,
-    searchRoots :: [FilePath]
+    searchRoots :: Maybe (NonEmpty FilePath)
   }
 
 newtype Pattern = Pattern String
@@ -79,10 +78,6 @@ matchPattern (Pattern matcher) = go False matcher
     go True ms (_ : cs) = go True ms cs
     go _ [] [] = True
     go _ _ _ = False
-
--- Copied from Options.Applicative.NonEmpty, which isn't available in LTS < 18
-some1 :: Parser a -> Parser (NonEmpty a)
-some1 p = fromM $ (:|) <$> oneM p <*> manyM p
 
 pSearchConfig :: Parser SearchConfig
 pSearchConfig =
@@ -104,7 +99,7 @@ pSearchConfig =
             )
       )
     <*> switch (long "hidden" <> help "Search paths with a leading period. Disabled by default.")
-    <*> many
+    <*> (fmap nonEmpty . many)
       ( strOption
           ( long "input"
               <> short 'i'
