@@ -89,7 +89,7 @@ pSearchConfig =
     <$> some1
       ( Pattern
           <$> strArgument
-            ( metavar "PATTERN"
+            ( metavar "MODULE"
                 <> help "Name of the module to include. Can contain '*' wildcards. Can be repeated."
             )
       )
@@ -98,7 +98,7 @@ pSearchConfig =
           <$> strOption
             ( long "exclude"
                 <> short 'e'
-                <> metavar "PATTERN"
+                <> metavar "MODULE"
                 <> help "Exclude modules that match the specified pattern. Can contain '*' wildcards. Can be repeated."
             )
       )
