@@ -43,7 +43,6 @@ library
     Calligraphy.Phases.Collapse
     Calligraphy.Phases.DependencyFilter
     Calligraphy.Phases.EdgeCleanup
-    Calligraphy.Phases.NodeFilter
     Calligraphy.Phases.Parse
     Calligraphy.Phases.Render
     Calligraphy.Phases.Search
