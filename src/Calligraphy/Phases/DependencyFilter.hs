@@ -23,7 +23,6 @@ import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -58,7 +57,7 @@ pDependencyFilterConfig =
           ( long "reverse-root"
               <> short 'r'
               <> metavar "NAME"
-              <> help "Name of a reverse dependency filter root. Specifying a dependency filter root hides everything that's not a (transitive) reverse dependency of a root. The name can be qualified. This argument can be repeated."
+              <> help "Name of a reverse dependency filter root. Specifying a dependency filter root hides everything that's not a reverse (transitive) dependency of a root. The name can be qualified. This argument can be repeated."
           )
       )
     <*> optional (option auto (long "max-depth" <> help "Maximum search depth for transitive dependencies."))
@@ -72,20 +71,23 @@ newtype DependencyFilterError = UnknownRootName String
 ppFilterError :: Prints DependencyFilterError
 ppFilterError (UnknownRootName root) = strLn $ "Unknown root name: " <> root
 
--- | If p holds, that node, and all its incestors are included in the result.
--- Compare this to 'filterModules', where a node is included only if p holds for it and all ancestors.
 pruneModules :: (Decl -> Bool) -> CallGraph -> CallGraph
 pruneModules p (CallGraph modules calls types) = removeDeadCalls $ CallGraph modules' calls types
   where
-    modules' = over (traverse . modForest) pruneForest modules
-    pruneForest :: Forest Decl -> Forest Decl
-    pruneForest = mapMaybe pruneTree
-    pruneTree :: Tree Decl -> Maybe (Tree Decl)
-    pruneTree (Node decl children) = do
-      let children' = pruneForest children
-       in if not (p decl) && null children'
-            then Nothing
-            else Just (Node decl children')
+    modules' = over (traverse . modForest) (>>= go) modules
+    go :: Tree Decl -> [Tree Decl]
+    go (Node decl children) = do
+      let children' = children >>= go
+       in if (p decl) then pure (Node decl children') else children'
+
+-- | Remove all calls and typings (i.e. edges) where one end is not present in the graph.
+-- This is intended to be used after an operation that may have removed nodes from the graph.
+removeDeadCalls :: CallGraph -> CallGraph
+removeDeadCalls (CallGraph mods calls types) = CallGraph mods calls' types'
+  where
+    outputKeys = execState (forT_ (traverse . modDecls) mods (modify . EnumSet.insert . declKey)) mempty
+    calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls
+    types' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) types
 
 dependencyFilter :: DependencyFilterConfig -> CallGraph -> Either DependencyFilterError CallGraph
 dependencyFilter (DependencyFilterConfig mfw mbw maxDepth useParent useChild useCalls useTypes) mods@(CallGraph modules calls types) = do

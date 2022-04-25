@@ -15,25 +15,23 @@ module Calligraphy.Util.Types
 
     -- * Utility functions
     rekeyCalls,
-    removeDeadCalls,
     ppCallGraph,
 
     -- * Lensy stuff
     over,
     forT_,
     modForest,
+    modDecls,
   )
 where
 
 import Calligraphy.Util.Printer
 import Control.Monad
 import Control.Monad.Identity
-import Control.Monad.State
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
-import qualified Data.EnumSet as EnumSet
 import Data.Graph
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -120,15 +118,6 @@ ppCallGraph :: Prints CallGraph
 ppCallGraph (CallGraph modules _ _) = forM_ modules $ \(Module modName modPath forest) -> do
   strLn $ modName <> " (" <> modPath <> ")"
   indent $ mapM_ ppTree forest
-
--- | Remove all calls and typings (i.e. edges) where one end is not present in the graph.
--- This is intended to be used after an operation that may have removed nodes from the graph.
-removeDeadCalls :: CallGraph -> CallGraph
-removeDeadCalls (CallGraph mods calls types) = CallGraph mods calls' types'
-  where
-    outputKeys = execState (forT_ (traverse . modDecls) mods (modify . EnumSet.insert . declKey)) mempty
-    calls' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) calls
-    types' = Set.filter (\(a, b) -> EnumSet.member a outputKeys && EnumSet.member b outputKeys) types
 
 ppTree :: Prints (Tree Decl)
 ppTree (Node (Decl name _key _ghckey _exp typ loc) children) = do
