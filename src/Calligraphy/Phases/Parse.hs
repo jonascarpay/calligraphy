@@ -7,8 +7,6 @@ module Calligraphy.Phases.Parse
   ( parseHieFiles,
     ppParseError,
     ppParsePhaseDebugInfo,
-    ParseConfig,
-    pParseConfig,
     ParseError (..),
     ParsePhaseDebugInfo (..),
   )
@@ -39,8 +37,6 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tree (Forest)
 import qualified Data.Tree as Tree
-import Options.Applicative (Parser)
-import qualified Options.Applicative as Opt
 
 -- TODO This can be faster by storing intermediate restuls, but that has proven tricky to get right.
 resolveTypes :: Array GHC.TypeIndex GHC.HieTypeFlat -> EnumMap GHC.TypeIndex (EnumSet GHCKey)
@@ -72,17 +68,6 @@ data Collect = Collect
 data ParseError
   = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
   | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
-
--- TODO  remove
-newtype ParseConfig = ParseConfig {strict :: Bool}
-
-pParseConfig :: Parser ParseConfig
-pParseConfig =
-  ParseConfig
-    <$> Opt.switch
-      ( Opt.long "parse-strict"
-          <> Opt.help "Strict HIE parsing mode. Throws an error if an identifier's annotations are unrecognized, instead of silently ignoring. Used primarily for debugging calligraphy itself."
-      )
 
 ppParseError :: Prints ParseError
 ppParseError (UnhandledIdentifier nm sp inf) = do
@@ -153,10 +138,9 @@ data ParsedFile = ParsedFile
   }
 
 parseHieFiles ::
-  ParseConfig ->
   [GHC.HieFile] ->
   Either ParseError (ParsePhaseDebugInfo, CallGraph)
-parseHieFiles _ files = do
+parseHieFiles files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
   let (mods, debugs, calls, typings) = unzip4 (fmap (\(ParsedFile name path forest call typing ltree) -> ((Module name path forest), (name, ltree), call, typing)) parsed)
       typeEdges = rekeyCalls keymap . Set.fromList $ do

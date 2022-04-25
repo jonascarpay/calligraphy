@@ -67,7 +67,5 @@ jobs:
       - run: cabal new-test --test-show-details=direct
       - name: Test against reference
         run: |
-          cabal new-exec calligraphy -- Test.Reference --parse-strict -d out.dot --hide-types
+          cabal new-exec calligraphy -- Test.Reference -d out.dot --hide-types
           diff -u test/Test/Reference.dot out.dot
-      - name: Strict parse entire package
-        run: cabal new-exec calligraphy -- '*' --parse-strict
