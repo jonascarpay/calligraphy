@@ -9,7 +9,7 @@
 It works directly on GHC-generated HIE files, giving us features that would otherwise be tricky, like type information and support for generated files.
 `calligraphy` has been tested with all versions of GHC that can produce HIE files (i.e. GHC 8.8, 8.10, 9.0, and 9.2.)
 
-See [the accompanying blog post](https://jonascarpay.com/posts/2022-04-01-salt.html) for more examples, and an extended tutorial.
+See [the accompanying blog post](https://jonascarpay.com/posts/2022-04-26-calligraphy-tutorial.html) for more examples, and an extended tutorial.
 
 ## Usage
 
@@ -19,7 +19,7 @@ Since it uses HIE files, it usually needs to be compiled with the same version o
 2. Install [GraphViz](https://graphviz.org/). By default, `calligraphy` needs `dot` to be available in the search path.
 
 3. Generate HIE files for your project by passing the `-fwrite-ide-info` to GHC.
-If you're using Cabal, for example, you'd invoke `cabal new-build --ghc-options=-fwrite-ide-info`
+If you're using Cabal, for example, you'd invoke `cabal build --ghc-options=-fwrite-ide-info`
 
 4. Run `calligraphy`.
 You probably want to start by running `calligraphy --help` to see what options it supports, but as an example, the above graph was produced using the following command:
