@@ -12,12 +12,11 @@ module Calligraphy.Compat.Lib
     isMinimalNode,
     isDerivingNode,
     showAnns,
-    classifyIdentifier,
+    spanSpans,
   )
 where
 
 import Data.IORef
-import Data.Set (Set)
 import qualified Data.Set as Set
 
 #if MIN_VERSION_ghc(9,0,0)
@@ -96,51 +95,6 @@ isDerivingNode (NodeInfo anns _ _) = Set.member ("HsDerivingClause", "HsDeriving
 showAnns (NodeInfo anns _ _) = unwords (show <$> Set.toList anns)
 
 #endif
-
-classifyIdentifier ::
-  Set ContextInfo ->
-  (Span -> r) ->
-  (Span -> r) ->
-  (Span -> r) ->
-  (Span -> r) ->
-  (Span -> r) ->
-  r ->
-  r ->
-  r ->
-  r
-classifyIdentifier ctx valdecl recdecl condecl datadecl classdecl use ignore unknown = case Set.toAscList ctx of
-  [Decl DataDec (Just sp)] -> datadecl sp
-  [Decl PatSynDec (Just sp)] -> datadecl sp
-  [Decl FamDec (Just sp)] -> datadecl sp
-  [Decl SynDec (Just sp)] -> datadecl sp
-  [ClassTyDecl (Just sp)] -> valdecl sp
-  [Use, MatchBind, ValBind RegularBind ModuleScope (Just sp)] -> valdecl sp
-  [MatchBind, ValBind _ _ (Just sp)] -> valdecl sp
-  [MatchBind] -> ignore
-  [Decl InstDec _] -> ignore
-  [Decl ConDec (Just sp)] -> condecl sp
-  [Use] -> use
-  [Use, RecField RecFieldOcc _] -> use
-  [Decl ClassDec (Just sp)] -> classdecl sp
-  [ValBind RegularBind ModuleScope (Just sp1), RecField RecFieldDecl (Just sp2)] -> recdecl (spanSpans sp1 sp2)
-  -- -- Recordfields without valbind occur when a record occurs in multiple constructors
-  [RecField RecFieldDecl (Just sp)] -> recdecl sp
-  [RecField RecFieldAssign _] -> use
-  [RecField RecFieldMatch _] -> ignore
-  [RecField RecFieldOcc _] -> use
-  [PatternBind _ _ _] -> ignore
-  [TyDecl] -> ignore
-  [IEThing _] -> ignore
-  [TyVarBind _ _] -> ignore
-  -- -- An empty ValBind is the result of a derived instance, and should be ignored
-  [ValBind RegularBind ModuleScope _] -> ignore
-#if MIN_VERSION_ghc(9,0,0)
-  [MatchBind, RecField RecFieldMatch _] -> ignore
-  [EvidenceVarBind _ _ _] -> ignore
-  [EvidenceVarBind _ _ _, EvidenceVarUse] -> ignore
-  [EvidenceVarUse] -> ignore
-#endif
-  _ -> unknown
 
 spanSpans :: Span -> Span -> Span
 spanSpans sp1 sp2 =

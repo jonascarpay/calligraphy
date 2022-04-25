@@ -16,7 +16,7 @@ where
 
 import Calligraphy.Compat.Debug (showGHCName)
 import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (classifyIdentifier, forNodeInfos_, isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, showContextInfo)
+import Calligraphy.Compat.Lib (forNodeInfos_, isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, showContextInfo, spanSpans)
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import qualified Calligraphy.Util.LexTree as LT
 import Calligraphy.Util.Printer
@@ -73,6 +73,7 @@ data ParseError
   = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
   | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
 
+-- TODO  remove
 newtype ParseConfig = ParseConfig {strict :: Bool}
 
 pParseConfig :: Parser ParseConfig
@@ -155,7 +156,7 @@ parseHieFiles ::
   ParseConfig ->
   [GHC.HieFile] ->
   Either ParseError (ParsePhaseDebugInfo, CallGraph)
-parseHieFiles parseConfig files = do
+parseHieFiles _ files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
   let (mods, debugs, calls, typings) = unzip4 (fmap (\(ParsedFile name path forest call typing ltree) -> ((Module name path forest), (name, ltree), call, typing)) parsed)
       typeEdges = rekeyCalls keymap . Set.fromList $ do
@@ -171,7 +172,7 @@ parseHieFiles parseConfig files = do
         (Either ParseError)
         ParsedFile
     parseFile file@(GHC.HieFile filepath mdl _ _ avails _) = do
-      Collect decls uses types <- lift $ collect parseConfig file
+      Collect decls uses types <- lift $ collect file
       tree <- lift $ structure decls
       let calls :: Set (GHCKey, GHCKey) = flip foldMap uses $ \(loc, callee) ->
             case LT.lookup loc tree of
@@ -231,8 +232,8 @@ data NodeType
   | DeclNode DeclType GHC.Name GHC.Span
   deriving (Eq, Ord)
 
-classifyNode :: ParseConfig -> GHC.HieAST GHC.TypeIndex -> Either ParseError NodeType
-classifyNode parseConfig node = (\l -> if null l then EmptyNode else maximum l) <$> types
+classifyNode :: GHC.HieAST GHC.TypeIndex -> Either ParseError NodeType
+classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
   where
     types :: Either ParseError [NodeType]
     types = flip execStateT [] $
@@ -241,23 +242,14 @@ classifyNode parseConfig node = (\l -> if null l then EmptyNode else maximum l) 
           (Right name, GHC.IdentifierDetails _ info) ->
             let decl :: DeclType -> GHC.Span -> StateT [NodeType] (Either ParseError) ()
                 decl ty scope = modify (DeclNode ty name scope :)
-             in classifyIdentifier
-                  info
-                  (decl ValueDecl)
-                  (decl RecDecl)
-                  (decl ConDecl)
-                  (decl DataDecl)
-                  (decl ClassDecl)
-                  (modify (UseNode (ghcNameKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
-                  (pure ())
-                  ( if strict parseConfig
-                      then throwError $ UnhandledIdentifier name (GHC.nodeSpan node) (Set.toList info)
-                      else pure ()
-                  )
+             in case classifyIdentifier info of
+                  IdnIgnore -> pure ()
+                  IdnUse -> (modify (UseNode (ghcNameKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
+                  IdnDecl typ sp -> decl typ sp
           _ -> pure ()
 
-collect :: ParseConfig -> GHC.HieFile -> Either ParseError Collect
-collect parseConfig (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty mempty)
+collect :: GHC.HieFile -> Either ParseError Collect
+collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty mempty)
   where
     tellDecl :: GHCDecl -> StateT Collect (Either ParseError) ()
     tellDecl decl = modify $ \(Collect decls uses types) -> Collect (decl : decls) uses types
@@ -279,8 +271,43 @@ collect parseConfig (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execState
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
               (Right name, GHC.IdentifierDetails ty _) -> mapM_ (tellType name) ty
               _ -> pure ()
-            lift (classifyNode parseConfig node) >>= \case
+            lift (classifyNode node) >>= \case
               EmptyNode -> pure ()
               UseNode gk rsl -> tellUse rsl gk
               DeclNode dt na rss -> tellDecl (dt, rss, na, spanToLoc rss)
             mapM_ collect' children
+
+data IdentifierType
+  = IdnDecl DeclType GHC.Span
+  | IdnUse
+  | IdnIgnore
+
+instance Semigroup IdentifierType where
+  IdnIgnore <> a = a
+  IdnUse <> IdnIgnore = IdnUse
+  IdnUse <> a = a
+  IdnDecl typ sp <> IdnDecl typ' sp' = IdnDecl (max typ typ') (spanSpans sp sp')
+  IdnDecl typ sp <> _ = IdnDecl typ sp
+
+instance Monoid IdentifierType where
+  mempty = IdnIgnore
+
+classifyIdentifier :: Set GHC.ContextInfo -> IdentifierType
+classifyIdentifier = foldMap classify
+  where
+    classify :: GHC.ContextInfo -> IdentifierType
+    classify (GHC.Decl GHC.DataDec (Just sp)) = (IdnDecl DataDecl sp)
+    classify (GHC.Decl GHC.PatSynDec (Just sp)) = (IdnDecl DataDecl sp)
+    classify (GHC.Decl GHC.FamDec (Just sp)) = (IdnDecl DataDecl sp)
+    classify (GHC.Decl GHC.SynDec (Just sp)) = (IdnDecl DataDecl sp)
+    classify (GHC.Decl GHC.ConDec (Just sp)) = (IdnDecl ConDecl sp)
+    classify (GHC.Decl GHC.ClassDec (Just sp)) = (IdnDecl ClassDecl sp)
+    classify (GHC.ClassTyDecl (Just sp)) = (IdnDecl ValueDecl sp)
+    classify (GHC.ValBind GHC.RegularBind _ (Just sp)) = (IdnDecl ValueDecl sp)
+    classify (GHC.RecField GHC.RecFieldDecl (Just sp)) = (IdnDecl RecDecl sp)
+    -- Use
+    classify (GHC.RecField GHC.RecFieldAssign _) = IdnUse
+    classify (GHC.RecField GHC.RecFieldOcc _) = IdnUse
+    classify GHC.Use = IdnUse
+    -- Ignore
+    classify _ = IdnIgnore
