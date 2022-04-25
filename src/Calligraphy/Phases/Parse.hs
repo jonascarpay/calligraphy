@@ -232,6 +232,9 @@ data NodeType
   | DeclNode DeclType GHC.Name GHC.Span
   deriving (Eq, Ord)
 
+isGenerated :: GHC.Name -> Bool
+isGenerated = elem '$' . GHC.getOccString
+
 classifyNode :: GHC.HieAST GHC.TypeIndex -> Either ParseError NodeType
 classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
   where
@@ -239,17 +242,18 @@ classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
     types = flip execStateT [] $
       forNodeInfos_ node $ \nodeInfo ->
         forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
-          (Right name, GHC.IdentifierDetails _ info) ->
-            let decl :: DeclType -> GHC.Span -> StateT [NodeType] (Either ParseError) ()
-                decl ty scope = modify (DeclNode ty name scope :)
-             in case classifyIdentifier info of
-                  IdnIgnore -> pure ()
-                  IdnUse -> (modify (UseNode (ghcNameKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
-                  IdnDecl typ sp -> decl typ sp
+          (Right name, GHC.IdentifierDetails _ info)
+            | not (isGenerated name) ->
+              let decl :: DeclType -> GHC.Span -> StateT [NodeType] (Either ParseError) ()
+                  decl ty scope = modify (DeclNode ty name scope :)
+               in case classifyIdentifier info of
+                    IdnIgnore -> pure ()
+                    IdnUse -> (modify (UseNode (ghcNameKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
+                    IdnDecl typ sp -> decl typ sp
           _ -> pure ()
 
 collect :: GHC.HieFile -> Either ParseError Collect
-collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (mapM_ collect' asts) (Collect mempty mempty mempty)
+collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (forT_ traverse asts collect') (Collect mempty mempty mempty)
   where
     tellDecl :: GHCDecl -> StateT Collect (Either ParseError) ()
     tellDecl decl = modify $ \(Collect decls uses types) -> Collect (decl : decls) uses types

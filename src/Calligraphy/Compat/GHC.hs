@@ -55,14 +55,14 @@ import GHC.Types.Unique.Supply
 import GHC.Unit.Module.Name
 import GHC.Unit.Types
 #else
-import Avail 
+import Avail
 import GHC
 import HieBin
-import HieTypes 
-import IfaceType 
-import Name 
+import HieTypes
+import IfaceType
+import Name
 import NameCache
-import SrcLoc 
+import SrcLoc
 import UniqSupply
-import Unique 
+import Unique
 #endif
