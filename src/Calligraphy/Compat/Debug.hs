@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 
+-- | Debug tools for GHC-related data
 module Calligraphy.Compat.Debug
   ( ppHieFile,
     ppIdentifier,

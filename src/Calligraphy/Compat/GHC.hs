@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 
+-- | Thin compatability layer that re-exports things from GHC.
 module Calligraphy.Compat.GHC
   ( BindType (..),
     ContextInfo (..),

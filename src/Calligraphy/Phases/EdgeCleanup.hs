@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
+-- | This modules collects some opinionated common-sense heuristics for removing edges that are probably redundant.
 module Calligraphy.Phases.EdgeCleanup (EdgeCleanupConfig, cleanupEdges, pEdgeCleanupConfig) where
 
 import Calligraphy.Util.Types

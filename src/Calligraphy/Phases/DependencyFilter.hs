@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
+-- | Dependency filtering is removing all nodes that are not part of a certain dependency tree
 module Calligraphy.Phases.DependencyFilter
   ( DependencyFilterConfig,
     DependencyFilterError (..),

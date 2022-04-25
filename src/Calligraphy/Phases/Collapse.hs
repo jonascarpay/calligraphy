@@ -1,5 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- | This modules manages the two ways we remove nodes from a graph; collapsing and hiding.
+--
+-- Collapsing means folding a node's descendants into itself, merging all incoming and outcoming edges.
+--
+-- Hiding means removing a node (and its descendants), moving the edges into the node's parent, if a parent exist.
+--
+-- Since these are essentially the same thing from different perspectives, they are handled by the same module.
 module Calligraphy.Phases.Collapse (collapse, CollapseConfig, pCollapseConfig) where
 
 import Calligraphy.Util.Types

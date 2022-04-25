@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- | Rendering takes a callgraph, and produces a dot file
 module Calligraphy.Phases.Render (render, pRenderConfig, RenderConfig) where
 
 import Calligraphy.Util.Printer
