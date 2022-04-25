@@ -13,10 +13,14 @@ extra-doc-files:
   README.md
 
 synopsis:        HIE-based Haskell call graph and source code visualizer
+description:
+  Calligraphy is a Haskell call graph/source code visualizer.
+  It works directly on GHC-generated HIE files, giving us features that would otherwise be tricky, like type information and support for generated files.
+  Calligraphy has been tested with all versions of GHC that can produce HIE files (i.e. GHC 8.8, 8.10, 9.0, and 9.2.)
+  See the project's github page for more information.
+
 homepage:        https://github.com/jonascarpay/calligraphy#readme
 category:        Development, Haskell, Language
-
--- description:     description
 
 source-repository head
   type:     git
