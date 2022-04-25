@@ -226,33 +226,10 @@ structure =
 spanToLoc :: GHC.RealSrcSpan -> Loc
 spanToLoc spn = Loc (GHC.srcSpanStartLine spn) (GHC.srcSpanStartCol spn)
 
-data NodeType
-  = EmptyNode
-  | UseNode GHCKey GHC.RealSrcLoc
-  | DeclNode DeclType GHC.Name GHC.Span
-  deriving (Eq, Ord)
-
 -- | This is the best way I can find of checking whether the name was written by a programmer or not.
 -- GHC internally classifies names extensively, but none of those mechanisms seem to allow to distinguish GHC-generated names.
 isGenerated :: GHC.Name -> Bool
 isGenerated = elem '$' . GHC.getOccString
-
-classifyNode :: GHC.HieAST GHC.TypeIndex -> Either ParseError NodeType
-classifyNode node = (\l -> if null l then EmptyNode else maximum l) <$> types
-  where
-    types :: Either ParseError [NodeType]
-    types = flip execStateT [] $
-      forNodeInfos_ node $ \nodeInfo ->
-        forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
-          (Right name, GHC.IdentifierDetails _ info)
-            | not (isGenerated name) ->
-              let decl :: DeclType -> GHC.Span -> StateT [NodeType] (Either ParseError) ()
-                  decl ty scope = modify (DeclNode ty name scope :)
-               in case classifyIdentifier info of
-                    IdnIgnore -> pure ()
-                    IdnUse -> (modify (UseNode (ghcNameKey name) (GHC.realSrcSpanStart $ GHC.nodeSpan node) :))
-                    IdnDecl typ sp -> decl typ sp
-          _ -> pure ()
 
 collect :: GHC.HieFile -> Either ParseError Collect
 collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (forT_ traverse asts collect') (Collect mempty mempty mempty)
@@ -275,12 +252,14 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (forT_ tra
           then pure ()
           else do
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
-              (Right name, GHC.IdentifierDetails ty _) -> mapM_ (tellType name) ty
+              (Right name, GHC.IdentifierDetails ty info)
+                | not (isGenerated name) -> do
+                    mapM_ (tellType name) ty
+                    case classifyIdentifier info of
+                      IdnIgnore -> pure ()
+                      IdnUse -> tellUse (GHC.realSrcSpanStart $ GHC.nodeSpan node) (ghcNameKey name)
+                      IdnDecl typ sp -> tellDecl (typ, sp, name, spanToLoc sp)
               _ -> pure ()
-            lift (classifyNode node) >>= \case
-              EmptyNode -> pure ()
-              UseNode gk rsl -> tellUse rsl gk
-              DeclNode dt na rss -> tellDecl (dt, rss, na, spanToLoc rss)
             mapM_ collect' children
 
 data IdentifierType
@@ -295,8 +274,7 @@ instance Semigroup IdentifierType where
   IdnDecl typ sp <> IdnDecl typ' sp' = IdnDecl (max typ typ') (spanSpans sp sp')
   IdnDecl typ sp <> _ = IdnDecl typ sp
 
-instance Monoid IdentifierType where
-  mempty = IdnIgnore
+instance Monoid IdentifierType where mempty = IdnIgnore
 
 classifyIdentifier :: Set GHC.ContextInfo -> IdentifierType
 classifyIdentifier = foldMap classify
