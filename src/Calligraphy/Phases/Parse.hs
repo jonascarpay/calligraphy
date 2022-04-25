@@ -12,9 +12,8 @@ module Calligraphy.Phases.Parse
   )
 where
 
-import Calligraphy.Compat.Debug (showGHCName)
 import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (forNodeInfos_, isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, showContextInfo, spanSpans)
+import Calligraphy.Compat.Lib (forNodeInfos_, isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, spanSpans)
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import qualified Calligraphy.Util.LexTree as LT
 import Calligraphy.Util.Printer
@@ -65,17 +64,9 @@ data Collect = Collect
     _types :: EnumMap GHCKey (EnumSet GHCKey)
   }
 
-data ParseError
-  = UnhandledIdentifier GHC.Name GHC.Span [GHC.ContextInfo]
-  | TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
+newtype ParseError = TreeError (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
 
 ppParseError :: Prints ParseError
-ppParseError (UnhandledIdentifier nm sp inf) = do
-  strLn $ "Unrecognized identifier: " <> showGHCName nm
-  indent $ do
-    strLn $ "loc: " <> show sp
-    strLn $ "info:"
-    indent $ mapM_ (strLn . showContextInfo) inf
 ppParseError (TreeError err) = ppTreeError err
   where
     ppTreeError :: Prints (TreeError GHC.RealSrcLoc (DeclType, Name, Loc))
