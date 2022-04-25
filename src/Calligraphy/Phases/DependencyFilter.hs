@@ -79,7 +79,7 @@ pruneModules p (CallGraph modules calls types) = removeDeadCalls $ CallGraph mod
     go :: Tree Decl -> [Tree Decl]
     go (Node decl children) = do
       let children' = children >>= go
-       in if (p decl) then pure (Node decl children') else children'
+       in if p decl then pure (Node decl children') else children'
 
 -- | Remove all calls and typings (i.e. edges) where one end is not present in the graph.
 -- This is intended to be used after an operation that may have removed nodes from the graph.
@@ -148,8 +148,8 @@ transitives maxDepth roots deps = go 0 mempty (EnumSet.fromList roots)
       | EnumSet.null new = old
       | maybe False (< depth) maxDepth = old
       | otherwise =
-          let old' = old <> new
-              new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
-           in go (depth + 1) old' (new' EnumSet.\\ old')
+        let old' = old <> new
+            new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
+         in go (depth + 1) old' (new' EnumSet.\\ old')
     adjacencies :: EnumMap a (EnumSet a)
     adjacencies = foldr (\(from, to) -> EnumMap.insertWith (<>) from (EnumSet.singleton to)) mempty deps

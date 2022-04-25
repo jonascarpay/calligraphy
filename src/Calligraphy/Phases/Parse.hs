@@ -1,5 +1,4 @@
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -133,7 +132,7 @@ parseHieFiles ::
   Either ParseError (ParsePhaseDebugInfo, CallGraph)
 parseHieFiles files = do
   (parsed, (_, keymap)) <- runStateT (mapM parseFile files) (0, mempty)
-  let (mods, debugs, calls, typings) = unzip4 (fmap (\(ParsedFile name path forest call typing ltree) -> ((Module name path forest), (name, ltree), call, typing)) parsed)
+  let (mods, debugs, calls, typings) = unzip4 (fmap (\(ParsedFile name path forest call typing ltree) -> (Module name path forest, (name, ltree), call, typing)) parsed)
       typeEdges = rekeyCalls keymap . Set.fromList $ do
         (term, types) <- EnumMap.toList (mconcat typings)
         typ <- EnumSet.toList types
@@ -229,11 +228,11 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (forT_ tra
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
               (Right name, GHC.IdentifierDetails ty info)
                 | not (isGenerated name) -> do
-                    mapM_ (tellType name) ty
-                    case classifyIdentifier info of
-                      IdnIgnore -> pure ()
-                      IdnUse -> tellUse (GHC.realSrcSpanStart $ GHC.nodeSpan node) (ghcNameKey name)
-                      IdnDecl typ sp -> tellDecl (typ, sp, name, spanToLoc sp)
+                  mapM_ (tellType name) ty
+                  case classifyIdentifier info of
+                    IdnIgnore -> pure ()
+                    IdnUse -> tellUse (GHC.realSrcSpanStart $ GHC.nodeSpan node) (ghcNameKey name)
+                    IdnDecl typ sp -> tellDecl (typ, sp, name, spanToLoc sp)
               _ -> pure ()
             mapM_ collect' children
 
@@ -255,15 +254,15 @@ classifyIdentifier :: Set GHC.ContextInfo -> IdentifierType
 classifyIdentifier = foldMap classify
   where
     classify :: GHC.ContextInfo -> IdentifierType
-    classify (GHC.Decl GHC.DataDec (Just sp)) = (IdnDecl DataDecl sp)
-    classify (GHC.Decl GHC.PatSynDec (Just sp)) = (IdnDecl DataDecl sp)
-    classify (GHC.Decl GHC.FamDec (Just sp)) = (IdnDecl DataDecl sp)
-    classify (GHC.Decl GHC.SynDec (Just sp)) = (IdnDecl DataDecl sp)
-    classify (GHC.Decl GHC.ConDec (Just sp)) = (IdnDecl ConDecl sp)
-    classify (GHC.Decl GHC.ClassDec (Just sp)) = (IdnDecl ClassDecl sp)
-    classify (GHC.ClassTyDecl (Just sp)) = (IdnDecl ValueDecl sp)
-    classify (GHC.ValBind GHC.RegularBind _ (Just sp)) = (IdnDecl ValueDecl sp)
-    classify (GHC.RecField GHC.RecFieldDecl (Just sp)) = (IdnDecl RecDecl sp)
+    classify (GHC.Decl GHC.DataDec (Just sp)) = IdnDecl DataDecl sp
+    classify (GHC.Decl GHC.PatSynDec (Just sp)) = IdnDecl DataDecl sp
+    classify (GHC.Decl GHC.FamDec (Just sp)) = IdnDecl DataDecl sp
+    classify (GHC.Decl GHC.SynDec (Just sp)) = IdnDecl DataDecl sp
+    classify (GHC.Decl GHC.ConDec (Just sp)) = IdnDecl ConDecl sp
+    classify (GHC.Decl GHC.ClassDec (Just sp)) = IdnDecl ClassDecl sp
+    classify (GHC.ClassTyDecl (Just sp)) = IdnDecl ValueDecl sp
+    classify (GHC.ValBind GHC.RegularBind _ (Just sp)) = IdnDecl ValueDecl sp
+    classify (GHC.RecField GHC.RecFieldDecl (Just sp)) = IdnDecl RecDecl sp
     -- Use
     classify (GHC.RecField GHC.RecFieldAssign _) = IdnUse
     classify (GHC.RecField GHC.RecFieldOcc _) = IdnUse
