@@ -62,10 +62,10 @@ pDependencyFilterConfig =
           )
       )
     <*> optional (option auto (long "max-depth" <> help "Maximum search depth for transitive dependencies."))
-    <*> boolFlags True "parent-deps" "When calculating transitive dependencies, follow edges to a parents." mempty
-    <*> boolFlags True "child-deps" "When calculating transitive dependencies, follow edges to children." mempty
-    <*> boolFlags True "value-deps" "When calculating transitive dependencies, follow value edges." mempty
-    <*> boolFlags False "type-deps" "When calculating transitive dependencies, follow type edges." mempty
+    <*> boolFlags True "follow-parent" "In calculating (transitive) dependencies, follow edges to from a child to its parent." mempty
+    <*> boolFlags True "follow-child" "In calculating (transitive) dependencies, follow edges from a parent to its children." mempty
+    <*> boolFlags True "follow-value" "In calculating (transitive) dependencies, follow normal edges." mempty
+    <*> boolFlags False "follow-type" "In calculating (transitive) dependencies, follow type edges." mempty
 
 newtype DependencyFilterError = UnknownRootName String
 
@@ -148,8 +148,8 @@ transitives maxDepth roots deps = go 0 mempty (EnumSet.fromList roots)
       | EnumSet.null new = old
       | maybe False (< depth) maxDepth = old
       | otherwise =
-        let old' = old <> new
-            new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
-         in go (depth + 1) old' (new' EnumSet.\\ old')
+          let old' = old <> new
+              new' = EnumSet.foldr (\a -> maybe id mappend $ EnumMap.lookup a adjacencies) mempty new
+           in go (depth + 1) old' (new' EnumSet.\\ old')
     adjacencies :: EnumMap a (EnumSet a)
     adjacencies = foldr (\(from, to) -> EnumMap.insertWith (<>) from (EnumSet.singleton to)) mempty deps
