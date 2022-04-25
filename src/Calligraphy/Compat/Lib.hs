@@ -26,6 +26,7 @@ import GHC.Iface.Ext.Types
 import GHC.Types.Name.Cache
 import GHC.Types.SrcLoc
 import GHC.Utils.Outputable (ppr, showSDocUnsafe)
+import qualified Data.Map as Map
 #else
 import HieBin
 import HieTypes
@@ -33,12 +34,13 @@ import NameCache
 import SrcLoc
 #endif
 
+-- TODO lensify
 forNodeInfos_ :: Monad m => HieAST a -> (NodeInfo a -> m ()) -> m ()
 showContextInfo :: ContextInfo -> String
 readHieFileCompat :: IORef NameCache -> FilePath -> IO HieFileResult
 #if MIN_VERSION_ghc(9,0,0)
 
-forNodeInfos_ (Node (SourcedNodeInfo sourcedNodeInfos) _ _) = forM_ sourcedNodeInfos
+forNodeInfos_ (Node (SourcedNodeInfo sourcedNodeInfos) _ _) = forM_ (Map.lookup SourceInfo sourcedNodeInfos)
 
 showContextInfo = showSDocUnsafe . ppr
 

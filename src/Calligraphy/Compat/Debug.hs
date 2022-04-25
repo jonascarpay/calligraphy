@@ -20,6 +20,7 @@ import qualified GHC.Types.SrcLoc as GHC
 import qualified GHC.Types.Unique as GHC
 import qualified GHC.Unit as GHC
 import qualified GHC.Utils.Outputable as GHC
+import GHC.Iface.Ext.Types
 #elif MIN_VERSION_ghc(9,0,0)
 import qualified GHC.Data.FastString as GHC
 import qualified GHC.Iface.Ext.Types as GHC
@@ -59,11 +60,15 @@ ppAst :: GHC.HieAST a -> Printer ()
 #if MIN_VERSION_ghc(9,2,0)
 ppAst (GHC.Node (GHC.SourcedNodeInfo nodeInfo) spn children) = do
   strLn (showSpan spn)
-  forM_ nodeInfo $ \(GHC.NodeInfo anns _ ids) -> do
-    forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
-      ppIdentifier idn
-      indent $ forM_ idnDetails $ strLn . GHC.showSDocOneLine GHC.defaultSDocContext . GHC.ppr
-    forM_ anns $ \(GHC.NodeAnnotation constr typ) -> strLn (show (constr, typ))
+  forM_ (Map.toList nodeInfo) $ \(origin, GHC.NodeInfo anns _ ids) -> do
+    case origin of
+      GeneratedInfo -> strLn "GeneratedInfo"
+      SourceInfo -> strLn "SourceInfo"
+    indent $  do
+      forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
+        ppIdentifier idn
+        indent $ forM_ idnDetails $ strLn . GHC.showSDocOneLine GHC.defaultSDocContext . GHC.ppr
+      forM_ anns $ \(GHC.NodeAnnotation constr typ) -> strLn (show (constr, typ))
   indent $ mapM_ ppAst children
 #elif MIN_VERSION_ghc(9,0,0)
 ppAst (GHC.Node (GHC.SourcedNodeInfo nodeInfo) spn children) = do
