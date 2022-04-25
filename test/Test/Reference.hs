@@ -1,6 +1,7 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds -Wno-partial-fields -Wno-missing-signatures -Wno-missing-fields -Wno-unused-matches #-}
 
@@ -21,6 +22,10 @@ data ExportedT
   = Exported (Identity Int)
   | NotExported (M.Map Int Int)
   | Single
+
+deriving instance Eq ExportedT
+
+deriving instance Ord ExportedT
 
 data Record
   = Record1 {field1 :: Int, field2 :: Record, field3 :: Int}

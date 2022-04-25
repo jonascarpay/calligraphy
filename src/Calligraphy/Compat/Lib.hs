@@ -68,7 +68,7 @@ isDerivingNode :: NodeInfo a -> Bool
 showAnns :: NodeInfo a -> String
 #if MIN_VERSION_ghc(9,2,0)
 
-isInstanceNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "ClsInstD" "InstDecl") anns
+isInstanceNode (NodeInfo anns _ _) = any (flip Set.member anns) [NodeAnnotation "ClsInstD" "InstDecl", NodeAnnotation "DerivDecl" "DerivDecl"] 
 
 isTypeSignatureNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "TypeSig" "Sig") anns
 
@@ -84,7 +84,7 @@ showAnns (NodeInfo anns _ _) = unwords (show . unNodeAnnotation <$> Set.toList a
 
 #else
 
-isInstanceNode (NodeInfo anns _ _) = Set.member ("ClsInstD", "InstDecl") anns
+isInstanceNode (NodeInfo anns _ _) = any (flip Set.member anns) [("ClsInstD", "InstDecl"), ("DerivDecl", "DerivDecl")]
 
 isTypeSignatureNode (NodeInfo anns _ _) = Set.member ("TypeSig", "Sig") anns
 
