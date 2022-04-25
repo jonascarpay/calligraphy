@@ -232,6 +232,8 @@ data NodeType
   | DeclNode DeclType GHC.Name GHC.Span
   deriving (Eq, Ord)
 
+-- | This is the best way I can find of checking whether the name was written by a programmer or not.
+-- GHC internally classifies names extensively, but none of those mechanisms seem to allow to distinguish GHC-generated names.
 isGenerated :: GHC.Name -> Bool
 isGenerated = elem '$' . GHC.getOccString
 
