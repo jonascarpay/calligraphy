@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints -Wno-unused-matches #-}
 
 module Calligraphy.Compat.Lib
-  ( forNodeInfos_,
+  ( sourceInfo,
     showContextInfo,
     readHieFileCompat,
     isInstanceNode,
@@ -16,11 +16,11 @@ module Calligraphy.Compat.Lib
   )
 where
 
+import Calligraphy.Util.Lens
 import Data.IORef
 import qualified Data.Set as Set
 
 #if MIN_VERSION_ghc(9,0,0)
-import Control.Monad
 import GHC.Iface.Ext.Binary
 import GHC.Iface.Ext.Types
 import GHC.Types.Name.Cache
@@ -34,13 +34,13 @@ import NameCache
 import SrcLoc
 #endif
 
--- TODO lensify
-forNodeInfos_ :: Monad m => HieAST a -> (NodeInfo a -> m ()) -> m ()
+{-# INLINE sourceInfo #-}
+sourceInfo :: Traversal' (HieAST a) (NodeInfo a)
 showContextInfo :: ContextInfo -> String
 readHieFileCompat :: IORef NameCache -> FilePath -> IO HieFileResult
 #if MIN_VERSION_ghc(9,0,0)
 
-forNodeInfos_ (Node (SourcedNodeInfo sourcedNodeInfos) _ _) = forM_ (Map.lookup SourceInfo sourcedNodeInfos)
+sourceInfo f (Node (SourcedNodeInfo inf) sp children) = (\inf' -> Node (SourcedNodeInfo inf') sp children) <$> Map.alterF (maybe (pure Nothing) (fmap Just . f)) SourceInfo inf
 
 showContextInfo = showSDocUnsafe . ppr
 
@@ -48,7 +48,7 @@ readHieFileCompat ref = readHieFile (NCU (atomicModifyIORef ref))
 
 #else
 
-forNodeInfos_ (Node sourceInfo _ _) f = f sourceInfo
+sourceInfo f (Node inf sp children) = (\inf' -> Node inf' sp children) <$> f inf
 
 showContextInfo = show
 
@@ -68,7 +68,7 @@ isDerivingNode :: NodeInfo a -> Bool
 showAnns :: NodeInfo a -> String
 #if MIN_VERSION_ghc(9,2,0)
 
-isInstanceNode (NodeInfo anns _ _) = any (flip Set.member anns) [NodeAnnotation "ClsInstD" "InstDecl", NodeAnnotation "DerivDecl" "DerivDecl"] 
+isInstanceNode (NodeInfo anns _ _) = any (flip Set.member anns) [NodeAnnotation "ClsInstD" "InstDecl", NodeAnnotation "DerivDecl" "DerivDecl"]
 
 isTypeSignatureNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "TypeSig" "Sig") anns
 

@@ -1,7 +1,5 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes #-}
 
 module Calligraphy.Util.Types
   ( -- * Data types
@@ -25,9 +23,9 @@ module Calligraphy.Util.Types
   )
 where
 
+import Calligraphy.Util.Lens
 import Calligraphy.Util.Printer
 import Control.Monad
-import Control.Monad.Identity
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
@@ -82,10 +80,6 @@ data Loc = Loc
     locCol :: Int
   }
 
-type Traversal s t a b = forall m. Applicative m => (a -> m b) -> (s -> m t)
-
-type Traversal' s a = Traversal s s a a
-
 {-# INLINE modDecls #-}
 modDecls :: Traversal' Module Decl
 modDecls = modForest . traverse . traverse
@@ -93,27 +87,6 @@ modDecls = modForest . traverse . traverse
 {-# INLINE modForest #-}
 modForest :: Traversal' Module (Forest Decl)
 modForest f (Module nm fp ds) = Module nm fp <$> f ds
-
-newtype ConstT m a = ConstT {unConstT :: m ()}
-  deriving (Functor)
-
-instance Applicative m => Applicative (ConstT m) where
-  {-# INLINE pure #-}
-  pure _ = ConstT (pure ())
-  {-# INLINE (<*>) #-}
-  ConstT mf <*> ConstT ma = ConstT (mf *> ma)
-
-{-# INLINE over #-}
-over :: Traversal s t a b -> (a -> b) -> (s -> t)
-over t f = runIdentity . t (Identity . f)
-
-{-# INLINE mapT_ #-}
-mapT_ :: Applicative m => Traversal s t a b -> (a -> m ()) -> s -> m ()
-mapT_ t f = unConstT . t (ConstT . f)
-
-{-# INLINE forT_ #-}
-forT_ :: Applicative m => Traversal s t a b -> s -> (a -> m ()) -> m ()
-forT_ t = flip (mapT_ t)
 
 instance Show Loc where
   showsPrec _ (Loc ln col) = shows ln . showChar ':' . shows col

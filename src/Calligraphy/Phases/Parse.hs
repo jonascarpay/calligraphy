@@ -13,7 +13,7 @@ module Calligraphy.Phases.Parse
 where
 
 import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (forNodeInfos_, isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, spanSpans)
+import Calligraphy.Compat.Lib (isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, sourceInfo, spanSpans)
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import qualified Calligraphy.Util.LexTree as LT
 import Calligraphy.Util.Printer
@@ -222,7 +222,7 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (forT_ tra
 
     collect' :: GHC.HieAST GHC.TypeIndex -> StateT Collect (Either ParseError) ()
     collect' node@(GHC.Node _ _ children) =
-      forNodeInfos_ node $ \nodeInfo ->
+      forT_ sourceInfo node $ \nodeInfo ->
         if any ($ nodeInfo) [isInstanceNode, isTypeSignatureNode, isInlineNode, isMinimalNode, isDerivingNode]
           then pure ()
           else do
