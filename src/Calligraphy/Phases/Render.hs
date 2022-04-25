@@ -18,6 +18,7 @@ data RenderConfig = RenderConfig
     showKey :: Bool,
     showGHCKeys :: Bool,
     showModulePath :: Bool,
+    showChildArrowhead :: Bool,
     locMode :: LocMode,
     clusterModules :: Bool,
     clusterGroups :: Bool,
@@ -81,7 +82,10 @@ render RenderConfig {..} (CallGraph modules calls types) = do
       strLn $ show (unKey key) <> " " <> style ["label" .= show (nodeLabel decl), "shape" .= nodeShape typ, "style" .= nodeStyle]
       forM_ children $ \child@(Node childDecl _) -> do
         renderTreeNode child
-        edge key (declKey childDecl) ["style" .= "dashed", "arrowhead" .= "none"]
+        edge key (declKey childDecl)
+          . cons ("style" .= "dashed")
+          . consIf (not showChildArrowhead) ("arrowhead" .= "none")
+          $ []
       where
         nodeStyle :: String
         nodeStyle =
@@ -136,6 +140,7 @@ pRenderConfig =
     <*> flag False True (long "show-key" <> help "Show internal keys with identifiers. Useful for debugging.")
     <*> flag False True (long "show-ghc-key" <> help "Show GHC keys with identifiers. Useful for debugging.")
     <*> flag False True (long "show-module-path" <> help "Show a module's filepath instead of its name")
+    <*> flag False True (long "show-child-arrowhead" <> help "Put an arrowhead at the end of a parent-child edge")
     <*> pLocMode
     <*> flag True False (long "no-cluster-modules" <> help "Don't draw modules as a cluster.")
     <*> flag True False (long "no-cluster-trees" <> help "Don't draw definition trees as a cluster.")
