@@ -1,4 +1,5 @@
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -17,11 +18,13 @@ import Control.Monad hiding (when)
 import Data.Functor.Identity
 import Data.Kind (Type)
 import qualified Data.Map as M
+import GHC.Generics (Generic)
 
 data ExportedT
   = Exported (Identity Int)
   | NotExported (M.Map Int Int)
   | Single
+  deriving (Generic)
 
 deriving instance Eq ExportedT
 
