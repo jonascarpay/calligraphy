@@ -80,7 +80,7 @@ render RenderConfig {..} (CallGraph modules calls types) = do
 
     renderTreeNode :: Prints (Tree Decl)
     renderTreeNode (Node decl@(Decl _ key _ exported typ _) children) = do
-      strLn $ show (unKey key) <> " " <> style ["label" .= show (nodeLabel decl), "shape" .= nodeShape typ, "style" .= nodeStyle]
+      strLn $ show (unKey key) <> " " <> style ["label" .= ("\"" <> nodeLabel decl <> "\""), "shape" .= nodeShape typ, "style" .= nodeStyle]
       forM_ children $ \child@(Node childDecl _) -> do
         renderTreeNode child
         edge key (declKey childDecl)
