@@ -13,6 +13,7 @@ module Calligraphy.Compat.Lib
     isDerivingNode,
     showAnns,
     spanSpans,
+    isPointSpan,
   )
 where
 
@@ -109,3 +110,6 @@ spanSpans sp1 sp2 =
         (realSrcSpanEnd sp1)
         (realSrcSpanEnd sp2)
     )
+
+isPointSpan :: Span -> Bool
+isPointSpan sp = realSrcSpanEnd sp <= realSrcSpanStart sp

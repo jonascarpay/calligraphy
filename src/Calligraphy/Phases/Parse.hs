@@ -13,6 +13,7 @@ where
 
 import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Compat.Lib (isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, sourceInfo, spanSpans)
+import qualified Calligraphy.Compat.Lib as GHC
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import qualified Calligraphy.Util.LexTree as LT
 import Calligraphy.Util.Printer
@@ -228,11 +229,13 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execStateT (forT_ tra
             forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
               (Right name, GHC.IdentifierDetails ty info)
                 | not (isGenerated name) -> do
-                  mapM_ (tellType name) ty
-                  case classifyIdentifier info of
-                    IdnIgnore -> pure ()
-                    IdnUse -> tellUse (GHC.realSrcSpanStart $ GHC.nodeSpan node) (ghcNameKey name)
-                    IdnDecl typ sp -> tellDecl (typ, sp, name, spanToLoc sp)
+                    mapM_ (tellType name) ty
+                    case classifyIdentifier info of
+                      IdnIgnore -> pure ()
+                      IdnUse -> tellUse (GHC.realSrcSpanStart $ GHC.nodeSpan node) (ghcNameKey name)
+                      IdnDecl typ sp
+                        | GHC.isPointSpan sp -> pure ()
+                        | otherwise -> tellDecl (typ, sp, name, spanToLoc sp)
               _ -> pure ()
             mapM_ collect' children
 
