@@ -5,7 +5,14 @@
 -- Collapsing means absorbing a node's descendants into itself, including all edges.
 --
 -- Hiding means removing a node (and its descendants), moving the edges to the node's parent, if a parent exist.
-module Calligraphy.Phases.NodeFilter (filterNodes, NodeFilterConfig, pNodeFilterConfig) where
+--
+-- There's also the special option --collapse-modules.
+-- It's undeniably a little hacky, but for now this is the best home for that functionality.
+-- Functionality-wise, it's still essentially just collapsing nodes into one another.
+-- The thing that makes it hacky is that it then uses a value node to represent a module.
+-- This is not actually a huge deal, because no other module actually cares about the node type, but it's something to watch out for.
+-- There's more design discussion on https://github.com/jonascarpay/calligraphy/pull/5
+module Calligraphy.Phases.NodeFilter (filterNodes, NodeFilterConfig (..), pNodeFilterConfig) where
 
 import Calligraphy.Util.Types
 import Control.Monad.State
@@ -20,6 +27,7 @@ data Mode = Show | Collapse | Hide
 
 data NodeFilterConfig = NodeFilterConfig
   { hideLocals :: Bool,
+    collapseModules :: Bool,
     collapseClasses :: Mode,
     collapseData :: Mode,
     collapseValues :: Mode,
@@ -31,6 +39,7 @@ pNodeFilterConfig :: Parser NodeFilterConfig
 pNodeFilterConfig =
   NodeFilterConfig
     <$> switch (long "exports-only" <> long "hide-local-bindings" <> help "Remove all non-exported bindings, merging all edges into its parent, if one exist.")
+    <*> switch (long "collapse-modules" <> help "Collapse all nodes into a single node per module.")
     <*> pMode "classes" "class"
     <*> pMode "data" "data"
     <*> pMode "values" "value"
@@ -48,9 +57,21 @@ pNodeFilterConfig =
 
 filterNodes :: NodeFilterConfig -> CallGraph -> CallGraph
 filterNodes NodeFilterConfig {..} (CallGraph modules calls types) =
-  let (modules', reps) = flip runState mempty $ (traverse . modForest) (fmap catMaybes . traverse (go Nothing)) modules
+  let (modules', reps) =
+        flip runState mempty $
+          forM modules $
+            if collapseModules
+              then collapseModule
+              else modForest (fmap catMaybes . traverse (go Nothing))
    in CallGraph modules' (rekeyCalls reps calls) (rekeyCalls reps types)
   where
+    collapseModule :: Module -> State (EnumMap Key Key) Module
+    collapseModule (Module modname path []) = pure $ Module modname path []
+    collapseModule (Module modname path forest@(Node rep _ : _)) = do
+      let repKey = declKey rep
+      forT_ forestT forest $ \decl -> assoc (declKey decl) repKey
+      pure $ Module modname path [Node (Decl modname repKey mempty True ValueDecl (Loc 1 1)) []]
+
     shouldCollapse :: Decl -> Bool
     shouldCollapse decl = case declType decl of
       ValueDecl -> collapseValues == Collapse

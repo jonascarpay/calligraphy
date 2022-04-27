@@ -55,7 +55,8 @@ mainWithConfig AppConfig {..} = do
   let cgCleaned = cleanupEdges edgeFilterConfig cgDependencyFiltered
   debug dumpFinal $ ppCallGraph cgCleaned
 
-  let txt = runPrinter $ render renderConfig cgCleaned
+  let renderConfig' = renderConfig {clusterModules = clusterModules renderConfig && not (collapseModules nodeFilterConfig)}
+      txt = runPrinter $ render renderConfig' cgCleaned
 
   output outputConfig txt
 
