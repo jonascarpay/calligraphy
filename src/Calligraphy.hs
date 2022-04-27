@@ -5,9 +5,9 @@ module Calligraphy (main, mainWithConfig) where
 
 import Calligraphy.Compat.Debug (ppHieFile)
 import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Phases.Collapse
 import Calligraphy.Phases.DependencyFilter
 import Calligraphy.Phases.EdgeCleanup
+import Calligraphy.Phases.NodeFilter
 import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render
 import Calligraphy.Phases.Search
@@ -50,7 +50,7 @@ mainWithConfig AppConfig {..} = do
 
   (parsePhaseDebug, cgParsed) <- either (printDie . ppParseError) pure (parseHieFiles hieFiles)
   debug dumpLexicalTree $ ppParsePhaseDebugInfo parsePhaseDebug
-  let cgCollapsed = collapse collapseConfig cgParsed
+  let cgCollapsed = filterNodes nodeFilterConfig cgParsed
   cgDependencyFiltered <- either (printDie . ppFilterError) pure $ dependencyFilter dependencyFilterConfig cgCollapsed
   let cgCleaned = cleanupEdges edgeFilterConfig cgDependencyFiltered
   debug dumpFinal $ ppCallGraph cgCleaned
@@ -61,7 +61,7 @@ mainWithConfig AppConfig {..} = do
 
 data AppConfig = AppConfig
   { searchConfig :: SearchConfig,
-    collapseConfig :: CollapseConfig,
+    nodeFilterConfig :: NodeFilterConfig,
     dependencyFilterConfig :: DependencyFilterConfig,
     edgeFilterConfig :: EdgeCleanupConfig,
     renderConfig :: RenderConfig,
@@ -78,7 +78,7 @@ printDie txt = printStderr txt >> exitFailure
 pConfig :: Parser AppConfig
 pConfig =
   AppConfig <$> pSearchConfig
-    <*> pCollapseConfig
+    <*> pNodeFilterConfig
     <*> pDependencyFilterConfig
     <*> pEdgeCleanupConfig
     <*> pRenderConfig
