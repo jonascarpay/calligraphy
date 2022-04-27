@@ -12,7 +12,7 @@ module Calligraphy.Compat.Lib
     isMinimalNode,
     isDerivingNode,
     showAnns,
-    spanSpans,
+    mergeSpans,
     isPointSpan,
   )
 where
@@ -99,8 +99,8 @@ showAnns (NodeInfo anns _ _) = unwords (show <$> Set.toList anns)
 
 #endif
 
-spanSpans :: Span -> Span -> Span
-spanSpans sp1 sp2 =
+mergeSpans :: Span -> Span -> Span
+mergeSpans sp1 sp2 =
   mkRealSrcSpan
     ( min
         (realSrcSpanStart sp1)

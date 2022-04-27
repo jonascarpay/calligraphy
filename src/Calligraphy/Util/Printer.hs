@@ -46,5 +46,10 @@ brack pre post inner = strLn pre *> indent inner <* strLn post
 strLn :: MonadPrint m => String -> m ()
 strLn = line . TB.fromString
 
+{-# INLINE textLn #-}
 textLn :: MonadPrint m => Text -> m ()
 textLn = line . TB.fromText
+
+{-# INLINE showLn #-}
+showLn :: (MonadPrint m, Show a) => a -> m ()
+showLn = strLn . show

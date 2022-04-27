@@ -77,15 +77,15 @@ ppAst (GHC.Node (GHC.SourcedNodeInfo nodeInfo) spn children) = do
     forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
       ppIdentifier idn
       indent $ forM_ idnDetails $ strLn . GHC.showSDocOneLine (GHC.initSDocContext GHC.unsafeGlobalDynFlags GHC.defaultUserStyle) . GHC.ppr
-    forM_ anns $ strLn . show
+    forM_ anns $ showLn
   indent $ mapM_ ppAst children
 #else
 ppAst (GHC.Node (GHC.NodeInfo anns _ ids) spn children) = do
   strLn (showSpan spn)
   forM_ (Map.toList ids) $ \(idn, GHC.IdentifierDetails _ idnDetails) -> do
     ppIdentifier idn
-    indent $ forM_ idnDetails $ strLn . show
-  forM_ anns $ strLn . show
+    indent $ forM_ idnDetails showLn
+  mapM_ showLn anns
   indent $ mapM_ ppAst children
 #endif
 

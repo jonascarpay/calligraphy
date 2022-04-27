@@ -39,6 +39,8 @@ module Calligraphy.Compat.GHC
     srcSpanStartLine,
     srcSpanEndCol,
     srcSpanEndLine,
+    srcLocCol,
+    srcLocLine,
   )
 where
 

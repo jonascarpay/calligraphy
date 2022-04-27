@@ -20,6 +20,7 @@ module Calligraphy.Util.Types
     forT_,
     modForest,
     modDecls,
+    forestT,
   )
 where
 
@@ -76,20 +77,25 @@ data DeclType
     (Eq, Ord, Show)
 
 data Loc = Loc
-  { locLine :: Int,
-    locCol :: Int
+  { locLine :: !Int,
+    locCol :: !Int
   }
+  deriving (Eq, Ord)
+
+instance Show Loc where
+  showsPrec _ (Loc ln col) = shows ln . showChar ':' . shows col
 
 {-# INLINE modDecls #-}
 modDecls :: Traversal' Module Decl
-modDecls = modForest . traverse . traverse
+modDecls = modForest . forestT
 
 {-# INLINE modForest #-}
 modForest :: Traversal' Module (Forest Decl)
 modForest f (Module nm fp ds) = Module nm fp <$> f ds
 
-instance Show Loc where
-  showsPrec _ (Loc ln col) = shows ln . showChar ':' . shows col
+{-# INLINE forestT #-}
+forestT :: Traversal (Forest a) (Forest b) a b
+forestT = traverse . traverse
 
 rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
 rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
