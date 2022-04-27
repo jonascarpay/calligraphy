@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+### [Added]
+
+- `--collapse-modules` option to collapse entire modules into a single node
+
 ## 0.1.1
 
 ### [Changed]
