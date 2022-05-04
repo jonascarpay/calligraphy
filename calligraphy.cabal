@@ -57,6 +57,7 @@ library
     Calligraphy.Util.Types
 
   build-depends:
+    , aeson
     , array
     , containers
     , directory

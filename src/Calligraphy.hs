@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -12,12 +14,18 @@ import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render
 import Calligraphy.Phases.Search
 import Calligraphy.Util.Printer
-import Calligraphy.Util.Types (ppCallGraph)
+import Calligraphy.Util.Types (CallGraph (CallGraph), Key (Key), encodeModuleTree, moduleTree, ppCallGraph)
 import Control.Monad.RWS
+import qualified Data.Aeson as Aeson
+import Data.Foldable (toList)
+import Data.Maybe (isJust)
+import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as Text
+import Data.Tuple (swap)
 import Data.Version (showVersion)
+import GHC.Generics (Generic)
 import Options.Applicative
 import Paths_calligraphy (version)
 import System.Directory (findExecutable)
@@ -58,6 +66,7 @@ mainWithConfig AppConfig {..} = do
   let renderConfig' = renderConfig {clusterModules = clusterModules renderConfig && not (collapseModules nodeFilterConfig)}
       txt = runPrinter $ render renderConfig' cgCleaned
 
+  when (isJust (outputJsonPath outputConfig)) $ outputJson outputConfig cgCleaned
   output outputConfig txt
 
 data AppConfig = AppConfig
@@ -86,6 +95,30 @@ pConfig =
     <*> pOutputConfig
     <*> pDebugConfig
 
+data JSONInfo = JSONInfo
+  { _jsonTree :: ParsePhaseDebugInfo,
+    _jsonGraph :: CallGraph
+  }
+  deriving (Generic)
+
+outputJson :: OutputConfig -> CallGraph -> IO ()
+outputJson cfg graph@(CallGraph _ calls' types') = do
+  forM_ (outputJsonPath cfg) $ \fp ->
+    let encodeEdge (Key source, Key target) =
+          Aeson.object
+            [ (fromString "source", Aeson.toJSON source),
+              (fromString "target", Aeson.toJSON target)
+            ]
+        tree = encodeModuleTree $ moduleTree graph
+        calls = Aeson.toJSON $ fmap (encodeEdge . swap) $ toList calls'
+        types = Aeson.toJSON $ fmap (encodeEdge . swap) $ toList types'
+     in Aeson.encodeFile fp $
+          Aeson.object
+            [ (fromString "tree", tree),
+              (fromString "calls", calls),
+              (fromString "types", types)
+            ]
+
 output :: OutputConfig -> Text -> IO ()
 output cfg@OutputConfig {..} txt = do
   unless (hasOutput cfg) $ Text.hPutStrLn stderr "Warning: no output options specified, run with --help to see options"
@@ -94,7 +127,7 @@ output cfg@OutputConfig {..} txt = do
   forM_ outputSvgPath $ \fp -> runDot ["-Tsvg", "-o", fp]
   when outputStdout $ Text.putStrLn txt
   where
-    hasOutput (OutputConfig Nothing Nothing Nothing _ False) = False
+    hasOutput (OutputConfig Nothing Nothing Nothing Nothing _ False) = False
     hasOutput _ = True
 
     runDot flags = do
@@ -112,6 +145,7 @@ data OutputConfig = OutputConfig
   { outputDotPath :: Maybe FilePath,
     outputPngPath :: Maybe FilePath,
     outputSvgPath :: Maybe FilePath,
+    outputJsonPath :: Maybe FilePath,
     outputEngine :: String,
     outputStdout :: Bool
   }
@@ -122,6 +156,7 @@ pOutputConfig =
     <$> optional (strOption (long "output-dot" <> short 'd' <> metavar "FILE" <> help ".dot output path"))
     <*> optional (strOption (long "output-png" <> short 'p' <> metavar "FILE" <> help ".png output path (requires `dot` or other engine in PATH)"))
     <*> optional (strOption (long "output-svg" <> short 's' <> metavar "FILE" <> help ".svg output path (requires `dot` or other engine in PATH)"))
+    <*> optional (strOption (long "output-json" <> short 'j' <> metavar "FILE" <> help ".json output path"))
     <*> strOption (long "render-engine" <> metavar "CMD" <> help "Render engine to use with --output-png and --output-svg" <> value "dot" <> showDefault)
     <*> switch (long "output-stdout" <> help "Output to stdout")
 
