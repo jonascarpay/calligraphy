@@ -125,6 +125,7 @@ htmlScript json =
       Builder.byteString "</head>",
       Builder.byteString "<body>",
       Builder.byteString "<div id=\"view\"><div>",
+      Builder.byteString "<a id=\"download\" href=\"#\">Download SVG</a>",
       Builder.byteString "<script>" <> Builder.byteString mainScript <> "</script>",
       Builder.byteString "</body>",
       Builder.byteString "</html>"
