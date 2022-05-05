@@ -42,6 +42,7 @@ library
   data-dir:        data
   data-files:
     js/d3.v7.min.js
+    js/main.css
     js/main.js
     js/treegraph.js
 

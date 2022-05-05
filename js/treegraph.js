@@ -51,8 +51,17 @@ const drawTreeGraph = (function() {
           .attr("d", ([ from, to ]) => line(from.path(to)));
 
   const drawNode = (svg, root, cfg) => {
-    const {r, labels, halo, haloWidth, stroke, fill, selected, deselected} =
-        cfg;
+    const {
+      color,
+      r,
+      labels,
+      halo,
+      haloWidth,
+      stroke,
+      fill,
+      selected,
+      deselected
+    } = cfg;
     const node = svg.append("g")
                      .selectAll("a")
                      .data(root.descendants())
@@ -110,6 +119,7 @@ const drawTreeGraph = (function() {
         .attr("r", r);
 
     node.append("text")
+        .attr("fill", color)
         .attr("dy", "0.32em")
         .attr("x", d => d.children ? -6 : 6)
         .attr("text-anchor", d => d.children ? "end" : "start")
@@ -156,33 +166,35 @@ const drawTreeGraph = (function() {
         .attr("font-weight", "bold");
   }
 
-  function deselected(event, d) {
-    d3.select(this).attr("font-weight", null);
-    d3.selectAll(d.incoming.map(d => d.path))
-        .attr("stroke", null)
-        .attr("stroke-opacity", 0.2);
-    d3.selectAll(d.incoming.map(([ d ]) => d.text))
-        .attr("fill", null)
-        .attr("font-weight", null);
-    d3.selectAll(d.outgoing.map(d => d.path))
-        .attr("stroke", null)
-        .attr("stroke-opacity", 0.2);
-    d3.selectAll(d.outgoing.map(([, d ]) => d.text))
-        .attr("fill", null)
-        .attr("font-weight", null);
-    d3.selectAll(d.intype.map(d => d.typePath))
-        .attr("stroke", null)
-        .attr("stroke-opacity", 0.2);
-    d3.selectAll(d.intype.map(([ d ]) => d.text))
-        .attr("fill", null)
-        .attr("font-weight", null);
-    d3.selectAll(d.outtype.map(d => d.typePath))
-        .attr("stroke", null)
-        .attr("stroke-opacity", 0.2);
-    d3.selectAll(d.outtype.map(([, d ]) => d.text))
-        .attr("fill", null)
-        .attr("font-weight", null);
-  }
+  const deselected = (color) => {
+    return function(event, d) {
+      d3.select(this).attr("font-weight", null);
+      d3.selectAll(d.incoming.map(d => d.path))
+          .attr("stroke", null)
+          .attr("stroke-opacity", 0.2);
+      d3.selectAll(d.incoming.map(([ d ]) => d.text))
+          .attr("fill", color)
+          .attr("font-weight", null);
+      d3.selectAll(d.outgoing.map(d => d.path))
+          .attr("stroke", null)
+          .attr("stroke-opacity", 0.2);
+      d3.selectAll(d.outgoing.map(([, d ]) => d.text))
+          .attr("fill", color)
+          .attr("font-weight", null);
+      d3.selectAll(d.intype.map(d => d.typePath))
+          .attr("stroke", null)
+          .attr("stroke-opacity", 0.2);
+      d3.selectAll(d.intype.map(([ d ]) => d.text))
+          .attr("fill", color)
+          .attr("font-weight", null);
+      d3.selectAll(d.outtype.map(d => d.typePath))
+          .attr("stroke", null)
+          .attr("stroke-opacity", 0.2);
+      d3.selectAll(d.outtype.map(([, d ]) => d.text))
+          .attr("fill", color)
+          .attr("font-weight", null);
+    };
+  };
 
   // compute tree layout
   const layoutTree = (root, {height, width, padding}) => {
@@ -216,15 +228,30 @@ const drawTreeGraph = (function() {
     height,
     r = 3,
     padding = 1,
-    fill = "#999",
-    stroke = "#555",
-    strokeWidth = 1.5,
+    strokeWidth = 2,
     strokeOpacity = 0.05,
     strokeLinejoin,
     strokeLinecap,
-    halo = "#fff",
-    haloWidth = 2,
+    light = {
+      color : "#000",
+      fill : "#999",
+      stroke : "#555",
+      halo : "#fff",
+    },
+    dark = {
+      color : "#fff",
+      fill : "#bbb",
+      stroke : "#777",
+      halo : "#000",
+    },
+    haloWidth = 1,
   } = {}) {
+    let colors = light;
+    if (window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      colors = dark;
+    }
+    const {color, fill, stroke, halo} = colors;
     const root = addLinks(addLinks(d3.hierarchy(data, children), calls), types,
                           'intype', 'outtype');
 
@@ -250,8 +277,17 @@ const drawTreeGraph = (function() {
     }).each(function(d) { d.path = this; })
     drawLinks(svg, root, 'outtype', {stroke : 'orange', strokeOpacity : 0.2})
         .each(function(d) { d.typePath = this; })
-    drawNode(svg, root,
-             {r, labels, halo, haloWidth, stroke, fill, selected, deselected})
+    drawNode(svg, root, {
+      r,
+      color,
+      labels,
+      halo,
+      haloWidth,
+      stroke,
+      fill,
+      selected,
+      deselected : deselected(color)
+    })
     return svg.node();
   };
 })();

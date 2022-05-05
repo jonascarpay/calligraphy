@@ -109,6 +109,9 @@ d3Script = $(embedFile "js/d3.v7.min.js")
 treegraphScript :: ByteString
 treegraphScript = $(embedFile "js/treegraph.js")
 
+mainCSS :: ByteString
+mainCSS = $(embedFile "js/main.css")
+
 mainScript :: ByteString
 mainScript = $(embedFile "js/main.js")
 
@@ -119,12 +122,13 @@ htmlScript json =
       Builder.byteString "<html>",
       Builder.byteString "<head>",
       Builder.byteString "<meta charset=\"utf8\">",
+      Builder.byteString "<style>" <> Builder.byteString mainCSS <> Builder.byteString "</style>",
       Builder.byteString "<script>" <> Builder.byteString d3Script <> Builder.byteString "</script>",
       Builder.byteString "<script>" <> Builder.byteString treegraphScript <> Builder.byteString "</script>",
       Builder.byteString "<script type=\"application/json\" id=\"treegraph-json\">" <> Builder.lazyByteString json <> Builder.byteString "</script>",
       Builder.byteString "</head>",
       Builder.byteString "<body>",
-      Builder.byteString "<div id=\"view\"><div>",
+      Builder.byteString "<div id=\"view\"></div>",
       Builder.byteString "<a id=\"download\" href=\"#\">Download SVG</a>",
       Builder.byteString "<script>" <> Builder.byteString mainScript <> "</script>",
       Builder.byteString "</body>",
