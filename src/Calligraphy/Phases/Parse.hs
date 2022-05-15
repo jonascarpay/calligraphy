@@ -186,9 +186,9 @@ instance (Ord k, Semigroup v) => Semigroup (Dedup k v) where
 structure :: [RawDecl] -> Either (TreeError Loc RawDecl) (LexTree Loc RawDecl)
 structure = foldM (\ !t decl -> LT.insertWith f (rdStart decl) decl (rdEnd decl) t) LT.emptyLexTree
   where
-    f (RawDecl na ka ta sa ea) (RawDecl nb kb tb _ _)
+    f (RawDecl na ka ta sa ea) prev@(RawDecl nb kb tb _ _)
       | ta == tb && na == nb = Just (RawDecl na (ka <> kb) ta sa ea)
-      | otherwise = Nothing
+      | otherwise = Just prev
 
 -- | This is the best way I can find of checking whether the name was written by a programmer or not.
 -- GHC internally classifies names extensively, but none of those mechanisms seem to allow to distinguish GHC-generated names.
