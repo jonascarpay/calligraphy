@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+### [Changed]
+- [#7] When encountering overlapping declarations, this will now keep the first one we find instead of throwing an error. Overlapping declarations are the result of TH slices. Since we don't have any guarantees for those anyways, producing garbage instead of an error seems like a net win.
+
 ## 0.1.2
 
 ### [Added]
