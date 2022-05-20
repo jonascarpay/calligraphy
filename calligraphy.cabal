@@ -39,6 +39,13 @@ library
   hs-source-dirs:  src
   other-modules:   Paths_calligraphy
   autogen-modules: Paths_calligraphy
+  data-dir:        data
+  data-files:
+    js/d3.v7.min.js
+    js/main.css
+    js/main.js
+    js/treegraph.js
+
   exposed-modules:
     Calligraphy
     Calligraphy.Compat.Debug
@@ -57,10 +64,13 @@ library
     Calligraphy.Util.Types
 
   build-depends:
+    , aeson
     , array
+    , bytestring
     , containers
     , directory
     , enummapset
+    , file-embed
     , filepath
     , ghc
     , mtl
