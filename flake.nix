@@ -19,6 +19,9 @@
       perSystem = system:
         let
           pkgs = import inputs.nixpkgs { inherit system; overlays = [ overlay ]; };
+          mkApp = compiler:
+             pkgs.haskell.lib.compose.justStaticExecutables
+               pkgs.haskell.packages."${compiler}".calligraphy;
           mkShell = compiler:
             let hspkgs = pkgs.haskell.packages.${compiler}; in
             hspkgs.shellFor {
@@ -45,6 +48,13 @@
           devShell = devShells.ghc922-shell;
           packages.calligraphy = pkgs.calligraphy;
           defaultPackage = pkgs.calligraphy;
+
+          apps = {
+            calligraphy-ghc922 = mkApp "ghc922";
+            calligraphy-ghc902 = mkApp "ghc902";
+            calligraphy-ghc8107 = mkApp "ghc8107";
+            calligraphy-ghc884 = mkApp "ghc884";
+          };
         };
     in
     { inherit overlay; } // inputs.flake-utils.lib.eachDefaultSystem perSystem;
