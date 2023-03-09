@@ -8,10 +8,8 @@ module Calligraphy.Phases.Search
 where
 
 import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (readHieFileCompat)
+import Calligraphy.Compat.Lib
 import Control.Applicative
-import Control.Monad.State
-import Data.IORef
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty, toList)
 import Options.Applicative hiding (str)
@@ -20,12 +18,7 @@ import System.FilePath (isExtensionOf, (</>))
 
 searchFiles :: SearchConfig -> IO [GHC.HieFile]
 searchFiles SearchConfig {searchDotPaths, searchRoots, includePatterns, excludePatterns} = do
-  hieFilePaths <- searchHieFilePaths
-
-  hieFiles <- do
-    uniqSupply <- GHC.mkSplitUniqSupply 'z'
-    ref <- newIORef (GHC.initNameCache uniqSupply [])
-    forM hieFilePaths (readHieFileWithWarning ref)
+  hieFiles <- getHieFiles =<< searchHieFilePaths
 
   pure $
     flip filter hieFiles $ \file ->
@@ -50,16 +43,6 @@ searchFiles SearchConfig {searchDotPaths, searchRoots, includePatterns, excludeP
                   contents <- (if searchDotPaths then id else filter (not . isPrefixOf ".")) <$> listDirectory path
                   foldMap (go . (path </>)) contents
                 else pure []
-
-readHieFileWithWarning :: IORef GHC.NameCache -> FilePath -> IO GHC.HieFile
-readHieFileWithWarning ref path = do
-  GHC.HieFileResult fileHieVersion fileGHCVersion hie <- readHieFileCompat ref path
-  when (GHC.hieVersion /= fileHieVersion) $ do
-    putStrLn $ "WARNING: version mismatch in " <> path
-    putStrLn $ "    The hie files in this project were generated with GHC version: " <> show fileGHCVersion
-    putStrLn $ "    This version of calligraphy was compiled with GHC version: " <> show GHC.hieVersion
-    putStrLn $ "    Optimistically continuing anyway..."
-  pure hie
 
 data SearchConfig = SearchConfig
   { includePatterns :: Maybe (NonEmpty Pattern),

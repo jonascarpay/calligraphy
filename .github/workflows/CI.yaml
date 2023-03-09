@@ -5,37 +5,41 @@ on: push
 jobs:
 
   nix-build:
-    name: Nix default build
+    name: Nix default
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: cachix/install-nix-action@v16
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v19
       - run: nix build -L
-      - run: nix build -L .#devShell.x86_64-linux
+      - run: nix develop -L -c echo "All good"
 
-  nix-shells:
-    name: Nix build ${{ matrix.ghc }} shell
+  nix-matrix:
+    name: Nix ${{ matrix.ghc }}
     strategy:
       matrix:
-        ghc: [ 'ghc884', 'ghc8107', 'ghc902', 'ghc922' ]
+        ghc: [ ghc8107, ghc902, ghc927, ghc944 ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: cachix/install-nix-action@v16
-      - run: nix build -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell
-      - run: nix develop -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell -c cabal new-build
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v19
+      - name: build shell
+        run: nix build -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell
+      - name: cabal build in shell
+        run: nix develop -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell -c cabal new-build
+      - name: nix build
+        run: nix build -L .#apps.x86_64-linux.calligraphy-${{ matrix.ghc }}
 
   stack-build:
     name: Stack ${{ matrix.resolver }} on ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        resolver: [ nightly, lts-19, lts-18, lts-17, lts-16, lts-15 ]
+        resolver: [ nightly, lts-20, lts-19, lts-18, lts-17, lts-16, lts-15 ]
         os: [ macos-latest, ubuntu-latest ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: haskell/actions/setup@v1
+      - uses: actions/checkout@v3
+      - uses: haskell/actions/setup@v2
         with:
           enable-stack: true
       - run: stack init --resolver ${{ matrix.resolver }}
@@ -48,15 +52,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc: [ '8.8.4', '8.10.7', '9.0.2', '9.2.2' ]
+        ghc: [ '8.8.4', '8.10.7', '9.0.2', '9.2.7', '9.4.4' ]
         os: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: haskell/actions/setup@v1
+      - uses: actions/checkout@v3
+      - uses: haskell/actions/setup@v2
         with:
           ghc-version: ${{ matrix.ghc }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cabal
