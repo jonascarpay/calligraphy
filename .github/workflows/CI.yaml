@@ -5,26 +5,29 @@ on: push
 jobs:
 
   nix-build:
-    name: Nix default build
+    name: Nix default
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v19
       - run: nix build -L
-      - run: nix build -L .#devShell.x86_64-linux
+      - run: nix develop -L -c echo "All good"
 
-  nix-shells:
-    name: Nix build ${{ matrix.ghc }} shell
+  nix-matrix:
+    name: Nix ${{ matrix.ghc }}
     strategy:
       matrix:
-        # TODO bump flake, ghc, add ghc94
-        ghc: [ ghc884, ghc8107, ghc902, ghc922 ]
+        ghc: [ ghc8107, ghc902, ghc927, ghc944 ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v19
-      - run: nix build -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell
-      - run: nix develop -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell -c cabal new-build
+      - name: build shell
+        run: nix build -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell
+      - name: cabal build in shell
+        run: nix develop -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell -c cabal new-build
+      - name: nix build
+        run: nix build -L .#apps.x86_64-linux.calligraphy-${{ matrix.ghc }}
 
   stack-build:
     name: Stack ${{ matrix.resolver }} on ${{ matrix.os }}

@@ -17,12 +17,13 @@
       };
 
       supported-ghc-versions = [
-        "ghc922"
+        "ghc944"
+        "ghc927"
         "ghc902"
         "ghc8107"
         "ghc884"
       ];
-      default-ghc-version = "ghc922";
+      default-ghc-version = "ghc944";
       per-compiler = fkey: fattr:
         (builtins.listToAttrs (builtins.map (str: { name = fkey str; value = fattr str; }) supported-ghc-versions))
         // { default = fattr default-ghc-version; };
@@ -43,8 +44,10 @@
                 hspkgs.cabal-install
                 hspkgs.haskell-language-server
                 hspkgs.hlint
-                hspkgs.ormolu
-                pkgs.bashInteractive # see: https://discourse.nixos.org/t/interactive-bash-with-nix-develop-flake/15486
+                # Ormolu doesn't work well with the way nix does old GHC
+                # versions, so I'm turning it off by default
+                # hspkgs.ormolu
+                pkgs.bashInteractive
                 pkgs.graphviz
               ];
             };
