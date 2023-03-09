@@ -1,0 +1,12 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+html, body {
+  background: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  html, body {
+    background: #111;
+  }
+}

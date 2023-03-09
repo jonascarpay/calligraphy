@@ -1,5 +1,8 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Calligraphy (main, mainWithConfig) where
 
@@ -12,17 +15,26 @@ import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render
 import Calligraphy.Phases.Search
 import Calligraphy.Util.Printer
-import Calligraphy.Util.Types (ppCallGraph)
+import Calligraphy.Util.Types (CallGraph (CallGraph), Key (Key), encodeModuleTree, moduleTree, ppCallGraph)
 import Control.Monad.RWS
-import Data.Text (Text)
+import qualified Data.Aeson as Aeson
+import Data.ByteString (ByteString)
+import Data.ByteString.Builder (Builder)
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy as Lazy
+import Data.FileEmbed (embedFile)
+import Data.Foldable (toList)
+import Data.String (fromString)
 import qualified Data.Text as T
 import qualified Data.Text.IO as Text
+import Data.Tuple (swap)
 import Data.Version (showVersion)
+import GHC.Generics (Generic)
 import Options.Applicative
 import Paths_calligraphy (version)
 import System.Directory (findExecutable)
 import System.Exit
-import System.IO (stderr)
+import System.IO (IOMode (WriteMode), stderr, withFile)
 import System.Process
 
 main :: IO ()
@@ -56,9 +68,8 @@ mainWithConfig AppConfig {..} = do
   debug dumpFinal $ ppCallGraph cgCleaned
 
   let renderConfig' = renderConfig {clusterModules = clusterModules renderConfig && not (collapseModules nodeFilterConfig)}
-      txt = runPrinter $ render renderConfig' cgCleaned
 
-  output outputConfig txt
+  output outputConfig renderConfig' cgCleaned
 
 data AppConfig = AppConfig
   { searchConfig :: SearchConfig,
@@ -86,15 +97,76 @@ pConfig =
     <*> pOutputConfig
     <*> pDebugConfig
 
-output :: OutputConfig -> Text -> IO ()
-output cfg@OutputConfig {..} txt = do
+data JSONInfo = JSONInfo
+  { _jsonTree :: ParsePhaseDebugInfo,
+    _jsonGraph :: CallGraph
+  }
+  deriving (Generic)
+
+d3Script :: ByteString
+d3Script = $(embedFile "js/d3.v7.min.js")
+
+treegraphScript :: ByteString
+treegraphScript = $(embedFile "js/treegraph.js")
+
+mainCSS :: ByteString
+mainCSS = $(embedFile "js/main.css")
+
+mainScript :: ByteString
+mainScript = $(embedFile "js/main.js")
+
+htmlScript :: Lazy.ByteString -> Builder
+htmlScript json =
+  unlinesBuilder $
+    [ Builder.byteString "<!doctype html>",
+      Builder.byteString "<html>",
+      Builder.byteString "<head>",
+      Builder.byteString "<meta charset=\"utf8\">",
+      Builder.byteString "<style>" <> Builder.byteString mainCSS <> Builder.byteString "</style>",
+      Builder.byteString "<script>" <> Builder.byteString d3Script <> Builder.byteString "</script>",
+      Builder.byteString "<script>" <> Builder.byteString treegraphScript <> Builder.byteString "</script>",
+      Builder.byteString "<script type=\"application/json\" id=\"treegraph-json\">" <> Builder.lazyByteString json <> Builder.byteString "</script>",
+      Builder.byteString "</head>",
+      Builder.byteString "<body>",
+      Builder.byteString "<div id=\"view\"></div>",
+      Builder.byteString "<a id=\"download\" href=\"#\">Download SVG</a>",
+      Builder.byteString "<script>" <> Builder.byteString mainScript <> "</script>",
+      Builder.byteString "</body>",
+      Builder.byteString "</html>"
+    ]
+  where
+    unlinesBuilder xs = mconcat (fmap (\a -> a <> Builder.charUtf8 '\n') xs)
+
+encodeCallGraph :: CallGraph -> Aeson.Value
+encodeCallGraph graph@(CallGraph _ calls' types') =
+  let encodeEdge (Key source, Key target) =
+        Aeson.object
+          [ (fromString "source", Aeson.toJSON source),
+            (fromString "target", Aeson.toJSON target)
+          ]
+      tree = encodeModuleTree $ moduleTree graph
+      calls = Aeson.toJSON $ fmap (encodeEdge . swap) $ toList calls'
+      types = Aeson.toJSON $ fmap (encodeEdge . swap) $ toList types'
+   in Aeson.object
+        [ (fromString "tree", tree),
+          (fromString "calls", calls),
+          (fromString "types", types)
+        ]
+
+output :: OutputConfig -> RenderConfig -> CallGraph -> IO ()
+output cfg@OutputConfig {..} renderConfig' graph = do
   unless (hasOutput cfg) $ Text.hPutStrLn stderr "Warning: no output options specified, run with --help to see options"
   forM_ outputDotPath $ \fp -> Text.writeFile fp txt
   forM_ outputPngPath $ \fp -> runDot ["-Tpng", "-o", fp]
   forM_ outputSvgPath $ \fp -> runDot ["-Tsvg", "-o", fp]
+  forM_ outputJsonPath $ \fp -> Aeson.encodeFile fp json
+  forM_ outputHtmlPath $ \fp -> withFile fp WriteMode $ \f ->
+    Builder.hPutBuilder f (htmlScript $ Aeson.encode json)
   when outputStdout $ Text.putStrLn txt
   where
-    hasOutput (OutputConfig Nothing Nothing Nothing _ False) = False
+    txt = runPrinter $ render renderConfig' graph
+    json = encodeCallGraph graph
+    hasOutput (OutputConfig Nothing Nothing Nothing Nothing Nothing _ False) = False
     hasOutput _ = True
 
     runDot flags = do
@@ -112,6 +184,8 @@ data OutputConfig = OutputConfig
   { outputDotPath :: Maybe FilePath,
     outputPngPath :: Maybe FilePath,
     outputSvgPath :: Maybe FilePath,
+    outputHtmlPath :: Maybe FilePath,
+    outputJsonPath :: Maybe FilePath,
     outputEngine :: String,
     outputStdout :: Bool
   }
@@ -122,6 +196,8 @@ pOutputConfig =
     <$> optional (strOption (long "output-dot" <> short 'd' <> metavar "FILE" <> help ".dot output path"))
     <*> optional (strOption (long "output-png" <> short 'p' <> metavar "FILE" <> help ".png output path (requires `dot` or other engine in PATH)"))
     <*> optional (strOption (long "output-svg" <> short 's' <> metavar "FILE" <> help ".svg output path (requires `dot` or other engine in PATH)"))
+    <*> optional (strOption (long "output-html" <> long "html" <> metavar "FILE" <> help ".html output path"))
+    <*> optional (strOption (long "output-json" <> short 'j' <> metavar "FILE" <> help ".json output path"))
     <*> strOption (long "render-engine" <> metavar "CMD" <> help "Render engine to use with --output-png and --output-svg" <> value "dot" <> showDefault)
     <*> switch (long "output-stdout" <> help "Output to stdout")
 
