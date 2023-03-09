@@ -90,7 +90,8 @@ render RenderConfig {..} (CallGraph modules calls types) = do
       where
         nodeStyle :: String
         nodeStyle =
-          show . intercalate ", "
+          show
+            . intercalate ", "
             . consIf (typ == RecDecl) "rounded"
             . consIf (not exported) "dashed"
             . cons "filled"
@@ -103,7 +104,7 @@ consIf :: Bool -> a -> [a] -> [a]
 consIf True = (:)
 consIf False = flip const
 
-consManyIf :: Foldable f => Bool -> f a -> [a] -> [a]
+consManyIf :: Bool -> [a] -> [a] -> [a]
 consManyIf True fs as = foldr (:) as fs
 consManyIf False _ as = as
 
@@ -114,7 +115,7 @@ nodeShape RecDecl = "box"
 nodeShape ClassDecl = "house"
 nodeShape ValueDecl = "ellipse"
 
-edge :: MonadPrint m => Key -> Key -> Style -> m ()
+edge :: Key -> Key -> Style -> Printer ()
 edge (Key from) (Key to) sty = strLn $ show from <> " -> " <> show to <> " " <> style sty
 
 (.=) :: String -> String -> (String, String)
