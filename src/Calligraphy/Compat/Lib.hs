@@ -18,10 +18,10 @@ module Calligraphy.Compat.Lib
   )
 where
 
+import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Util.Lens
 import Data.IORef
 import qualified Data.Set as Set
-import qualified Calligraphy.Compat.GHC as GHC
 
 #if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Ext.Binary
@@ -50,7 +50,7 @@ getHieFiles filePaths = do
 getHieFiles filePaths = do
     uniqSupply <- GHC.mkSplitUniqSupply 'z'
     ref <- newIORef (GHC.initNameCache uniqSupply [])
-    forM hieFilePaths (readHieFileWithWarning ref)
+    forM filePaths (readHieFileWithWarning ref)
 
 #endif
 
@@ -63,7 +63,6 @@ readHieFileWithWarning ref path = do
     putStrLn $ "    This version of calligraphy was compiled with GHC version: " <> show GHC.hieVersion
     putStrLn "    Optimistically continuing anyway..."
   pure hie
-
 
 {-# INLINE sourceInfo #-}
 sourceInfo :: Traversal' (HieAST a) (NodeInfo a)
