@@ -17,7 +17,8 @@ jobs:
     name: Nix build ${{ matrix.ghc }} shell
     strategy:
       matrix:
-        ghc: [ 'ghc884', 'ghc8107', 'ghc902', 'ghc922' ]
+        # TODO bump flake, ghc, add ghc94
+        ghc: [ ghc884, ghc8107, ghc902, ghc922 ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -30,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        resolver: [ nightly, lts-19, lts-18, lts-17, lts-16, lts-15 ]
+        resolver: [ nightly, lts-20, lts-19, lts-18, lts-17, lts-16, lts-15 ]
         os: [ macos-latest, ubuntu-latest ]
     runs-on: ${{ matrix.os }}
     steps:
@@ -48,7 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc: [ '8.8.4', '8.10.7', '9.0.2', '9.2.2' ]
+        ghc: [ '8.8.4', '8.10.7', '9.0.2', '9.2.2', '9.4.4' ] # TODO bump all to latest
         os: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     steps:
