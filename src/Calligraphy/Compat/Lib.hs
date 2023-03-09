@@ -22,6 +22,7 @@ import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Util.Lens
 import Data.IORef
 import qualified Data.Set as Set
+import Control.Monad
 
 #if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Ext.Binary
@@ -30,7 +31,6 @@ import GHC.Types.Name.Cache
 import GHC.Types.SrcLoc
 import GHC.Utils.Outputable (ppr, showSDocUnsafe)
 import qualified Data.Map as Map
-import Control.Monad (forM, when)
 #else
 import HieBin
 import HieTypes
