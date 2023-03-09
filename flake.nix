@@ -16,12 +16,23 @@
         calligraphy = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.calligraphy;
       };
 
+      supported-ghc-versions = [
+        "ghc922"
+        "ghc902"
+        "ghc8107"
+        "ghc884"
+      ];
+      default-ghc-version = "ghc922";
+      per-compiler = fkey: fattr:
+        (builtins.listToAttrs (builtins.map (str: { name = fkey str; value = fattr str; }) supported-ghc-versions))
+        // { default = fattr default-ghc-version; };
+
       perSystem = system:
         let
           pkgs = import inputs.nixpkgs { inherit system; overlays = [ overlay ]; };
           mkApp = compiler:
-             pkgs.haskell.lib.compose.justStaticExecutables
-               pkgs.haskell.packages."${compiler}".calligraphy;
+            pkgs.haskell.lib.compose.justStaticExecutables
+              pkgs.haskell.packages."${compiler}".calligraphy;
           mkShell = compiler:
             let hspkgs = pkgs.haskell.packages.${compiler}; in
             hspkgs.shellFor {
@@ -38,23 +49,11 @@
               ];
             };
         in
-        rec {
-          devShells = {
-            ghc922-shell = mkShell "ghc922";
-            ghc902-shell = mkShell "ghc902";
-            ghc8107-shell = mkShell "ghc8107";
-            ghc884-shell = mkShell "ghc884";
-          };
-          devShell = devShells.ghc922-shell;
+        {
+          devShells = per-compiler (str: str + "-shell") mkShell;
           packages.calligraphy = pkgs.calligraphy;
           defaultPackage = pkgs.calligraphy;
-
-          apps = {
-            calligraphy-ghc922 = mkApp "ghc922";
-            calligraphy-ghc902 = mkApp "ghc902";
-            calligraphy-ghc8107 = mkApp "ghc8107";
-            calligraphy-ghc884 = mkApp "ghc884";
-          };
+          apps = per-compiler (str: "calligraphy-" + str) mkApp;
         };
     in
     { inherit overlay; } // inputs.flake-utils.lib.eachDefaultSystem perSystem;
