@@ -1,13 +1,13 @@
 cabal-version:   2.4
 name:            calligraphy
-version:         0.1.3
+version:         0.1.4
 license:         BSD-3-Clause
 build-type:      Simple
 license-file:    LICENSE
 author:          Jonas Carpay
 maintainer:      Jonas Carpay <jonascarpay@gmail.com>
 copyright:       2022 Jonas Carpay
-tested-with:     GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.2
+tested-with:     GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.7 || ==9.4.4
 extra-doc-files:
   CHANGELOG.md
   README.md
@@ -16,7 +16,7 @@ synopsis:        HIE-based Haskell call graph and source code visualizer
 description:
   Calligraphy is a Haskell call graph/source code visualizer.
   It works directly on GHC-generated HIE files, giving us features that would otherwise be tricky, like type information and support for generated files.
-  Calligraphy has been tested with all versions of GHC that can produce HIE files (i.e. GHC 8.8, 8.10, 9.0, and 9.2.)
+  Calligraphy has been tested with all versions of GHC that can produce HIE files (i.e. GHC 8.8 through 9.4.)
   See the project's github page for more information.
 
 homepage:        https://github.com/jonascarpay/calligraphy#readme

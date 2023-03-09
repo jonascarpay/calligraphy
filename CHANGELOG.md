@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+### [Added]
+- [#16] [#17] GHC 9.4 support
+
 ## 0.1.3
 
 ### [Changed]
