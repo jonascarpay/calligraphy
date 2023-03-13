@@ -9,7 +9,6 @@ module Calligraphy.Compat.Debug
 where
 
 import Calligraphy.Util.Printer
-import Control.Monad
 import qualified Data.Map as Map
 
 #if MIN_VERSION_ghc(9,2,0)

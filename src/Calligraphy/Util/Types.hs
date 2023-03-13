@@ -26,7 +26,6 @@ where
 
 import Calligraphy.Util.Lens
 import Calligraphy.Util.Printer
-import Control.Monad
 import Data.Bitraversable (bitraverse)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap

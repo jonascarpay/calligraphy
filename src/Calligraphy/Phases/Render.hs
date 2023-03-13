@@ -6,7 +6,6 @@ module Calligraphy.Phases.Render (render, pRenderConfig, RenderConfig (..)) wher
 
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
-import Control.Monad
 import qualified Data.EnumSet as EnumSet
 import Data.List (intercalate)
 import Data.Tree (Tree (..))

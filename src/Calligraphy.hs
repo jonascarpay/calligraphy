@@ -3,7 +3,6 @@
 
 module Calligraphy (main, mainWithConfig) where
 
-import Control.Monad (forM_, unless, when)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as Text

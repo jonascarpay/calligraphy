@@ -12,13 +12,12 @@ module Calligraphy.Phases.DependencyFilter
 where
 
 import Control.Monad.State.Strict
-import Control.Monad (forM)
 import Data.Bifunctor (bimap)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
 import qualified Data.EnumSet as EnumSet
-import Data.Foldable (toList, forM_)
+import qualified Data.Foldable as Foldable
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -109,7 +108,7 @@ dependencyFilter (DependencyFilterConfig mfw mbw maxDepth useParent useChild use
     mkDepFilter :: NonEmpty String -> Set (Key, Key) -> Either DependencyFilterError (Decl -> Bool)
     mkDepFilter rootNames edges = do
       rootKeys <- forM rootNames $ \name -> maybe (Left $ UnknownRootName name) (pure . EnumSet.toList) (Map.lookup name names)
-      let ins = transitives maxDepth (mconcat $ toList rootKeys) edges
+      let ins = transitives maxDepth (mconcat $ Foldable.toList rootKeys) edges
       pure $ \decl -> EnumSet.member (declKey decl) ins
 
     edges =

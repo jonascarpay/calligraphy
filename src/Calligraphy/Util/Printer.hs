@@ -14,7 +14,6 @@ module Calligraphy.Util.Printer
 where
 
 import Control.Monad.RWS
-import Data.Foldable
 import Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (Builder)
