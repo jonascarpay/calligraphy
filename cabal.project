@@ -3,3 +3,6 @@ packages:
 
 package calligraphy
   tests: True
+
+with-compiler: ghc-9.6.1
+--with-compiler: ghc-9.4.4

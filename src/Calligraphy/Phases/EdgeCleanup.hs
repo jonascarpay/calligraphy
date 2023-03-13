@@ -3,12 +3,14 @@
 -- | This modules collects some opinionated common-sense heuristics for removing edges that are probably redundant.
 module Calligraphy.Phases.EdgeCleanup (EdgeCleanupConfig, cleanupEdges, pEdgeCleanupConfig) where
 
-import Calligraphy.Util.Types
+import Control.Monad (void)
 import Control.Monad.State.Strict
 import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Tree
 import Options.Applicative
+import qualified Data.Set as Set
+
+import Calligraphy.Util.Types
 
 data EdgeCleanupConfig = EdgeCleanupConfig
   { cleanDoubles :: Bool,

@@ -3,17 +3,7 @@
 
 module Calligraphy (main, mainWithConfig) where
 
-import Calligraphy.Compat.Debug (ppHieFile)
-import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Phases.DependencyFilter
-import Calligraphy.Phases.EdgeCleanup
-import Calligraphy.Phases.NodeFilter
-import Calligraphy.Phases.Parse
-import Calligraphy.Phases.Render
-import Calligraphy.Phases.Search
-import Calligraphy.Util.Printer
-import Calligraphy.Util.Types (ppCallGraph)
-import Control.Monad.RWS
+import Control.Monad (forM_, unless, when)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as Text
@@ -24,6 +14,17 @@ import System.Directory (findExecutable)
 import System.Exit
 import System.IO (stderr)
 import System.Process
+
+import Calligraphy.Compat.Debug (ppHieFile)
+import qualified Calligraphy.Compat.GHC as GHC
+import Calligraphy.Phases.DependencyFilter
+import Calligraphy.Phases.EdgeCleanup
+import Calligraphy.Phases.NodeFilter
+import Calligraphy.Phases.Parse
+import Calligraphy.Phases.Render
+import Calligraphy.Phases.Search
+import Calligraphy.Util.Printer
+import Calligraphy.Util.Types (ppCallGraph)
 
 main :: IO ()
 main = do

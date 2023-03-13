@@ -11,16 +11,14 @@ module Calligraphy.Phases.DependencyFilter
   )
 where
 
-import Calligraphy.Util.Optparse (boolFlags)
-import Calligraphy.Util.Printer
-import Calligraphy.Util.Types
 import Control.Monad.State.Strict
+import Control.Monad (forM)
 import Data.Bifunctor (bimap)
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
 import qualified Data.EnumSet as EnumSet
-import Data.Foldable (toList)
+import Data.Foldable (toList, forM_)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -31,6 +29,10 @@ import Data.Tree
 import Data.Tuple (swap)
 import Options.Applicative
 import Prelude hiding (filter)
+
+import Calligraphy.Util.Optparse (boolFlags)
+import Calligraphy.Util.Printer
+import Calligraphy.Util.Types
 
 data DependencyFilterConfig = DependencyFilterConfig
   { _depRoot :: Maybe (NonEmpty String),

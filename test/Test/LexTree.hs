@@ -1,17 +1,23 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.LexTree where
 
 import Calligraphy.Util.LexTree
-import Control.Applicative
 import Control.Monad
 import qualified Data.Foldable as Foldable
 import Data.Maybe (fromMaybe, isJust)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+
+#if MIN_VERSION_base(4,18,0)
+import Control.Applicative ()
+#else
+import Control.Applicative (liftA2)
+#endif
 
 instance (Arbitrary a, Arbitrary p, Ord p, Num p) => Arbitrary (LexTree p a) where
   arbitrary = sized goSized

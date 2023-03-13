@@ -44,6 +44,12 @@ module Calligraphy.Compat.GHC
   )
 where
 
+#if MIN_VERSION_ghc(9,6,0)
+import Language.Haskell.Syntax.Module.Name (moduleNameString, ModuleName)
+#elif MIN_VERSION_ghc(9,0,0)
+import GHC.Unit.Module.Name (moduleNameString, ModuleName)
+#endif
+
 #if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Ext.Binary
 import GHC.Iface.Ext.Types
@@ -54,7 +60,6 @@ import GHC.Types.Name.Cache
 import GHC.Types.SrcLoc
 import GHC.Types.Unique
 import GHC.Types.Unique.Supply
-import GHC.Unit.Module.Name
 import GHC.Unit.Types
 #else
 import Avail
