@@ -54,7 +54,8 @@ library
     Calligraphy.Phases.EdgeCleanup
     Calligraphy.Phases.NodeFilter
     Calligraphy.Phases.Parse
-    Calligraphy.Phases.Render
+    Calligraphy.Phases.Render.Common
+    Calligraphy.Phases.Render.GraphViz
     Calligraphy.Phases.Search
     Calligraphy.Util.Lens
     Calligraphy.Util.LexTree
