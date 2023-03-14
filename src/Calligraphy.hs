@@ -143,7 +143,7 @@ pOutputConfig =
 pStdoutFormat :: Parser StdoutFormat
 pStdoutFormat =
   flag' StdoutDot (long "stdout-dot" <> help "Output graphviz dot to stdout")
-    <|> flag' StdoutMermaid (long "stdout-mermaid" <> help "Output graphviz dot to stdout")
+    <|> flag' StdoutMermaid (long "stdout-mermaid" <> help "Output Mermaid to stdout")
     <|> pure StdoutNone
 
 data DebugConfig = DebugConfig
