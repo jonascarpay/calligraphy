@@ -7,7 +7,7 @@
 `calligraphy` is a Haskell call graph/source code visualizer.
 
 It works directly on GHC-generated HIE files, giving us features that would otherwise be tricky, like type information and support for generated files.
-`calligraphy` has been tested with all versions of GHC that can produce HIE files (i.e. GHC 8.8, 8.10, 9.0, and 9.2.)
+`calligraphy` has been tested with all versions of GHC that produce HIE files (i.e. GHC 8.8 through 9.6.)
 
 See [the accompanying blog post](https://jonascarpay.com/posts/2022-04-26-calligraphy-tutorial.html) for more examples, and an extended tutorial.
 
