@@ -19,6 +19,7 @@ import Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (Builder)
 import qualified Data.Text.Lazy.Builder as TB
+import Data.Monoid (Ap(..))
 
 -- | An monadic interface to a fairly primitive line printer.
 -- It maintains an indentation level, and provides efficient concatenation through 'Builder', and that's it.

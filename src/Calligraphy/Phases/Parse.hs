@@ -12,13 +12,7 @@ module Calligraphy.Phases.Parse
   )
 where
 
-import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, mergeSpans, sourceInfo)
-import qualified Calligraphy.Compat.Lib as GHC
-import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
-import qualified Calligraphy.Util.LexTree as LT
-import Calligraphy.Util.Printer
-import Calligraphy.Util.Types
+import Control.Monad (foldM, unless)
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Array (Array)
@@ -36,6 +30,14 @@ import Data.Semigroup
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tree (Forest, Tree (..))
+
+import qualified Calligraphy.Compat.GHC as GHC
+import Calligraphy.Compat.Lib (isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, mergeSpans, sourceInfo)
+import qualified Calligraphy.Compat.Lib as GHC
+import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
+import qualified Calligraphy.Util.LexTree as LT
+import Calligraphy.Util.Printer
+import Calligraphy.Util.Types
 
 -- | A declaration extracted from the source code.
 --
@@ -105,7 +107,7 @@ ghcNameKey = GHCKey . GHC.getKey . GHC.nameUnique
 newtype ParsePhaseDebugInfo = ParsePhaseDebugInfo {modulesLexTrees :: [(String, LexTree Loc RawDecl)]}
 
 ppParsePhaseDebugInfo :: Prints ParsePhaseDebugInfo
-ppParsePhaseDebugInfo (ParsePhaseDebugInfo mods) = forM_ mods $ \(modName, ltree) -> do
+ppParsePhaseDebugInfo (ParsePhaseDebugInfo mods) = Foldable.forM_ mods $ \(modName, ltree) -> do
   strLn modName
   indent $ ppLexTree ltree
 
@@ -162,7 +164,7 @@ parseHieFile file@(GHC.HieFile filepath mdl _ _ avails _) = do
     mkDecl :: EnumSet GHCKey -> RawDecl -> HieParse Decl
     mkDecl exportSet (RawDecl str ghcKeys typ start _) = do
       key <- fresh
-      forM_ (EnumSet.toList ghcKeys) (assoc key)
+      Foldable.forM_ (EnumSet.toList ghcKeys) (assoc key)
       let exported = any (flip EnumSet.member exportSet) (EnumSet.toList ghcKeys)
       pure $ Decl str key ghcKeys exported typ start
 
@@ -230,7 +232,7 @@ collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execState (forT_ trav
     go node@(GHC.Node _ _ children) =
       forT_ sourceInfo node $ \nodeInfo ->
         unless (ignoreNode nodeInfo) $ do
-          forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
+          Foldable.forM_ (M.toList $ GHC.nodeIdentifiers nodeInfo) $ \case
             (Right name, GHC.IdentifierDetails ty info) | not (isGenerated name) -> do
               mapM_ (tellType name) ty
               case classifyIdentifier info of

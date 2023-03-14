@@ -7,7 +7,9 @@ license-file:    LICENSE
 author:          Jonas Carpay
 maintainer:      Jonas Carpay <jonascarpay@gmail.com>
 copyright:       2022 Jonas Carpay
-tested-with:     GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.7 || ==9.4.4
+tested-with:
+  GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.7 || ==9.4.4 || ==9.6.1
+
 extra-doc-files:
   CHANGELOG.md
   README.md
@@ -16,7 +18,7 @@ synopsis:        HIE-based Haskell call graph and source code visualizer
 description:
   Calligraphy is a Haskell call graph/source code visualizer.
   It works directly on GHC-generated HIE files, giving us features that would otherwise be tricky, like type information and support for generated files.
-  Calligraphy has been tested with all versions of GHC that can produce HIE files (i.e. GHC 8.8 through 9.4.)
+  Calligraphy has been tested with all versions of GHC that produce HIE files (i.e. GHC 8.8 through 9.6.)
   See the project's github page for more information.
 
 homepage:        https://github.com/jonascarpay/calligraphy#readme
