@@ -11,6 +11,7 @@ import Calligraphy.Phases.NodeFilter
 import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render.Common
 import Calligraphy.Phases.Render.GraphViz
+import Calligraphy.Phases.Render.Mermaid
 import Calligraphy.Phases.Search
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types (ppCallGraph)
@@ -57,9 +58,11 @@ mainWithConfig AppConfig {..} = do
 
   let renderConfig' = renderConfig {clusterModules = clusterModules renderConfig && not (collapseModules nodeFilterConfig)}
   renderable <- either (printDie . ppRenderError) pure (renderGraph renderConfig' cgCleaned)
-  let txt = runPrinter $ renderGraphViz graphVizConfig renderable
 
-  output outputConfig txt
+  output
+    outputConfig
+    (runPrinter $ renderGraphViz graphVizConfig renderable)
+    (runPrinter $ renderMermaid renderable)
 
 data AppConfig = AppConfig
   { searchConfig :: SearchConfig,
@@ -90,15 +93,19 @@ pConfig =
     <*> pOutputConfig
     <*> pDebugConfig
 
-output :: OutputConfig -> Text -> IO ()
-output cfg@OutputConfig {..} txt = do
+output :: OutputConfig -> Text -> Text -> IO ()
+output cfg@OutputConfig {..} dotTxt mermaidTxt = do
   unless (hasOutput cfg) $ Text.hPutStrLn stderr "Warning: no output options specified, run with --help to see options"
-  forM_ outputDotPath $ \fp -> Text.writeFile fp txt
+  forM_ outputDotPath $ \fp -> Text.writeFile fp dotTxt
   forM_ outputPngPath $ \fp -> runDot ["-Tpng", "-o", fp]
   forM_ outputSvgPath $ \fp -> runDot ["-Tsvg", "-o", fp]
-  when outputStdout $ Text.putStrLn txt
+  forM_ outputMermaidPath $ \fp -> Text.writeFile fp mermaidTxt
+  case outputStdout of
+    StdoutDot -> Text.putStrLn dotTxt
+    StdoutMermaid -> Text.putStrLn mermaidTxt
+    StdoutNone -> pure ()
   where
-    hasOutput (OutputConfig Nothing Nothing Nothing _ False) = False
+    hasOutput (OutputConfig Nothing Nothing Nothing Nothing _ StdoutNone) = False
     hasOutput _ = True
 
     runDot flags = do
@@ -106,18 +113,21 @@ output cfg@OutputConfig {..} txt = do
       case mexe of
         Nothing -> die $ "Unable to find '" <> outputEngine <> "' executable! Make sure it is installed, or use another output method/engine."
         Just exe -> do
-          (code, out, err) <- readProcessWithExitCode exe flags (T.unpack txt)
+          (code, out, err) <- readProcessWithExitCode exe flags (T.unpack dotTxt)
           unless (code == ExitSuccess) $ do
             putStrLn $ outputEngine <> " crashed:"
             putStrLn out
             putStrLn err
 
+data StdoutFormat = StdoutNone | StdoutDot | StdoutMermaid
+
 data OutputConfig = OutputConfig
   { outputDotPath :: Maybe FilePath,
     outputPngPath :: Maybe FilePath,
     outputSvgPath :: Maybe FilePath,
+    outputMermaidPath :: Maybe FilePath,
     outputEngine :: String,
-    outputStdout :: Bool
+    outputStdout :: StdoutFormat
   }
 
 pOutputConfig :: Parser OutputConfig
@@ -126,8 +136,15 @@ pOutputConfig =
     <$> optional (strOption (long "output-dot" <> short 'd' <> metavar "FILE" <> help ".dot output path"))
     <*> optional (strOption (long "output-png" <> short 'p' <> metavar "FILE" <> help ".png output path (requires `dot` or other engine in PATH)"))
     <*> optional (strOption (long "output-svg" <> short 's' <> metavar "FILE" <> help ".svg output path (requires `dot` or other engine in PATH)"))
+    <*> optional (strOption (long "output-mermaid" <> short 'm' <> metavar "FILE" <> help "Mermaid output path"))
     <*> strOption (long "render-engine" <> metavar "CMD" <> help "Render engine to use with --output-png and --output-svg" <> value "dot" <> showDefault)
-    <*> switch (long "output-stdout" <> help "Output to stdout")
+    <*> pStdoutFormat
+
+pStdoutFormat :: Parser StdoutFormat
+pStdoutFormat =
+  flag' StdoutDot (long "stdout-dot" <> help "Output graphviz dot to stdout")
+    <|> flag' StdoutMermaid (long "stdout-mermaid" <> help "Output graphviz dot to stdout")
+    <|> pure StdoutNone
 
 data DebugConfig = DebugConfig
   { dumpHieFile :: Bool,
