@@ -11,6 +11,7 @@ module Calligraphy.Phases.Render.Common
     RenderGraph (..),
     RenderModule (..),
     RenderNode (..),
+    ClusterModules (..),
     if',
   )
 where
@@ -34,8 +35,13 @@ data RenderConfig = RenderConfig
     showGHCKeys :: Bool,
     showModulePath :: Bool,
     locMode :: LocMode,
-    clusterModules :: Bool
+    clusterModules :: ClusterModules
   }
+
+data ClusterModules
+  = ClusterNever
+  | ClusterWhenMultiple
+  | ClusterAlways
 
 pRenderConfig :: Parser RenderConfig
 pRenderConfig =
@@ -46,7 +52,13 @@ pRenderConfig =
     <*> flag False True (long "show-ghc-key" <> help "Show GHC keys with identifiers. Useful for debugging.")
     <*> flag False True (long "show-module-path" <> help "Show a module's filepath instead of its name")
     <*> pLocMode
-    <*> flag True False (long "no-cluster-modules" <> help "Don't draw modules as a cluster.")
+    <*> pClusterModules
+
+pClusterModules :: Parser ClusterModules
+pClusterModules =
+  flag' ClusterNever (long "no-cluster-modules" <> help "Don't draw modules as a cluster.")
+    <|> flag' ClusterAlways (long "force-cluster-modules" <> help "Draw modules as a cluster, even if there is only one.")
+    <|> pure ClusterWhenMultiple
 
 -- | A directly printable string uniquely identifying a declaration.
 type ID = String
@@ -94,7 +106,12 @@ renderGraph
       Just neModules ->
         pure $
           RenderGraph
-            (if clusterModules then Left neModules else Right (neModules >>= moduleDecls))
+            ( let cluster = case clusterModules of
+                    ClusterAlways -> True
+                    ClusterWhenMultiple -> length neModules > 1
+                    ClusterNever -> False
+               in if cluster then Left neModules else Right (neModules >>= moduleDecls)
+            )
             (if showCalls then Set.map (bimap keyId keyId) calls else Set.empty)
             (if showTypes then Set.map (bimap keyId keyId) types else Set.empty)
     where

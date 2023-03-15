@@ -56,7 +56,9 @@ mainWithConfig AppConfig {..} = do
   let cgCleaned = cleanupEdges edgeFilterConfig cgDependencyFiltered
   debug dumpFinal $ ppCallGraph cgCleaned
 
-  let renderConfig' = renderConfig {clusterModules = clusterModules renderConfig && not (collapseModules nodeFilterConfig)}
+  let renderConfig'
+        | collapseModules nodeFilterConfig = renderConfig {clusterModules = ClusterNever}
+        | otherwise = renderConfig
   renderable <- either (printDie . ppRenderError) pure (renderGraph renderConfig' cgCleaned)
 
   output
