@@ -1,5 +1,3 @@
-{-# LANGUAGE PackageImports #-}
-
 module Prelude 
   ( module P
   , module Control.Monad
@@ -13,6 +11,6 @@ import Control.Monad
 import Data.Either
 import Data.Foldable hiding (toList)
 import Data.List (last, (++), replicate, zip, filter, isPrefixOf)
-import Data.Monoid (Monoid, mempty, mconcat, mappend)
+import Data.Monoid (Monoid, mempty, mconcat, mappend, Ap(..))
 import qualified BasePrelude as P 
 import BasePrelude
