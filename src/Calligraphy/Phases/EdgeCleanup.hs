@@ -3,7 +3,6 @@
 -- | This modules collects some opinionated common-sense heuristics for removing edges that are probably redundant.
 module Calligraphy.Phases.EdgeCleanup (EdgeCleanupConfig, cleanupEdges, pEdgeCleanupConfig) where
 
-import Control.Monad (void)
 import Control.Monad.State.Strict
 import Data.Set (Set)
 import Data.Tree

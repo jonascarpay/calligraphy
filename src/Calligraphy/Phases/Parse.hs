@@ -12,7 +12,6 @@ module Calligraphy.Phases.Parse
   )
 where
 
-import Control.Monad (foldM, unless)
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Array (Array)

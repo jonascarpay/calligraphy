@@ -6,7 +6,6 @@
 module Test.LexTree where
 
 import Calligraphy.Util.LexTree
-import Control.Monad
 import qualified Data.Foldable as Foldable
 import Data.Maybe (fromMaybe, isJust)
 import Test.Hspec

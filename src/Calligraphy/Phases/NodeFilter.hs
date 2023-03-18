@@ -18,10 +18,8 @@ module Calligraphy.Phases.NodeFilter
   , pNodeFilterConfig
   ) where
 
-import Control.Monad (forM)
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
-import Data.Foldable (forM_)
 import Data.Maybe (catMaybes)
 import Data.Tree
 import Options.Applicative

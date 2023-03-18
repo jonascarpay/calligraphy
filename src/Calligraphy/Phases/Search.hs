@@ -10,7 +10,6 @@ where
 import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Compat.Lib
 import Control.Applicative
-import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty, toList)
 import Options.Applicative hiding (str)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute)
