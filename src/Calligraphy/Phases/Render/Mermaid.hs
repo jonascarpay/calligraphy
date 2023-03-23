@@ -34,7 +34,7 @@ renderMermaid (RenderGraph roots calls types) = do
       unless export . strLn $
         "style " <> nodeid <> " stroke-dasharray: 5 5"
     printTree (Node (RenderNode nodeid typ lbll export) children) = do
-      brack ("subgraph " <> nodeid <> "[" <> intercalate "\n" lbll <> "]") "end" $ do
+      brack ("subgraph " <> nodeid <> "[" <> intercalate "\\n" lbll <> "]") "end" $ do
         unless export . strLn $
           "style " <> nodeid <> " stroke-dasharray: 5 5"
         forM_ children printTree
