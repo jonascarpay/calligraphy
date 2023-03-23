@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -15,6 +16,7 @@ import Calligraphy.Phases.Render.Mermaid
 import Calligraphy.Phases.Search
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types (ppCallGraph)
+import Data.IORef
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as Text
@@ -98,30 +100,48 @@ pConfig =
 output :: OutputConfig -> Text -> Text -> IO ()
 output cfg@OutputConfig {..} dotTxt mermaidTxt = do
   unless (hasOutput cfg) $ Text.hPutStrLn stderr "Warning: no output options specified, run with --help to see options"
+  getSvg <- once $ runDot ["-Tsvg"]
   forM_ outputDotPath $ \fp -> Text.writeFile fp dotTxt
   forM_ outputPngPath $ \fp -> runDot ["-Tpng", "-o", fp]
-  forM_ outputSvgPath $ \fp -> runDot ["-Tsvg", "-o", fp]
+  forM_ outputSvgPath $ \fp -> getSvg >>= writeFile fp
   forM_ outputMermaidPath $ \fp -> Text.writeFile fp mermaidTxt
   case outputStdout of
     StdoutDot -> Text.putStrLn dotTxt
     StdoutMermaid -> Text.putStrLn mermaidTxt
+    StdoutSVG -> getSvg >>= putStrLn
     StdoutNone -> pure ()
   where
     hasOutput (OutputConfig Nothing Nothing Nothing Nothing _ StdoutNone) = False
     hasOutput _ = True
 
+    once :: IO a -> IO (IO a)
+    once act = do
+      ref <- newIORef Nothing
+      pure $
+        readIORef ref >>= \case
+          Just a -> pure a
+          Nothing -> do
+            a <- act
+            writeIORef ref (Just a)
+            pure a
+
+    runDot :: [String] -> IO String
     runDot flags = do
       mexe <- findExecutable outputEngine
       case mexe of
         Nothing -> die $ "Unable to find '" <> outputEngine <> "' executable! Make sure it is installed, or use another output method/engine."
         Just exe -> do
           (code, out, err) <- readProcessWithExitCode exe flags (T.unpack dotTxt)
-          unless (code == ExitSuccess) $ do
-            putStrLn $ outputEngine <> " crashed:"
-            putStrLn out
-            putStrLn err
+          case code of
+            ExitSuccess -> pure out
+            _ -> printDie $ do
+              strLn $ outputEngine <> " crashed with " <> show code
+              strLn "Stdout:"
+              indent $ strLn out
+              strLn "Stderr:"
+              indent $ strLn err
 
-data StdoutFormat = StdoutNone | StdoutDot | StdoutMermaid
+data StdoutFormat = StdoutNone | StdoutDot | StdoutMermaid | StdoutSVG
 
 data OutputConfig = OutputConfig
   { outputDotPath :: Maybe FilePath,
@@ -146,6 +166,7 @@ pStdoutFormat :: Parser StdoutFormat
 pStdoutFormat =
   flag' StdoutDot (long "stdout-dot" <> help "Output graphviz dot to stdout")
     <|> flag' StdoutMermaid (long "stdout-mermaid" <> help "Output Mermaid to stdout")
+    <|> flag' StdoutSVG (long "stdout-svg" <> help "Output SVG to stdout")
     <|> pure StdoutNone
 
 data DebugConfig = DebugConfig

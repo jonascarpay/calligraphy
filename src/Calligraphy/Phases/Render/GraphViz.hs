@@ -12,7 +12,6 @@ where
 import Calligraphy.Phases.Render.Common
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
-import Control.Monad (forM_, unless)
 import Data.List (intercalate)
 import Data.Maybe (catMaybes)
 import Data.Tree (Tree (..))
