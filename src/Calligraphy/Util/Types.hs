@@ -97,7 +97,10 @@ forestT :: Traversal (Forest a) (Forest b) a b
 forestT = traverse . traverse
 
 rekeyCalls :: (Enum a, Ord b) => EnumMap a b -> Set (a, a) -> Set (b, b)
-rekeyCalls m = foldr (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m)) mempty
+rekeyCalls m =
+  foldr
+    (maybe id Set.insert . bitraverse (flip EnumMap.lookup m) (flip EnumMap.lookup m))
+    mempty
 
 ppCallGraph :: Prints CallGraph
 ppCallGraph (CallGraph modules _ _) = forM_ modules $ \(Module modName modPath forest) -> do

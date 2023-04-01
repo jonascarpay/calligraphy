@@ -3,6 +3,17 @@
 
 module Calligraphy (main, mainWithConfig) where
 
+import Calligraphy.Compat.Debug (ppHieFile)
+import qualified Calligraphy.Compat.GHC as GHC
+import Calligraphy.Phases.DependencyFilter
+import Calligraphy.Phases.EdgeCleanup
+import Calligraphy.Phases.NodeFilter
+import Calligraphy.Phases.Parse
+import Calligraphy.Phases.Render.Common
+import Calligraphy.Phases.Render.GraphViz
+import Calligraphy.Phases.Search
+import Calligraphy.Util.Printer
+import Calligraphy.Util.Types (ppCallGraph)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as Text
@@ -13,17 +24,6 @@ import System.Directory (findExecutable)
 import System.Exit
 import System.IO (stderr)
 import System.Process
-
-import Calligraphy.Compat.Debug (ppHieFile)
-import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Phases.DependencyFilter
-import Calligraphy.Phases.EdgeCleanup
-import Calligraphy.Phases.NodeFilter
-import Calligraphy.Phases.Parse
-import Calligraphy.Phases.Render
-import Calligraphy.Phases.Search
-import Calligraphy.Util.Printer
-import Calligraphy.Util.Types (ppCallGraph)
 
 main :: IO ()
 main = do
@@ -56,7 +56,8 @@ mainWithConfig AppConfig {..} = do
   debug dumpFinal $ ppCallGraph cgCleaned
 
   let renderConfig' = renderConfig {clusterModules = clusterModules renderConfig && not (collapseModules nodeFilterConfig)}
-      txt = runPrinter $ render renderConfig' cgCleaned
+  renderable <- either (printDie . ppRenderError) pure (renderGraph renderConfig' cgCleaned)
+  let txt = runPrinter $ renderGraphViz graphVizConfig renderable
 
   output outputConfig txt
 
@@ -66,6 +67,7 @@ data AppConfig = AppConfig
     dependencyFilterConfig :: DependencyFilterConfig,
     edgeFilterConfig :: EdgeCleanupConfig,
     renderConfig :: RenderConfig,
+    graphVizConfig :: GraphVizConfig,
     outputConfig :: OutputConfig,
     debugConfig :: DebugConfig
   }
@@ -78,11 +80,13 @@ printDie txt = printStderr txt >> exitFailure
 
 pConfig :: Parser AppConfig
 pConfig =
-  AppConfig <$> pSearchConfig
+  AppConfig
+    <$> pSearchConfig
     <*> pNodeFilterConfig
     <*> pDependencyFilterConfig
     <*> pEdgeCleanupConfig
     <*> pRenderConfig
+    <*> pGraphVizConfig
     <*> pOutputConfig
     <*> pDebugConfig
 
