@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -11,9 +12,11 @@ import Calligraphy.Phases.NodeFilter
 import Calligraphy.Phases.Parse
 import Calligraphy.Phases.Render.Common
 import Calligraphy.Phases.Render.GraphViz
+import Calligraphy.Phases.Render.Mermaid
 import Calligraphy.Phases.Search
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types (ppCallGraph)
+import Data.IORef
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as Text
@@ -55,11 +58,15 @@ mainWithConfig AppConfig {..} = do
   let cgCleaned = cleanupEdges edgeFilterConfig cgDependencyFiltered
   debug dumpFinal $ ppCallGraph cgCleaned
 
-  let renderConfig' = renderConfig {clusterModules = clusterModules renderConfig && not (collapseModules nodeFilterConfig)}
+  let renderConfig'
+        | collapseModules nodeFilterConfig = renderConfig {clusterModules = ClusterNever}
+        | otherwise = renderConfig
   renderable <- either (printDie . ppRenderError) pure (renderGraph renderConfig' cgCleaned)
-  let txt = runPrinter $ renderGraphViz graphVizConfig renderable
 
-  output outputConfig txt
+  output
+    outputConfig
+    (runPrinter $ renderGraphViz graphVizConfig renderable)
+    (runPrinter $ renderMermaid renderable)
 
 data AppConfig = AppConfig
   { searchConfig :: SearchConfig,
@@ -90,34 +97,59 @@ pConfig =
     <*> pOutputConfig
     <*> pDebugConfig
 
-output :: OutputConfig -> Text -> IO ()
-output cfg@OutputConfig {..} txt = do
+output :: OutputConfig -> Text -> Text -> IO ()
+output cfg@OutputConfig {..} dotTxt mermaidTxt = do
   unless (hasOutput cfg) $ Text.hPutStrLn stderr "Warning: no output options specified, run with --help to see options"
-  forM_ outputDotPath $ \fp -> Text.writeFile fp txt
+  getSvg <- once $ runDot ["-Tsvg"]
+  forM_ outputDotPath $ \fp -> Text.writeFile fp dotTxt
   forM_ outputPngPath $ \fp -> runDot ["-Tpng", "-o", fp]
-  forM_ outputSvgPath $ \fp -> runDot ["-Tsvg", "-o", fp]
-  when outputStdout $ Text.putStrLn txt
+  forM_ outputSvgPath $ \fp -> getSvg >>= writeFile fp
+  forM_ outputMermaidPath $ \fp -> Text.writeFile fp mermaidTxt
+  case outputStdout of
+    StdoutDot -> Text.putStrLn dotTxt
+    StdoutMermaid -> Text.putStrLn mermaidTxt
+    StdoutSVG -> getSvg >>= putStrLn
+    StdoutNone -> pure ()
   where
-    hasOutput (OutputConfig Nothing Nothing Nothing _ False) = False
+    hasOutput (OutputConfig Nothing Nothing Nothing Nothing _ StdoutNone) = False
     hasOutput _ = True
 
+    once :: IO a -> IO (IO a)
+    once act = do
+      ref <- newIORef Nothing
+      pure $
+        readIORef ref >>= \case
+          Just a -> pure a
+          Nothing -> do
+            a <- act
+            writeIORef ref (Just a)
+            pure a
+
+    runDot :: [String] -> IO String
     runDot flags = do
       mexe <- findExecutable outputEngine
       case mexe of
         Nothing -> die $ "Unable to find '" <> outputEngine <> "' executable! Make sure it is installed, or use another output method/engine."
         Just exe -> do
-          (code, out, err) <- readProcessWithExitCode exe flags (T.unpack txt)
-          unless (code == ExitSuccess) $ do
-            putStrLn $ outputEngine <> " crashed:"
-            putStrLn out
-            putStrLn err
+          (code, out, err) <- readProcessWithExitCode exe flags (T.unpack dotTxt)
+          case code of
+            ExitSuccess -> pure out
+            _ -> printDie $ do
+              strLn $ outputEngine <> " crashed with " <> show code
+              strLn "Stdout:"
+              indent $ strLn out
+              strLn "Stderr:"
+              indent $ strLn err
+
+data StdoutFormat = StdoutNone | StdoutDot | StdoutMermaid | StdoutSVG
 
 data OutputConfig = OutputConfig
   { outputDotPath :: Maybe FilePath,
     outputPngPath :: Maybe FilePath,
     outputSvgPath :: Maybe FilePath,
+    outputMermaidPath :: Maybe FilePath,
     outputEngine :: String,
-    outputStdout :: Bool
+    outputStdout :: StdoutFormat
   }
 
 pOutputConfig :: Parser OutputConfig
@@ -126,8 +158,16 @@ pOutputConfig =
     <$> optional (strOption (long "output-dot" <> short 'd' <> metavar "FILE" <> help ".dot output path"))
     <*> optional (strOption (long "output-png" <> short 'p' <> metavar "FILE" <> help ".png output path (requires `dot` or other engine in PATH)"))
     <*> optional (strOption (long "output-svg" <> short 's' <> metavar "FILE" <> help ".svg output path (requires `dot` or other engine in PATH)"))
+    <*> optional (strOption (long "output-mermaid" <> short 'm' <> metavar "FILE" <> help "Mermaid output path"))
     <*> strOption (long "render-engine" <> metavar "CMD" <> help "Render engine to use with --output-png and --output-svg" <> value "dot" <> showDefault)
-    <*> switch (long "output-stdout" <> help "Output to stdout")
+    <*> pStdoutFormat
+
+pStdoutFormat :: Parser StdoutFormat
+pStdoutFormat =
+  flag' StdoutDot (long "stdout-dot" <> help "Output graphviz dot to stdout")
+    <|> flag' StdoutMermaid (long "stdout-mermaid" <> help "Output Mermaid to stdout")
+    <|> flag' StdoutSVG (long "stdout-svg" <> help "Output SVG to stdout")
+    <|> pure StdoutNone
 
 data DebugConfig = DebugConfig
   { dumpHieFile :: Bool,

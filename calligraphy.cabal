@@ -56,6 +56,7 @@ library
     Calligraphy.Phases.Parse
     Calligraphy.Phases.Render.Common
     Calligraphy.Phases.Render.GraphViz
+    Calligraphy.Phases.Render.Mermaid
     Calligraphy.Phases.Search
     Calligraphy.Util.Lens
     Calligraphy.Util.LexTree

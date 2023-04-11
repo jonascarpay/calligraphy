@@ -1,116 +1,113 @@
 digraph calligraphy {
     node [style=filled fillcolor="#ffffffcf"];
     graph [outputorder=edgesfirst];
-    subgraph cluster_module_module_0 {
-        label="Test.Reference";
-        subgraph cluster_node_0 {
+    subgraph cluster_node_0 {
+        style=invis;
+        node_0 [label="Class",shape=house,style="filled"];
+        node_1 [label="CDF",shape=octagon,style="dashed, filled"];
+        "node_0" -> "node_1" [style=dashed,arrowhead=none];
+        node_2 [label="CTF",shape=octagon,style="dashed, filled"];
+        "node_0" -> "node_2" [style=dashed,arrowhead=none];
+        node_3 [label="hiddenMethod",shape=ellipse,style="dashed, filled"];
+        "node_0" -> "node_3" [style=dashed,arrowhead=none];
+        subgraph cluster_node_4 {
             style=invis;
-            node_0 [label="Class",shape=house,style="filled"];
-            node_1 [label="CDF",shape=octagon,style="dashed, filled"];
-            "node_0" -> "node_1" [style=dashed,arrowhead=none];
-            node_2 [label="CTF",shape=octagon,style="dashed, filled"];
-            "node_0" -> "node_2" [style=dashed,arrowhead=none];
-            node_3 [label="hiddenMethod",shape=ellipse,style="dashed, filled"];
-            "node_0" -> "node_3" [style=dashed,arrowhead=none];
-            subgraph cluster_node_4 {
-                style=invis;
-                node_4 [label="method",shape=ellipse,style="filled"];
-                node_5 [label="impl",shape=ellipse,style="dashed, filled"];
-                "node_4" -> "node_5" [style=dashed,arrowhead=none];
-            }
-            "node_0" -> "node_4" [style=dashed,arrowhead=none];
+            node_4 [label="method",shape=ellipse,style="filled"];
+            node_5 [label="impl",shape=ellipse,style="dashed, filled"];
+            "node_4" -> "node_5" [style=dashed,arrowhead=none];
         }
-        subgraph cluster_node_6 {
-            style=invis;
-            node_6 [label="ExportedT",shape=octagon,style="filled"];
-            node_7 [label="Exported",shape=box,style="filled"];
-            "node_6" -> "node_7" [style=dashed,arrowhead=none];
-            node_8 [label="NotExported",shape=box,style="dashed, filled"];
-            "node_6" -> "node_8" [style=dashed,arrowhead=none];
-            node_9 [label="Single",shape=box,style="dashed, filled"];
-            "node_6" -> "node_9" [style=dashed,arrowhead=none];
-        }
-        subgraph cluster_node_10 {
-            style=invis;
-            node_10 [label="GADT",shape=octagon,style="dashed, filled"];
-            node_11 [label="GADTFloat",shape=box,style="dashed, filled"];
-            "node_10" -> "node_11" [style=dashed,arrowhead=none];
-            node_12 [label="GADTInt",shape=box,style="dashed, filled"];
-            "node_10" -> "node_12" [style=dashed,arrowhead=none];
-        }
-        subgraph cluster_node_13 {
-            style=invis;
-            node_13 [label="LocalT",shape=octagon,style="dashed, filled"];
-            node_14 [label="Loc1",shape=box,style="dashed, filled"];
-            "node_13" -> "node_14" [style=dashed,arrowhead=none];
-            node_15 [label="Loc2",shape=box,style="dashed, filled"];
-            "node_13" -> "node_15" [style=dashed,arrowhead=none];
-        }
-        subgraph cluster_node_16 {
-            style=invis;
-            node_16 [label="Newtype",shape=octagon,style="dashed, filled"];
-            subgraph cluster_node_17 {
-                style=invis;
-                node_17 [label="Newtype",shape=box,style="dashed, filled"];
-                node_18 [label="accessor",shape=box,style="rounded, dashed, filled"];
-                "node_17" -> "node_18" [style=dashed,arrowhead=none];
-            }
-            "node_16" -> "node_17" [style=dashed,arrowhead=none];
-        }
-        subgraph cluster_node_19 {
-            style=invis;
-            node_19 [label="Record",shape=octagon,style="dashed, filled"];
-            node_20 [label="NoRecord",shape=box,style="dashed, filled"];
-            "node_19" -> "node_20" [style=dashed,arrowhead=none];
-            subgraph cluster_node_21 {
-                style=invis;
-                node_21 [label="Record1",shape=box,style="dashed, filled"];
-                node_22 [label="field1",shape=box,style="rounded, dashed, filled"];
-                "node_21" -> "node_22" [style=dashed,arrowhead=none];
-                node_23 [label="field2",shape=box,style="rounded, dashed, filled"];
-                "node_21" -> "node_23" [style=dashed,arrowhead=none];
-                node_24 [label="field3",shape=box,style="rounded, dashed, filled"];
-                "node_21" -> "node_24" [style=dashed,arrowhead=none];
-            }
-            "node_19" -> "node_21" [style=dashed,arrowhead=none];
-            subgraph cluster_node_25 {
-                style=invis;
-                node_25 [label="Record2",shape=box,style="dashed, filled"];
-                node_26 [label="field3",shape=box,style="rounded, dashed, filled"];
-                "node_25" -> "node_26" [style=dashed,arrowhead=none];
-            }
-            "node_19" -> "node_25" [style=dashed,arrowhead=none];
-        }
-        subgraph cluster_node_27 {
-            style=invis;
-            node_27 [label="SubClass",shape=house,style="dashed, filled"];
-            node_28 [label="soup",shape=ellipse,style="dashed, filled"];
-            "node_27" -> "node_28" [style=dashed,arrowhead=none];
-        }
-        node_29 [label="TypeFamily",shape=octagon,style="dashed, filled"];
-        node_30 [label="TypeSynonym",shape=octagon,style="filled"];
-        node_31 [label="WithSignature",shape=octagon,style="dashed, filled"];
-        node_32 [label="Zero",shape=octagon,style="dashed, filled"];
-        node_33 [label="emptyMap",shape=ellipse,style="dashed, filled"];
-        node_34 [label="expArg",shape=ellipse,style="dashed, filled"];
-        subgraph cluster_node_35 {
-            style=invis;
-            node_35 [label="expValue",shape=ellipse,style="dashed, filled"];
-            node_36 [label="foo",shape=ellipse,style="dashed, filled"];
-            "node_35" -> "node_36" [style=dashed,arrowhead=none];
-        }
-        subgraph cluster_node_37 {
-            style=invis;
-            node_37 [label="exportedFun",shape=ellipse,style="filled"];
-            node_38 [label="a",shape=ellipse,style="dashed, filled"];
-            "node_37" -> "node_38" [style=dashed,arrowhead=none];
-            node_39 [label="b",shape=ellipse,style="dashed, filled"];
-            "node_37" -> "node_39" [style=dashed,arrowhead=none];
-        }
-        node_40 [label="localFun",shape=ellipse,style="dashed, filled"];
-        node_41 [label="recFn",shape=ellipse,style="dashed, filled"];
-        node_42 [label="untyped",shape=ellipse,style="dashed, filled"];
+        "node_0" -> "node_4" [style=dashed,arrowhead=none];
     }
+    subgraph cluster_node_6 {
+        style=invis;
+        node_6 [label="ExportedT",shape=octagon,style="filled"];
+        node_7 [label="Exported",shape=box,style="filled"];
+        "node_6" -> "node_7" [style=dashed,arrowhead=none];
+        node_8 [label="NotExported",shape=box,style="dashed, filled"];
+        "node_6" -> "node_8" [style=dashed,arrowhead=none];
+        node_9 [label="Single",shape=box,style="dashed, filled"];
+        "node_6" -> "node_9" [style=dashed,arrowhead=none];
+    }
+    subgraph cluster_node_10 {
+        style=invis;
+        node_10 [label="GADT",shape=octagon,style="dashed, filled"];
+        node_11 [label="GADTFloat",shape=box,style="dashed, filled"];
+        "node_10" -> "node_11" [style=dashed,arrowhead=none];
+        node_12 [label="GADTInt",shape=box,style="dashed, filled"];
+        "node_10" -> "node_12" [style=dashed,arrowhead=none];
+    }
+    subgraph cluster_node_13 {
+        style=invis;
+        node_13 [label="LocalT",shape=octagon,style="dashed, filled"];
+        node_14 [label="Loc1",shape=box,style="dashed, filled"];
+        "node_13" -> "node_14" [style=dashed,arrowhead=none];
+        node_15 [label="Loc2",shape=box,style="dashed, filled"];
+        "node_13" -> "node_15" [style=dashed,arrowhead=none];
+    }
+    subgraph cluster_node_16 {
+        style=invis;
+        node_16 [label="Newtype",shape=octagon,style="dashed, filled"];
+        subgraph cluster_node_17 {
+            style=invis;
+            node_17 [label="Newtype",shape=box,style="dashed, filled"];
+            node_18 [label="accessor",shape=box,style="rounded, dashed, filled"];
+            "node_17" -> "node_18" [style=dashed,arrowhead=none];
+        }
+        "node_16" -> "node_17" [style=dashed,arrowhead=none];
+    }
+    subgraph cluster_node_19 {
+        style=invis;
+        node_19 [label="Record",shape=octagon,style="dashed, filled"];
+        node_20 [label="NoRecord",shape=box,style="dashed, filled"];
+        "node_19" -> "node_20" [style=dashed,arrowhead=none];
+        subgraph cluster_node_21 {
+            style=invis;
+            node_21 [label="Record1",shape=box,style="dashed, filled"];
+            node_22 [label="field1",shape=box,style="rounded, dashed, filled"];
+            "node_21" -> "node_22" [style=dashed,arrowhead=none];
+            node_23 [label="field2",shape=box,style="rounded, dashed, filled"];
+            "node_21" -> "node_23" [style=dashed,arrowhead=none];
+            node_24 [label="field3",shape=box,style="rounded, dashed, filled"];
+            "node_21" -> "node_24" [style=dashed,arrowhead=none];
+        }
+        "node_19" -> "node_21" [style=dashed,arrowhead=none];
+        subgraph cluster_node_25 {
+            style=invis;
+            node_25 [label="Record2",shape=box,style="dashed, filled"];
+            node_26 [label="field3",shape=box,style="rounded, dashed, filled"];
+            "node_25" -> "node_26" [style=dashed,arrowhead=none];
+        }
+        "node_19" -> "node_25" [style=dashed,arrowhead=none];
+    }
+    subgraph cluster_node_27 {
+        style=invis;
+        node_27 [label="SubClass",shape=house,style="dashed, filled"];
+        node_28 [label="soup",shape=ellipse,style="dashed, filled"];
+        "node_27" -> "node_28" [style=dashed,arrowhead=none];
+    }
+    node_29 [label="TypeFamily",shape=octagon,style="dashed, filled"];
+    node_30 [label="TypeSynonym",shape=octagon,style="filled"];
+    node_31 [label="WithSignature",shape=octagon,style="dashed, filled"];
+    node_32 [label="Zero",shape=octagon,style="dashed, filled"];
+    node_33 [label="emptyMap",shape=ellipse,style="dashed, filled"];
+    node_34 [label="expArg",shape=ellipse,style="dashed, filled"];
+    subgraph cluster_node_35 {
+        style=invis;
+        node_35 [label="expValue",shape=ellipse,style="dashed, filled"];
+        node_36 [label="foo",shape=ellipse,style="dashed, filled"];
+        "node_35" -> "node_36" [style=dashed,arrowhead=none];
+    }
+    subgraph cluster_node_37 {
+        style=invis;
+        node_37 [label="exportedFun",shape=ellipse,style="filled"];
+        node_38 [label="a",shape=ellipse,style="dashed, filled"];
+        "node_37" -> "node_38" [style=dashed,arrowhead=none];
+        node_39 [label="b",shape=ellipse,style="dashed, filled"];
+        "node_37" -> "node_39" [style=dashed,arrowhead=none];
+    }
+    node_40 [label="localFun",shape=ellipse,style="dashed, filled"];
+    node_41 [label="recFn",shape=ellipse,style="dashed, filled"];
+    node_42 [label="untyped",shape=ellipse,style="dashed, filled"];
     "node_10" -> "node_11" [dir=back];
     "node_13" -> "node_11" [dir=back];
     "node_10" -> "node_12" [dir=back];
