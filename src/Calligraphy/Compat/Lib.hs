@@ -23,29 +23,17 @@ import Calligraphy.Util.Lens
 import Data.IORef
 import qualified Data.Set as Set
 
-#if MIN_VERSION_ghc(9,0,0)
-import GHC.Iface.Ext.Binary
-import GHC.Iface.Ext.Types
-import GHC.Types.Name.Cache
-import GHC.Types.SrcLoc
-import GHC.Utils.Outputable (ppr, showSDocUnsafe)
+#if MIN_VERSION_ghc(9,4,0)
 import qualified Data.Map as Map
-#else
-import HieBin
-import HieTypes
-import NameCache
-import SrcLoc
-#endif
 
 getHieFiles :: [FilePath] -> IO [HieFile]
-#if MIN_VERSION_ghc(9,4,0)
-
 getHieFiles filePaths = do
   ref <- newIORef =<< GHC.initNameCache 'z' []
   forM filePaths (readHieFileWithWarning ref)
 
 #else
 
+getHieFiles :: [FilePath] -> IO [HieFile]
 getHieFiles filePaths = do
     uniqSupply <- GHC.mkSplitUniqSupply 'z'
     ref <- newIORef (GHC.initNameCache uniqSupply [])

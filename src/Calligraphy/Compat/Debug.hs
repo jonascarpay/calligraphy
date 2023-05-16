@@ -19,7 +19,6 @@ import qualified GHC.Types.SrcLoc as GHC
 import qualified GHC.Types.Unique as GHC
 import qualified GHC.Unit as GHC
 import qualified GHC.Utils.Outputable as GHC
-import GHC.Iface.Ext.Types
 #elif MIN_VERSION_ghc(9,0,0)
 import qualified GHC.Data.FastString as GHC
 import qualified GHC.Iface.Ext.Types as GHC

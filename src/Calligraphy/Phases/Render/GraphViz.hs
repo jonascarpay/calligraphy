@@ -9,12 +9,15 @@ module Calligraphy.Phases.Render.GraphViz
   )
 where
 
+import Prelude hiding (DeclType)
+
 import Calligraphy.Phases.Render.Common
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import Data.List (intercalate)
 import Data.Maybe (catMaybes)
-import Data.Tree (Tree (..))
+import Data.Tree (Tree)
+import qualified Data.Tree as Tree
 import Options.Applicative hiding (style)
 import Text.Show (showListWith)
 
@@ -52,9 +55,9 @@ renderGraphViz GraphVizConfig {..} (RenderGraph roots calls types) = do
         else edge callee caller ["style" .= "dotted", "dir" .= "back"]
   where
     printTree :: Prints (Tree RenderNode)
-    printTree (Node nodeInfo children) = wrapCluster $ do
+    printTree (Tree.Node nodeInfo children) = wrapCluster $ do
       printNode nodeInfo
-      forM_ children $ \child@(Node childInfo _) -> do
+      forM_ children $ \child@(Tree.Node childInfo _) -> do
         printTree child
         edge (nodeId nodeInfo) (nodeId childInfo) . catMaybes $
           [ pure ("style" .= "dashed"),
