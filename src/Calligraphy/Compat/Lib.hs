@@ -22,9 +22,9 @@ import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Util.Lens
 import Data.IORef
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 #if MIN_VERSION_ghc(9,4,0)
-import qualified Data.Map as Map
 
 getHieFiles :: [FilePath] -> IO [HieFile]
 getHieFiles filePaths = do
