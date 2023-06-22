@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc: [ '8.8.4', '8.10.7', '9.0.2', '9.2.7', '9.4.4', '9.6.1' ]
+        ghc: [ '8.8.4', '8.10.7', '9.0.2', '9.2.7', '9.4.5', '9.6.2' ]
         os: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     steps:
