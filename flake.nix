@@ -1,7 +1,7 @@
 {
   description = "calligraphy";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/release-23.05";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs = inputs:
@@ -45,9 +45,7 @@
                 hspkgs.cabal-install
                 hspkgs.haskell-language-server
                 hspkgs.hlint
-                # Ormolu doesn't work well with the way nix does old GHC
-                # versions, so I'm turning it off by default
-                # hspkgs.ormolu
+                hspkgs.ormolu
                 pkgs.bashInteractive
                 pkgs.graphviz
               ];
