@@ -24,7 +24,7 @@
         "ghc8107"
         "ghc884"
       ];
-      default-ghc-version = "ghc944";
+      default-ghc-version = "ghc945";
       per-compiler = fkey: fattr:
         (builtins.listToAttrs (builtins.map (str: { name = fkey str; value = fattr str; }) supported-ghc-versions))
         // { default = fattr default-ghc-version; };
@@ -45,7 +45,7 @@
                 hspkgs.cabal-install
                 hspkgs.haskell-language-server
                 hspkgs.hlint
-                hspkgs.ormolu
+                # hspkgs.ormolu
                 pkgs.bashInteractive
                 pkgs.graphviz
               ];
