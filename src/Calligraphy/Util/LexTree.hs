@@ -33,7 +33,8 @@ module Calligraphy.Util.LexTree
 where
 
 import Control.Applicative
-import Data.Tree (Forest, Tree (..))
+import Data.Tree (Forest)
+import qualified Data.Tree as Tree
 
 data LexTree p a
   = Tip
@@ -91,7 +92,7 @@ emptyLexTree = Tip
 toForest :: LexTree p a -> Forest (p, a, p)
 toForest lt = foldLexTree id f lt []
   where
-    f ls l a m r rs = ls . (Node (l, a, r) (m []) :) . rs
+    f ls l a m r rs = ls . (Tree.Node (l, a, r) (m []) :) . rs
 
 {-# INLINE height #-}
 height :: LexTree p a -> Int

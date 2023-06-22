@@ -18,10 +18,13 @@ module Calligraphy.Phases.NodeFilter
   , pNodeFilterConfig
   ) where
 
+import Prelude hiding (Decl)
+
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
 import Data.Maybe (catMaybes)
-import Data.Tree
+import Data.Tree (Tree)
+import qualified Data.Tree as Tree
 import Options.Applicative
 import qualified Data.EnumMap as EnumMap
 
@@ -72,10 +75,10 @@ filterNodes NodeFilterConfig {..} (CallGraph modules calls types) =
   where
     collapseModule :: Module -> State (EnumMap Key Key) Module
     collapseModule (Module modname path []) = pure $ Module modname path []
-    collapseModule (Module modname path forest@(Node rep _ : _)) = do
+    collapseModule (Module modname path forest@(Tree.Node rep _ : _)) = do
       let repKey = declKey rep
       forT_ forestT forest $ \decl -> assoc (declKey decl) repKey
-      pure $ Module modname path [Node (Decl modname repKey mempty True ValueDecl (Loc 1 1)) []]
+      pure $ Module modname path [Tree.Node (Decl modname repKey mempty True ValueDecl (Loc 1 1)) []]
 
     shouldCollapse :: Decl -> Bool
     shouldCollapse decl = case declType decl of
@@ -95,7 +98,7 @@ filterNodes NodeFilterConfig {..} (CallGraph modules calls types) =
         typ RecDecl = hideRecords
 
     go :: Maybe Decl -> Tree Decl -> State (EnumMap Key Key) (Maybe (Tree Decl))
-    go mparent node@(Node decl children)
+    go mparent node@(Tree.Node decl children)
       | shouldHide decl = do
           forM_ mparent $ \parent ->
             forM_ node $ \child -> assoc (declKey child) (declKey parent)
@@ -103,11 +106,11 @@ filterNodes NodeFilterConfig {..} (CallGraph modules calls types) =
       | shouldCollapse decl = do
           forM_ node $ \child ->
             assoc (declKey child) (declKey decl)
-          pure $ Just $ Node decl []
+          pure $ Just $ Tree.Node decl []
       | otherwise = do
           assoc (declKey decl) (declKey decl)
           children' <- catMaybes <$> mapM (go (Just decl)) children
-          pure $ Just $ Node decl children'
+          pure $ Just $ Tree.Node decl children'
 
     assoc :: Key -> Key -> State (EnumMap Key Key) ()
     assoc key rep = modify (EnumMap.insert key rep)

@@ -5,6 +5,7 @@ module Calligraphy.Phases.Render.Mermaid
   )
 where
 
+import Prelude hiding (Node, Decl, DeclType)
 import Calligraphy.Phases.Render.Common
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
@@ -33,7 +34,7 @@ renderMermaid (RenderGraph roots calls types) = do
       strLn $ nodeid <> nodeShape typ (intercalate "\\n" lbll)
       unless export . strLn $
         "style " <> nodeid <> " stroke-dasharray: 5 5"
-    printTree (Node (RenderNode nodeid typ lbll export) children) = do
+    printTree (Node (RenderNode nodeid _typ lbll export) children) = do
       brack ("subgraph " <> nodeid <> "[" <> intercalate "\\n" lbll <> "]") "end" $ do
         unless export . strLn $
           "style " <> nodeid <> " stroke-dasharray: 5 5"

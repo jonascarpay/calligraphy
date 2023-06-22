@@ -12,6 +12,8 @@ module Calligraphy.Phases.Parse
   )
 where
 
+import Prelude hiding (Decl, DeclType)
+
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Array (Array)
@@ -28,7 +30,8 @@ import qualified Data.Map as Map
 import Data.Semigroup
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Tree (Forest, Tree (..))
+import Data.Tree (Forest)
+import qualified Data.Tree as Tree
 
 import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Compat.Lib (isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, mergeSpans, sourceInfo)
@@ -36,7 +39,7 @@ import qualified Calligraphy.Compat.Lib as GHC
 import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
 import qualified Calligraphy.Util.LexTree as LT
 import Calligraphy.Util.Printer
-import Calligraphy.Util.Types
+import Calligraphy.Util.Types (GHCKey(..), Loc(..), DeclType(..), Decl(..), Key(..), CallGraph(..), Module(..), rekeyCalls, forestT, over, forT_)
 
 -- | A declaration extracted from the source code.
 --
@@ -176,8 +179,8 @@ parseHieFile file@(GHC.HieFile filepath mdl _ _ avails _) = do
 dedup :: (Ord k, Semigroup v) => Forest (k, v) -> Forest (k, v)
 dedup = fromDedup . toDedup
   where
-    fromDedup = fmap (\(k, (v, d)) -> Node (k, v) (fromDedup d)) . Map.toList . unDedup
-    toDedup = Dedup . Map.fromListWith (<>) . fmap (\(Node (k, v) f) -> (k, (v, toDedup f)))
+    fromDedup = fmap (\(k, (v, d)) -> Tree.Node (k, v) (fromDedup d)) . Map.toList . unDedup
+    toDedup = Dedup . Map.fromListWith (<>) . fmap (\(Tree.Node (k, v) f) -> (k, (v, toDedup f)))
 
 newtype Dedup k v = Dedup {unDedup :: Map k (v, Dedup k v)}
 

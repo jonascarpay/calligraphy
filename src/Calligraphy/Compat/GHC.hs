@@ -51,13 +51,9 @@ import GHC.Unit.Module.Name (moduleNameString, ModuleName)
 #endif
 
 #if MIN_VERSION_ghc(9,0,0)
-import GHC.Iface.Ext.Binary
-import GHC.Iface.Ext.Types
 import GHC.Iface.Type
 import GHC.Types.Avail
 import GHC.Types.Name
-import GHC.Types.Name.Cache
-import GHC.Types.SrcLoc
 import GHC.Types.Unique
 import GHC.Types.Unique.Supply
 import GHC.Unit.Types

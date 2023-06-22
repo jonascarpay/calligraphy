@@ -11,6 +11,8 @@ module Calligraphy.Phases.DependencyFilter
   )
 where
 
+import Prelude hiding (Decl, DeclType, Node, filter)
+
 import Control.Monad.State.Strict
 import Data.Bifunctor (bimap)
 import Data.EnumMap (EnumMap)
@@ -21,13 +23,12 @@ import qualified Data.Foldable as Foldable
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Monoid
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Tree
+import Data.Tree (Tree)
+import qualified Data.Tree as Tree
 import Data.Tuple (swap)
 import Options.Applicative
-import Prelude hiding (filter)
 
 import Calligraphy.Util.Optparse (boolFlags)
 import Calligraphy.Util.Printer
@@ -78,9 +79,9 @@ pruneModules p (CallGraph modules calls types) = removeDeadCalls $ CallGraph mod
   where
     modules' = over (traverse . modForest) (>>= go) modules
     go :: Tree Decl -> [Tree Decl]
-    go (Node decl children) = do
+    go (Tree.Node decl children) = do
       let children' = children >>= go
-       in if p decl then pure (Node decl children') else children'
+       in if p decl then pure (Tree.Node decl children') else children'
 
 -- | Remove all calls and typings (i.e. edges) where one end is not present in the graph.
 -- This is intended to be used after an operation that may have removed nodes from the graph.
@@ -123,8 +124,8 @@ dependencyFilter (DependencyFilterConfig mfw mbw maxDepth useParent useChild use
     (parentEdges, childEdges) = execState (forT_ (traverse . modForest . traverse) modules go) mempty
       where
         go :: Tree Decl -> State (Set (Key, Key), Set (Key, Key)) ()
-        go (Node parent children) =
-          forM_ children $ \childNode@(Node child _) -> do
+        go (Tree.Node parent children) =
+          forM_ children $ \childNode@(Tree.Node child _) -> do
             let kParent = declKey parent
                 kChild = declKey child
             modify $ bimap (Set.insert (kParent, kChild)) (Set.insert (kChild, kParent))
