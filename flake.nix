@@ -17,8 +17,8 @@
       };
 
       supported-ghc-versions = [
-        "ghc961"
-        "ghc944"
+        "ghc962"
+        "ghc945"
         "ghc927"
         "ghc902"
         "ghc8107"

@@ -19,10 +19,7 @@ jobs:
     name: Nix ${{ matrix.ghc }}
     strategy:
       matrix:
-        # TODO 2023-04-14
-        # GHC 9.6 itself has hit nixpkgs, but many dependencies are still on older versions.
-        # As soon as the 9.6 nix build succeeds it should be added to the matrix.
-        ghc: [ ghc8107, ghc902, ghc927, ghc944 ]
+        ghc: [ ghc8107, ghc902, ghc927, ghc945, ghc962 ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
