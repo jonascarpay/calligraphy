@@ -6,6 +6,7 @@
 
   outputs = inputs:
     let
+
       overlay = final: prev: {
         haskell = prev.haskell // {
           packageOverrides = hfinal: hprev:
@@ -16,46 +17,54 @@
         calligraphy = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.calligraphy;
       };
 
-      supported-ghc-versions = [
-        "ghc962"
-        "ghc945"
-        "ghc927"
-        "ghc902"
-        "ghc8107"
-        "ghc884"
-      ];
-      default-ghc-version = "ghc945";
-      per-compiler = fkey: fattr:
-        (builtins.listToAttrs (builtins.map (str: { name = fkey str; value = fattr str; }) supported-ghc-versions))
-        // { default = fattr default-ghc-version; };
 
       perSystem = system:
         let
+
+          per-compiler = f: pkgs.lib.genAttrs [
+            "ghc962"
+            "ghc945"
+            "ghc927"
+            "ghc902"
+            "ghc8107"
+            "ghc884"
+          ]
+            (ghc: f pkgs.haskell.packages.${ghc});
+
           pkgs = import inputs.nixpkgs { inherit system; overlays = [ overlay ]; };
-          mkApp = compiler:
-            pkgs.haskell.lib.compose.justStaticExecutables
-              pkgs.haskell.packages."${compiler}".calligraphy;
-          mkShell = compiler:
-            let hspkgs = pkgs.haskell.packages.${compiler}; in
+
+          mkApp = hspkgs: pkgs.haskell.lib.compose.justStaticExecutables hspkgs.calligraphy;
+
+          mkBuildShell = hspkgs:
+            hspkgs.shellFor {
+              packages = hpkgs: [ hpkgs.calligraphy ];
+              nativeBuildInputs = [ hspkgs.cabal-install ];
+            };
+
+          mkDevShell = hspkgs:
             hspkgs.shellFor {
               withHoogle = true;
               packages = hpkgs: [ hpkgs.calligraphy ];
-              GHC_VERSION = compiler;
               nativeBuildInputs = [
                 hspkgs.cabal-install
-                hspkgs.haskell-language-server
-                hspkgs.hlint
-                # hspkgs.ormolu
+                hspkgs.ormolu
                 pkgs.bashInteractive
                 pkgs.graphviz
+                hspkgs.hlint
+                hspkgs.haskell-language-server
               ];
             };
+
         in
         {
-          devShells = per-compiler (str: str + "-shell") mkShell;
-          packages.calligraphy = pkgs.calligraphy;
-          defaultPackage = pkgs.calligraphy;
-          apps = per-compiler (str: "calligraphy-" + str) mkApp;
+          packages.default = pkgs.calligraphy;
+
+          apps.default = pkgs.calligraphy;
+          apps.calligraphyFor = per-compiler mkApp;
+
+          devShells.default = mkDevShell pkgs.haskellPackages;
+          devShells.build-shells = per-compiler mkBuildShell;
+          devShells.dev-shells = per-compiler mkDevShell;
         };
     in
     { inherit overlay; } // inputs.flake-utils.lib.eachDefaultSystem perSystem;

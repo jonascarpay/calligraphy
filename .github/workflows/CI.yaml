@@ -27,12 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v19
-      - name: build shell
-        run: nix build -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell
-      - name: cabal build in shell
-        run: nix develop -L .#devShells.x86_64-linux.${{ matrix.ghc }}-shell -c cabal new-build
       - name: nix build
-        run: nix build -L .#apps.x86_64-linux.calligraphy-${{ matrix.ghc }}
+        run: nix build -L .#apps.x86_64-linux.calligraphyFor.${{ matrix.ghc }}
+      - name: build shell
+        run: nix build -L .#devShells.x86_64-linux.build-shells.${{ matrix.ghc }}
+      - name: cabal build in shell
+        run: nix develop -L .#devShells.x86_64-linux.build-shells.${{ matrix.ghc }} -c cabal new-build
 
   stack-build:
     name: Stack ${{ matrix.resolver }} on ${{ matrix.os }}
