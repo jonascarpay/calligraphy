@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.5
 ### [Added]
 - [#19] [#20] GHC 9.6 support
 
