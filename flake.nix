@@ -33,7 +33,7 @@
 
           pkgs = import inputs.nixpkgs { inherit system; overlays = [ overlay ]; };
 
-          mkApp = hspkgs: pkgs.haskell.lib.compose.justStaticExecutables hspkgs.calligraphy;
+          mkExe = hspkgs: pkgs.haskell.lib.compose.justStaticExecutables hspkgs.calligraphy;
 
           mkBuildShell = hspkgs:
             hspkgs.shellFor {
@@ -58,9 +58,7 @@
         in
         {
           packages.default = pkgs.calligraphy;
-
-          apps.default = pkgs.calligraphy;
-          apps.calligraphyFor = per-compiler mkApp;
+          packages.calligraphyFor = per-compiler mkExe;
 
           devShells.default = mkDevShell pkgs.haskellPackages;
           devShells.build-shells = per-compiler mkBuildShell;
