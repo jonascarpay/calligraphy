@@ -14,6 +14,7 @@ import Calligraphy.Phases.Render.Common
 import Calligraphy.Phases.Render.GraphViz
 import Calligraphy.Phases.Render.Mermaid
 import Calligraphy.Phases.Search
+import Calligraphy.Prelude
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types (ppCallGraph)
 import Data.IORef

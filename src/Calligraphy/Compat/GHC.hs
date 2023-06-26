@@ -44,6 +44,8 @@ module Calligraphy.Compat.GHC
   )
 where
 
+import Calligraphy.Prelude
+
 #if MIN_VERSION_ghc(9,6,0)
 import Language.Haskell.Syntax.Module.Name (moduleNameString, ModuleName)
 #elif MIN_VERSION_ghc(9,0,0)

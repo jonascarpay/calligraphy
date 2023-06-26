@@ -19,10 +19,11 @@ module Calligraphy.Compat.Lib
 where
 
 import qualified Calligraphy.Compat.GHC as GHC
+import Calligraphy.Prelude
 import Calligraphy.Util.Lens
 import Data.IORef
-import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 #if MIN_VERSION_ghc(9,4,0)
 

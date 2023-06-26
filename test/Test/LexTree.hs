@@ -1,10 +1,11 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.LexTree where
 
+import Calligraphy.Prelude
 import Calligraphy.Util.LexTree
 import qualified Data.Foldable as Foldable
 import Data.Maybe (fromMaybe, isJust)

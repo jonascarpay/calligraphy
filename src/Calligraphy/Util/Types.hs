@@ -24,7 +24,7 @@ module Calligraphy.Util.Types
   )
 where
 
-import Prelude hiding (Decl, DeclType, Node)
+import Calligraphy.Prelude hiding (Decl, DeclType, Node)
 import Calligraphy.Util.Lens
 import Calligraphy.Util.Printer
 import Data.Bitraversable (bitraverse)

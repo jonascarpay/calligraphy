@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
-module Prelude 
-  ( module P
-  , module Control.Monad
+module Calligraphy.Prelude
+  ( module Control.Monad
   , module Data.Either
   , module Data.Foldable
   , module Data.List
@@ -11,7 +10,7 @@ module Prelude
   , module GHC.Iface.Ext.Types
   , module GHC.Types.Name.Cache
   , module GHC.Types.SrcLoc
-  , module GHC.Utils.Outputable 
+  , module GHC.Utils.Outputable
 #else
   , module HieBin
   , module HieTypes
@@ -25,8 +24,6 @@ import Data.Either
 import Data.Foldable hiding (toList)
 import Data.List (last, (++), replicate, zip, filter, isPrefixOf)
 import Data.Monoid (Monoid, mempty, mconcat, mappend, Ap(..))
-import qualified BasePrelude as P 
-import BasePrelude
 #if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Ext.Binary
 import GHC.Iface.Ext.Types
