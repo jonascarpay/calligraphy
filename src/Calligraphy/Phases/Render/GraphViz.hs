@@ -9,9 +9,8 @@ module Calligraphy.Phases.Render.GraphViz
   )
 where
 
-import Prelude hiding (DeclType)
-
 import Calligraphy.Phases.Render.Common
+import Calligraphy.Prelude hiding (DeclType)
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import Data.List (intercalate)

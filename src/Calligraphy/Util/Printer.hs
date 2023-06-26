@@ -13,6 +13,7 @@ module Calligraphy.Util.Printer
   )
 where
 
+import Calligraphy.Prelude
 import Control.Monad.RWS
 import Data.Text (Text)
 import qualified Data.Text.Lazy as TL

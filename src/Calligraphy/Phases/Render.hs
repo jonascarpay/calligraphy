@@ -4,6 +4,7 @@
 -- | Rendering takes a callgraph, and produces a dot file
 module Calligraphy.Phases.Render (render, pRenderConfig, RenderConfig (..)) where
 
+import Calligraphy.Prelude
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import qualified Data.EnumSet as EnumSet

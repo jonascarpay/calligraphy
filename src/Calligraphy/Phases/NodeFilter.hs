@@ -13,22 +13,21 @@
 -- This is not actually a huge deal, because no other module actually cares about the node type, but it's something to watch out for.
 -- There's more design discussion on https://github.com/jonascarpay/calligraphy/pull/5
 module Calligraphy.Phases.NodeFilter
-  ( filterNodes
-  , NodeFilterConfig (..)
-  , pNodeFilterConfig
-  ) where
+  ( filterNodes,
+    NodeFilterConfig (..),
+    pNodeFilterConfig,
+  )
+where
 
-import Prelude hiding (Decl)
-
+import Calligraphy.Prelude hiding (Decl)
+import Calligraphy.Util.Types
 import Control.Monad.State
 import Data.EnumMap (EnumMap)
+import qualified Data.EnumMap as EnumMap
 import Data.Maybe (catMaybes)
 import Data.Tree (Tree)
 import qualified Data.Tree as Tree
 import Options.Applicative
-import qualified Data.EnumMap as EnumMap
-
-import Calligraphy.Util.Types
 
 data Mode = Show | Collapse | Hide
   deriving (Eq, Show)

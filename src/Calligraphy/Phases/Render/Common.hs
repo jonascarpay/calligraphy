@@ -16,7 +16,6 @@ module Calligraphy.Phases.Render.Common
   )
 where
 
-import Prelude hiding (Decl, DeclType)
 import Calligraphy.Util.Printer (Prints, strLn)
 import Calligraphy.Util.Types (CallGraph (..), Decl (..), DeclType, GHCKey (unGHCKey), Key (..), Loc (..), Module (..))
 import Control.Applicative ((<|>))

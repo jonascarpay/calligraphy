@@ -8,6 +8,7 @@ module Calligraphy.Compat.Debug
   )
 where
 
+import Calligraphy.Prelude
 import Calligraphy.Util.Printer
 import qualified Data.Map as Map
 

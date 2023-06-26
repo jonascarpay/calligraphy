@@ -11,8 +11,10 @@ module Calligraphy.Phases.DependencyFilter
   )
 where
 
-import Prelude hiding (Decl, DeclType, Node, filter)
-
+import Calligraphy.Prelude hiding (Decl, DeclType, Node, filter)
+import Calligraphy.Util.Optparse (boolFlags)
+import Calligraphy.Util.Printer
+import Calligraphy.Util.Types
 import Control.Monad.State.Strict
 import Data.Bifunctor (bimap)
 import Data.EnumMap (EnumMap)
@@ -29,10 +31,6 @@ import Data.Tree (Tree)
 import qualified Data.Tree as Tree
 import Data.Tuple (swap)
 import Options.Applicative
-
-import Calligraphy.Util.Optparse (boolFlags)
-import Calligraphy.Util.Printer
-import Calligraphy.Util.Types
 
 data DependencyFilterConfig = DependencyFilterConfig
   { _depRoot :: Maybe (NonEmpty String),

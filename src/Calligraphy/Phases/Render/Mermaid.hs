@@ -5,8 +5,8 @@ module Calligraphy.Phases.Render.Mermaid
   )
 where
 
-import Prelude hiding (Node, Decl, DeclType)
 import Calligraphy.Phases.Render.Common
+import Calligraphy.Prelude hiding (Decl, DeclType, Node)
 import Calligraphy.Util.Printer
 import Calligraphy.Util.Types
 import Control.Monad.State (State, execState, modify)

@@ -36,10 +36,6 @@ common common-options
     -Wincomplete-record-updates -Wredundant-constraints
     -fhide-source-paths -Wpartial-fields
 
-  mixins:
-    base (Prelude as BasePrelude),
-    base hiding (Prelude)
-
 library
   import:          common-options
   hs-source-dirs:  src
@@ -58,12 +54,12 @@ library
     Calligraphy.Phases.Render.GraphViz
     Calligraphy.Phases.Render.Mermaid
     Calligraphy.Phases.Search
+    Calligraphy.Prelude
     Calligraphy.Util.Lens
     Calligraphy.Util.LexTree
     Calligraphy.Util.Optparse
     Calligraphy.Util.Printer
     Calligraphy.Util.Types
-    Prelude
 
   build-depends:
     , array

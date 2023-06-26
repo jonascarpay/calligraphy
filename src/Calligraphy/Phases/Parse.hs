@@ -12,8 +12,14 @@ module Calligraphy.Phases.Parse
   )
 where
 
-import Prelude hiding (Decl, DeclType)
-
+import qualified Calligraphy.Compat.GHC as GHC
+import Calligraphy.Compat.Lib (isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, mergeSpans, sourceInfo)
+import qualified Calligraphy.Compat.Lib as GHC
+import Calligraphy.Prelude hiding (Decl, DeclType)
+import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
+import qualified Calligraphy.Util.LexTree as LT
+import Calligraphy.Util.Printer
+import Calligraphy.Util.Types (CallGraph (..), Decl (..), DeclType (..), GHCKey (..), Key (..), Loc (..), Module (..), forT_, forestT, over, rekeyCalls)
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Array (Array)
@@ -32,14 +38,6 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tree (Forest)
 import qualified Data.Tree as Tree
-
-import qualified Calligraphy.Compat.GHC as GHC
-import Calligraphy.Compat.Lib (isDerivingNode, isInlineNode, isInstanceNode, isMinimalNode, isTypeSignatureNode, mergeSpans, sourceInfo)
-import qualified Calligraphy.Compat.Lib as GHC
-import Calligraphy.Util.LexTree (LexTree, TreeError (..), foldLexTree)
-import qualified Calligraphy.Util.LexTree as LT
-import Calligraphy.Util.Printer
-import Calligraphy.Util.Types (GHCKey(..), Loc(..), DeclType(..), Decl(..), Key(..), CallGraph(..), Module(..), rekeyCalls, forestT, over, forT_)
 
 -- | A declaration extracted from the source code.
 --

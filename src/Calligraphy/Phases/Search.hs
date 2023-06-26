@@ -9,6 +9,7 @@ where
 
 import qualified Calligraphy.Compat.GHC as GHC
 import Calligraphy.Compat.Lib
+import Calligraphy.Prelude
 import Control.Applicative
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty, toList)
 import Options.Applicative hiding (str)
