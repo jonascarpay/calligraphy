@@ -23,6 +23,7 @@ import Text.Show (showListWith)
 data GraphVizConfig = GraphVizConfig
   { showChildArrowhead :: Bool,
     clusterGroups :: Bool,
+    leftToRight :: Bool,
     splines :: Bool,
     reverseDependencyRank :: Bool
   }
@@ -32,6 +33,7 @@ pGraphVizConfig =
   GraphVizConfig
     <$> flag False True (long "show-child-arrowhead" <> help "Put an arrowhead at the end of a parent-child edge")
     <*> flag True False (long "no-cluster-trees" <> help "Don't draw definition trees as a cluster.")
+    <*> flag False True (long "left-to-right" <> help "Draw the tree from left to right.")
     <*> flag True False (long "no-splines" <> help "Render arrows as straight lines instead of splines")
     <*> flag False True (long "reverse-dependency-rank" <> help "Make dependencies have lower rank than the dependee, i.e. show dependencies above their parent.")
 
@@ -39,6 +41,7 @@ renderGraphViz :: GraphVizConfig -> Prints RenderGraph
 renderGraphViz GraphVizConfig {..} (RenderGraph roots calls types) = do
   brack "digraph calligraphy {" "}" $ do
     unless splines $ textLn "splines=false;"
+    when leftToRight $ textLn "rankdir=\"RL\";"
     textLn "node [style=filled fillcolor=\"#ffffffcf\"];"
     textLn "graph [outputorder=edgesfirst];"
     case roots of
