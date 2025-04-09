@@ -102,7 +102,7 @@ ppLexTree = foldLexTree (pure ()) $ \ls l decl m r rs -> do
   rs
 
 ghcNameKey :: GHC.Name -> GHCKey
-ghcNameKey = GHCKey . GHC.getKey . GHC.nameUnique
+ghcNameKey = GHCKey . fromIntegral . GHC.getKey . GHC.nameUnique
 
 newtype ParsePhaseDebugInfo = ParsePhaseDebugInfo {modulesLexTrees :: [(String, LexTree Loc RawDecl)]}
 
