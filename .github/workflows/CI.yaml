@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        resolver: [ nightly, lts-20, lts-19, lts-18, lts-17, lts-16, lts-15 ]
+        resolver: [ nightly, lts-23, lts-22, lts-21, lts-20, lts-19, lts-18, lts-17, lts-16, lts-15 ]
         # macos-13 is a workaround for https://github.com/haskell-actions/setup/issues/77
         os: [ macos-13, ubuntu-latest ]
     runs-on: ${{ matrix.os }}
