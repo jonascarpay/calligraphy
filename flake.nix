@@ -1,7 +1,7 @@
 {
   description = "calligraphy";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/release-23.05";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/release-24.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs = inputs:
