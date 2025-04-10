@@ -22,12 +22,14 @@
         let
 
           per-compiler = f: pkgs.lib.genAttrs [
-            "ghc962"
-            "ghc945"
-            "ghc927"
-            "ghc902"
-            "ghc8107"
-            "ghc884"
+            "ghc910"
+            "ghc98"
+            "ghc96"
+            "ghc94"
+            "ghc92"
+            "ghc90"
+            "ghc810"
+            "ghc88"
           ]
             (ghc: f pkgs.haskell.packages.${ghc});
 

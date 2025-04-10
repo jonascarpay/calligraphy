@@ -12,7 +12,7 @@ jobs:
     name: Nix default
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v19
       - run: nix build -L
       - run: nix develop -L -c echo "All good"
@@ -22,10 +22,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc: [ ghc8107, ghc902, ghc927, ghc945, ghc962 ]
+        ghc: [ ghc910, ghc98, ghc96, ghc94, ghc92, ghc90, ghc810, ghc88 ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v19
       - name: nix build
         run: nix build -L .#calligraphyFor.${{ matrix.ghc }}
@@ -43,8 +43,8 @@ jobs:
         os: [ macos-latest, ubuntu-latest ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: haskell/actions/setup@v2
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/setup@v2
         with:
           enable-stack: true
       - run: stack init --resolver ${{ matrix.resolver }}
@@ -57,12 +57,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc: [ '8.8.4', '8.10.7', '9.0.2', '9.2.7', '9.4.5', '9.6.2' ]
+        ghc: [ '8.8.4', '8.10.7', '9.0.2', '9.2.8', '9.4.8', '9.6.6', '9.8.4', '9.10.1' ]
         os: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: haskell/actions/setup@v2
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/setup@v2
         with:
           ghc-version: ${{ matrix.ghc }}
       - uses: actions/cache@v3
