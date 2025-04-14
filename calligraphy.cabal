@@ -1,6 +1,6 @@
 cabal-version:   2.4
 name:            calligraphy
-version:         0.1.6
+version:         0.1.7
 license:         BSD-3-Clause
 build-type:      Simple
 license-file:    LICENSE
@@ -8,7 +8,14 @@ author:          Jonas Carpay
 maintainer:      Jonas Carpay <jonascarpay@gmail.com>
 copyright:       2022 Jonas Carpay
 tested-with:
-  GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.7 || ==9.4.5 || ==9.6.2
+  GHC ==8.8.4
+   || ==8.10.7
+   || ==9.0.2
+   || ==9.2.8
+   || ==9.4.8
+   || ==9.6.6
+   || ==9.8.4
+   || ==9.10.1
 
 extra-doc-files:
   CHANGELOG.md

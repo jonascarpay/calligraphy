@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+### [Added]
+- [#46] GHC 9.8, 9.10 support
+
 ## 0.1.6
 ### [Changed]
 - Internal change; partially undid the Prelude structure implemented in [#22] and [#27], since it was causing issues (see [#32])

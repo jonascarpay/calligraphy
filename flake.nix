@@ -1,7 +1,7 @@
 {
   description = "calligraphy";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/release-23.05";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/release-24.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs = inputs:
@@ -22,12 +22,14 @@
         let
 
           per-compiler = f: pkgs.lib.genAttrs [
-            "ghc962"
-            "ghc945"
-            "ghc927"
-            "ghc902"
-            "ghc8107"
-            "ghc884"
+            "ghc910"
+            "ghc98"
+            "ghc96"
+            "ghc94"
+            "ghc92"
+            "ghc90"
+            "ghc810"
+            "ghc88"
           ]
             (ghc: f pkgs.haskell.packages.${ghc});
 
