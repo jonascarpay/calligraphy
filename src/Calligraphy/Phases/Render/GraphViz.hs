@@ -73,7 +73,7 @@ renderGraphViz GraphVizConfig {..} (RenderGraph roots calls types) = do
     printModule (RenderModule lbl modId trees) =
       brack ("subgraph cluster_module_" <> modId <> " {") "}" $ do
         strLn $ "label=" <> show lbl <> ";"
-        strLn "bgcolor=\"lightgray\""
+        strLn "bgcolor=\"whitesmoke\""
         forM_ trees printTree
 
     printNode :: Prints RenderNode
