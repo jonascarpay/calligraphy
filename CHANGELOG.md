@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+### [Changed]
+- [#49] Make the background of modules tinted.
+
 ## 0.1.7
 ### [Added]
 - [#46] GHC 9.8, 9.10 support
