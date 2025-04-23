@@ -104,11 +104,24 @@ rekeyCalls m =
     mempty
 
 ppCallGraph :: Prints CallGraph
-ppCallGraph (CallGraph modules _ _) = forM_ modules $ \(Module modName modPath forest) -> do
-  strLn $ modName <> " (" <> modPath <> ")"
-  indent $ mapM_ ppTree forest
+ppCallGraph (CallGraph modules calls types) = do
+  forM_ modules $ \(Module modName modPath forest) -> do
+    strLn $ modName <> " (" <> modPath <> ")"
+    indent $ mapM_ ppTree forest
+  let edgeArrows = Set.map showCall calls <> Set.map showType types
+  forM_ edgeArrows strLn
+    where
+      table = makeDeclarationLookupTable (concatMap moduleForest modules)
+      nameOfKey = declName . (EnumMap.!) table
+      showCall (from, to) = nameOfKey from <> " ---> " <> nameOfKey to
+      showType (from, to) = nameOfKey from <> " ···> " <> nameOfKey to
 
 ppTree :: Prints (Tree Decl)
 ppTree (Node (Decl name _key _ghckey _exp typ loc) children) = do
   strLn $ name <> " (" <> show typ <> ", " <> show loc <> ")"
   indent $ mapM_ ppTree children
+
+makeDeclarationLookupTable :: Forest Decl -> EnumMap Key Decl
+makeDeclarationLookupTable = (foldMap . foldMap) makeSingletonMap
+  where
+    makeSingletonMap declaration = EnumMap.singleton (declKey declaration) declaration
