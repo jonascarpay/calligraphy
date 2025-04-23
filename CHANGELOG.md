@@ -6,6 +6,7 @@
 
 ### [Added]
 - [#47] Add landscape layout feature.
+- [#48] Add orthogonal edges feature.
 
 ## 0.1.7
 ### [Added]
