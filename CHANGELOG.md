@@ -3,6 +3,7 @@
 ## Unreleased
 ### [Changed]
 - [#49] Make the background of modules tinted.
+- [#52] Reword the error message if no files are found to instruct the user to build with -fwrite-ide-info
 
 ### [Added]
 - [#47] Add landscape layout feature.

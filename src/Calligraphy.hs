@@ -49,7 +49,7 @@ mainWithConfig AppConfig {..} = do
       debug fp printer = when (fp debugConfig) (printStderr printer)
 
   hieFiles <- searchFiles searchConfig
-  when (null hieFiles) $ die "No files matched your search criteria.."
+  when (null hieFiles) $ die "No .hie files matched your search criteria. Did you build with `-fwrite-ide-info`?"
   debug dumpHieFile $ mapM_ ppHieFile hieFiles
 
   (parsePhaseDebug, cgParsed) <- either (printDie . ppParseError) pure (parseHieFiles hieFiles)
