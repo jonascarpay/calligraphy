@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.8
 ### [Changed]
 - [#49] Make the background of modules tinted.
 - [#52] Reword the error message if no files are found to instruct the user to build with -fwrite-ide-info
