@@ -138,7 +138,7 @@ parseHieFiles files = (\(parsed, (_, keymap)) -> mkCallGraph parsed keymap) <$> 
        in (ParsePhaseDebugInfo debugs, CallGraph mods (rekeyCalls keymap (mconcat calls)) typeEdges)
 
 parseHieFile :: GHC.HieFile -> HieParse ParsedFile
-parseHieFile file@(GHC.HieFile filepath mdl _ _ avails _) = do
+parseHieFile file@GHC.HieFile{hie_hs_file=filepath,hie_module=mdl, hie_exports=avails} = do
   lextree <- either (throwError . TreeError modname filepath) pure $ structure decls
   let calls = resolveCalls (fmap (EnumSet.findMin . rdKeys) lextree)
   forest <- forestT (mkDecl exportKeys) (mkForest lextree)
@@ -205,7 +205,7 @@ data Collect = Collect
 
 -- | Collect declarations, uses, and types in a HIE file
 collect :: GHC.HieFile -> Collect
-collect (GHC.HieFile _ _ typeArr (GHC.HieASTs asts) _ _) = execState (forT_ traverse asts go) (Collect mempty mempty mempty)
+collect GHC.HieFile{hie_types=typeArr, hie_asts=GHC.HieASTs asts} = execState (forT_ traverse asts go) (Collect mempty mempty mempty)
   where
     tellDecl :: GHC.Name -> DeclType -> GHC.RealSrcSpan -> State Collect ()
     tellDecl nm typ spn = modify $ \(Collect decls uses types) -> Collect (decl : decls) uses types

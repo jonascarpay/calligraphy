@@ -38,7 +38,7 @@ import qualified Unique as GHC
 #endif
 
 ppHieFile :: Prints GHC.HieFile
-ppHieFile (GHC.HieFile path (GHC.Module _ mdl) _types (GHC.HieASTs asts) _exps _src) = do
+ppHieFile GHC.HieFile{hie_hs_file=path, hie_module=GHC.Module _ mdl, hie_asts=GHC.HieASTs asts} = do
   strLn "Hie File"
   indent $ do
     strLn "path:"
