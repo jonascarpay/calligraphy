@@ -16,6 +16,8 @@ tested-with:
    || ==9.6.6
    || ==9.8.4
    || ==9.10.1
+   || ==9.12.4
+   || ==9.14.1
 
 extra-doc-files:
   CHANGELOG.md

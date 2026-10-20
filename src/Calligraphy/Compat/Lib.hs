@@ -25,7 +25,14 @@ import Data.IORef
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc(9,14,0)
+
+getHieFiles :: [FilePath] -> IO [HieFile]
+getHieFiles filePaths = do
+  ref <- newIORef =<< GHC.newNameCache
+  forM filePaths (readHieFileWithWarning ref)
+
+#elif MIN_VERSION_ghc(9,4,0)
 
 getHieFiles :: [FilePath] -> IO [HieFile]
 getHieFiles filePaths = do

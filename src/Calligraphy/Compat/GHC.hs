@@ -32,6 +32,9 @@ module Calligraphy.Compat.GHC
     mkSplitUniqSupply,
     moduleName,
     moduleNameString,
+#if MIN_VERSION_ghc(9,14,0)
+    newNameCache,
+#endif
     nameUnique,
     realSrcSpanEnd,
     realSrcSpanStart,
