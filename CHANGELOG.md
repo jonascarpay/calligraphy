@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9
+- [#54](https://github.com/jonascarpay/calligraphy/pull/54) Compatibility with GHC 9.12
+- [#56](https://github.com/jonascarpay/calligraphy/pull/56) Compatibility with GHC 9.12
+
 ## 0.1.8
 ### [Changed]
 - [#49] Make the background of modules tinted.
