@@ -35,7 +35,7 @@ category:        Development, Haskell, Language
 
 source-repository head
   type:     git
-  location: git://github.com/jonascarpay/calligraphy
+  location: https://github.com/jonascarpay/calligraphy
 
 common common-options
   build-depends:    base >=4.9 && <5
