@@ -8,10 +8,7 @@ author:          Jonas Carpay
 maintainer:      Jonas Carpay <jonascarpay@gmail.com>
 copyright:       2022 Jonas Carpay
 tested-with:
-  GHC ==8.8.4
-   || ==8.10.7
-   || ==9.0.2
-   || ==9.2.8
+  GHC ==9.2.8
    || ==9.4.8
    || ==9.6.6
    || ==9.8.4
@@ -27,7 +24,7 @@ synopsis:        HIE-based Haskell call graph and source code visualizer
 description:
   Calligraphy is a Haskell call graph/source code visualizer.
   It works directly on GHC-generated HIE files, giving us features that would otherwise be tricky, like type information and support for generated files.
-  Calligraphy has been tested with all versions of GHC that produce HIE files (starting with GHC 8.8).
+  Calligraphy supports GHC 9.2 and later.
   See the project's github page for more information.
 
 homepage:        https://github.com/jonascarpay/calligraphy#readme
@@ -38,7 +35,7 @@ source-repository head
   location: https://github.com/jonascarpay/calligraphy
 
 common common-options
-  build-depends:    base >=4.9 && <5
+  build-depends:    base >=4.16 && <5
   default-language: Haskell2010
   ghc-options:
     -Wall -Wcompat -Widentities -Wincomplete-uni-patterns

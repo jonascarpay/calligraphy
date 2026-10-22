@@ -74,25 +74,13 @@ readHieFileCompat ref path = do
   nameCache <- readIORef ref
   readHieFile nameCache path
 
-#elif MIN_VERSION_ghc(9,0,0)
+#else
 
 sourceInfo f (Node (SourcedNodeInfo inf) sp children) = (\inf' -> Node (SourcedNodeInfo inf') sp children) <$> Map.alterF (maybe (pure Nothing) (fmap Just . f)) SourceInfo inf
 
 showContextInfo = showSDocUnsafe . ppr
 
 readHieFileCompat ref = readHieFile (NCU (atomicModifyIORef ref))
-
-#else
-
-sourceInfo f (Node inf sp children) = (\inf' -> Node inf' sp children) <$> f inf
-
-showContextInfo = show
-
-readHieFileCompat ref fp = do
-  cache <- readIORef ref
-  (res, cache') <- readHieFile cache fp
-  writeIORef ref cache'
-  pure res
 
 #endif
 
@@ -102,7 +90,6 @@ isInlineNode :: NodeInfo a -> Bool
 isMinimalNode :: NodeInfo a -> Bool
 isDerivingNode :: NodeInfo a -> Bool
 showAnns :: NodeInfo a -> String
-#if MIN_VERSION_ghc(9,2,0)
 
 isInstanceNode (NodeInfo anns _ _) = any (flip Set.member anns) [NodeAnnotation "ClsInstD" "InstDecl", NodeAnnotation "DerivDecl" "DerivDecl"]
 
@@ -117,22 +104,6 @@ isDerivingNode (NodeInfo anns _ _) = Set.member (NodeAnnotation "HsDerivingClaus
 showAnns (NodeInfo anns _ _) = unwords (show . unNodeAnnotation <$> Set.toList anns)
   where
     unNodeAnnotation (NodeAnnotation a b) = (a, b)
-
-#else
-
-isInstanceNode (NodeInfo anns _ _) = any (flip Set.member anns) [("ClsInstD", "InstDecl"), ("DerivDecl", "DerivDecl")]
-
-isTypeSignatureNode (NodeInfo anns _ _) = Set.member ("TypeSig", "Sig") anns
-
-isInlineNode (NodeInfo anns _ _) = Set.member ("InlineSig", "Sig") anns
-
-isMinimalNode (NodeInfo anns _ _) = Set.member ("MinimalSig", "Sig") anns
-
-isDerivingNode (NodeInfo anns _ _) = Set.member ("HsDerivingClause", "HsDerivingClause") anns
-
-showAnns (NodeInfo anns _ _) = unwords (show <$> Set.toList anns)
-
-#endif
 
 mergeSpans :: Span -> Span -> Span
 mergeSpans sp1 sp2 =
