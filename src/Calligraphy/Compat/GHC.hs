@@ -51,26 +51,13 @@ import Calligraphy.Prelude
 
 #if MIN_VERSION_ghc(9,6,0)
 import Language.Haskell.Syntax.Module.Name (moduleNameString, ModuleName)
-#elif MIN_VERSION_ghc(9,0,0)
+#else
 import GHC.Unit.Module.Name (moduleNameString, ModuleName)
 #endif
 
-#if MIN_VERSION_ghc(9,0,0)
 import GHC.Iface.Type
 import GHC.Types.Avail
 import GHC.Types.Name
 import GHC.Types.Unique
 import GHC.Types.Unique.Supply
 import GHC.Unit.Types
-#else
-import Avail
-import GHC
-import HieBin
-import HieTypes
-import IfaceType
-import Name
-import NameCache
-import SrcLoc
-import UniqSupply
-import Unique
-#endif

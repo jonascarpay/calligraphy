@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+### [Removed]
+- Support for GHC 8.8, 8.10 and 9.0. The minimum supported version is now GHC 9.2.
+
 ## 0.1.9
 - [#54](https://github.com/jonascarpay/calligraphy/pull/54) Compatibility with GHC 9.12
 - [#56](https://github.com/jonascarpay/calligraphy/pull/56) Compatibility with GHC 9.12

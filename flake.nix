@@ -27,9 +27,6 @@
             "ghc96"
             "ghc94"
             "ghc92"
-            "ghc90"
-            "ghc810"
-            "ghc88"
           ]
             (ghc: f pkgs.haskell.packages.${ghc});
 
